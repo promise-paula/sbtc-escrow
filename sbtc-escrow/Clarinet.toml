@@ -1,0 +1,25 @@
+[project]
+name = 'sbtc-escrow'
+description = 'Enterprise sBTC Escrow Smart Contract for trustless payments'
+authors = []
+telemetry = true
+cache_dir = './.cache'
+
+[contracts.escrow]
+path = 'contracts/escrow.clar'
+clarity_version = 3
+epoch = 'latest'
+[repl.analysis]
+passes = ['check_checker']
+
+[repl.analysis.lints]
+
+[repl.analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false
+
+[repl.remote_data]
+enabled = true
+api_url = 'https://api.hiro.so'
