@@ -523,3 +523,38 @@
     (ok true)
   )
 )
+
+;; ============================================================================
+;; READ-ONLY FUNCTIONS
+;; ============================================================================
+
+;; Get escrow details
+(define-read-only (get-escrow (escrow-id uint))
+  (map-get? escrows escrow-id)
+)
+
+;; Get escrow count
+(define-read-only (get-escrow-count)
+  (var-get escrow-nonce)
+)
+
+;; Check if escrow exists
+(define-read-only (escrow-exists (escrow-id uint))
+  (is-some (map-get? escrows escrow-id))
+)
+
+;; Check if escrow is expired
+(define-read-only (is-expired (escrow-id uint))
+  (match (map-get? escrows escrow-id)
+    escrow (is-escrow-expired (get expires-at escrow))
+    false
+  )
+)
+
+;; Get escrow status
+(define-read-only (get-status (escrow-id uint))
+  (match (map-get? escrows escrow-id)
+    escrow (ok (get status escrow))
+    ERR_ESCROW_NOT_FOUND
+  )
+)
