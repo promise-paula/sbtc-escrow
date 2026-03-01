@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { cardReveal } from "@/lib/animations";
-import { type Escrow, getTimeRemaining } from "@/lib/mock-data";
+import { EscrowStatus } from "@/lib/stacks-config";
+import { EscrowDisplay, getBlockTimeRemaining, isActiveStatus } from "@/lib/types";
+import { useBlockHeight } from "@/hooks/use-escrow";
 import { StatusBadge, RoleBadge } from "./StatusBadge";
 import { AddressDisplay } from "./AddressDisplay";
 import { AmountDisplay } from "./AmountDisplay";
@@ -8,13 +10,14 @@ import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EscrowCardProps {
-  escrow: Escrow;
+  escrow: EscrowDisplay;
   onClick?: () => void;
 }
 
 export function EscrowCard({ escrow, onClick }: EscrowCardProps) {
-  const timeRemaining = getTimeRemaining(escrow.expiresAt);
-  const isActive = escrow.status === "active" || escrow.status === "pending";
+  const { data: currentBlock = 0 } = useBlockHeight();
+  const timeRemaining = getBlockTimeRemaining(escrow.expiresAt, currentBlock);
+  const isActive = isActiveStatus(escrow.status);
 
   return (
     <motion.div
@@ -28,21 +31,21 @@ export function EscrowCard({ escrow, onClick }: EscrowCardProps) {
       className={cn(
         "group relative rounded-xl border border-border bg-card p-5 cursor-pointer transition-colors",
         "hover:border-primary/30 noise-overlay",
-        escrow.status === "disputed" && "border-error/20"
+        escrow.status === EscrowStatus.DISPUTED && "border-error/20"
       )}
     >
       <div className="relative z-10 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{escrow.id}</span>
-            <RoleBadge role={escrow.userRole} />
+            <span className="font-mono text-sm font-semibold text-foreground">#{escrow.id}</span>
+            {escrow.userRole && <RoleBadge role={escrow.userRole} />}
           </div>
           <StatusBadge status={escrow.status} />
         </div>
 
         {/* Description */}
-        <p className="text-sm text-muted-foreground line-clamp-1">{escrow.description}</p>
+        <p className="text-sm text-muted-foreground line-clamp-1">{escrow.description || "No description"}</p>
 
         {/* Amount */}
         <AmountDisplay amount={escrow.amount} size="md" />
@@ -53,7 +56,7 @@ export function EscrowCard({ escrow, onClick }: EscrowCardProps) {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>{escrow.userRole === "buyer" ? "To:" : "From:"}</span>
               <AddressDisplay
-                address={escrow.userRole === "buyer" ? escrow.sellerAddress : escrow.buyerAddress}
+                address={escrow.userRole === "buyer" ? escrow.seller : escrow.buyer}
                 showExplorer={false}
               />
             </div>

@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Shield, LayoutDashboard, Plus, Activity, Wallet, LogOut, ChevronDown, Menu, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { TestnetIndicator } from "./TestnetBanner";
 import { AnimatePresence } from "framer-motion";
 import { useWallet } from "@/contexts/WalletContext";
 import { truncateAddress } from "@/lib/mock-data";
@@ -109,6 +110,7 @@ export function Navbar() {
           <span className="text-lg font-bold tracking-tight">
             s<span className="text-primary">BTC</span> Escrow
           </span>
+          <TestnetIndicator />
         </Link>
 
         {/* Nav Links — Desktop */}
