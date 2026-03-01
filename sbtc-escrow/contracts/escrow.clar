@@ -290,3 +290,62 @@
     (ok escrow-id)
   )
 )
+
+;; Release funds to seller (called by buyer)
+(define-public (release (escrow-id uint))
+  (let (
+    (escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND))
+    (buyer (get buyer escrow))
+    (seller (get seller escrow))
+    (amount (get amount escrow))
+    (fee (get fee-amount escrow))
+    (status (get status escrow))
+    (seller-stats (ensure-user-stats seller))
+  )
+    (try! (check-is-operational))
+    
+    ;; Only buyer can release
+    (asserts! (is-eq tx-sender buyer) ERR_UNAUTHORIZED)
+    
+    ;; Escrow must be pending
+    (asserts! (is-eq status STATUS_PENDING) ERR_ESCROW_ALREADY_COMPLETED)
+    
+    ;; Escrow must not be expired
+    (asserts! (not (is-escrow-expired (get expires-at escrow))) ERR_ESCROW_EXPIRED)
+    
+    ;; Transfer funds to seller (swap to sbtc-token for production)
+    (try! (as-contract (stx-transfer? amount tx-sender seller)))
+    
+    ;; Transfer fee to platform
+    (if (> fee u0)
+      (try! (as-contract (stx-transfer? fee tx-sender (var-get fee-recipient))))
+      true
+    )
+    
+    ;; Update escrow status
+    (map-set escrows escrow-id (merge escrow {
+      status: STATUS_RELEASED,
+      completed-at: (some stacks-block-height)
+    }))
+    
+    ;; Update statistics (track amounts, not counts)
+    (var-set total-released (+ (var-get total-released) amount))
+    (var-set total-fees-collected (+ (var-get total-fees-collected) fee))
+    
+    ;; Update seller stats
+    (map-set user-stats seller (merge seller-stats {
+      escrows-received: (+ (get escrows-received seller-stats) u1),
+      total-received: (+ (get total-received seller-stats) amount)
+    }))
+    
+    (print {
+      event: "escrow-released",
+      escrow-id: escrow-id,
+      seller: seller,
+      amount: amount,
+      fee: fee
+    })
+    
+    (ok true)
+  )
+)
