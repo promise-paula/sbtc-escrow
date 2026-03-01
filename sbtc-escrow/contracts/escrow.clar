@@ -68,3 +68,79 @@
 (define-data-var total-released uint u0)
 (define-data-var total-refunded uint u0)
 (define-data-var total-disputed uint u0)
+
+;; ============================================================================
+;; DATA MAPS
+;; ============================================================================
+
+;; Escrow storage
+(define-map escrows
+  uint
+  {
+    buyer: principal,
+    seller: principal,
+    amount: uint,
+    fee-amount: uint,
+    description: (string-utf8 256),
+    status: uint,
+    created-at: uint,
+    expires-at: uint,
+    completed-at: (optional uint)
+  }
+)
+
+;; User statistics
+(define-map user-stats
+  principal
+  {
+    escrows-created: uint,
+    escrows-received: uint,
+    total-sent: uint,
+    total-received: uint
+  }
+)
+
+;; ============================================================================
+;; PRIVATE HELPER FUNCTIONS
+;; ============================================================================
+
+;; Calculate platform fee from amount
+(define-private (calculate-fee (amount uint))
+  (/ (* amount (var-get platform-fee-bps)) BPS_DENOMINATOR)
+)
+
+;; Check if contract is operational
+(define-private (is-operational)
+  (not (var-get contract-paused))
+)
+
+;; Check if caller is owner
+(define-private (is-owner)
+  (is-eq tx-sender (var-get contract-owner))
+)
+
+;; Check if escrow is expired
+(define-private (is-escrow-expired (expires-at uint))
+  (> stacks-block-height expires-at)
+)
+
+;; Get next escrow ID
+(define-private (get-next-escrow-id)
+  (let ((current-id (var-get escrow-nonce)))
+    (var-set escrow-nonce (+ current-id u1))
+    (+ current-id u1)
+  )
+)
+
+;; Initialize user stats if not exists
+(define-private (ensure-user-stats (user principal))
+  (match (map-get? user-stats user)
+    existing existing
+    {
+      escrows-created: u0,
+      escrows-received: u0,
+      total-sent: u0,
+      total-received: u0
+    }
+  )
+)
