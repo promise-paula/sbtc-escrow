@@ -558,3 +558,60 @@
     ERR_ESCROW_NOT_FOUND
   )
 )
+
+;; Get user role in escrow
+(define-read-only (get-user-role (escrow-id uint) (user principal))
+  (match (map-get? escrows escrow-id)
+    escrow (if (is-eq user (get buyer escrow))
+      (ok "buyer")
+      (if (is-eq user (get seller escrow))
+        (ok "seller")
+        (ok "none")
+      )
+    )
+    (ok "none")
+  )
+)
+
+;; Get user statistics
+(define-read-only (get-user-stats (user principal))
+  (default-to
+    { escrows-created: u0, escrows-received: u0, total-sent: u0, total-received: u0 }
+    (map-get? user-stats user)
+  )
+)
+
+;; Get platform statistics
+(define-read-only (get-platform-stats)
+  {
+    total-escrows: (var-get total-escrows),
+    total-volume: (var-get total-volume),
+    total-fees-collected: (var-get total-fees-collected),
+    total-released: (var-get total-released),
+    total-refunded: (var-get total-refunded),
+    total-disputed: (var-get total-disputed)
+  }
+)
+
+;; Get contract configuration
+(define-read-only (get-config)
+  {
+    owner: (var-get contract-owner),
+    fee-recipient: (var-get fee-recipient),
+    platform-fee-bps: (var-get platform-fee-bps),
+    is-paused: (var-get contract-paused),
+    min-amount: MIN_AMOUNT,
+    max-amount: MAX_AMOUNT,
+    max-duration: MAX_DURATION
+  }
+)
+
+;; Check if paused
+(define-read-only (is-paused)
+  (var-get contract-paused)
+)
+
+;; Calculate fee for amount
+(define-read-only (calculate-escrow-fee (amount uint))
+  (calculate-fee amount)
+)
