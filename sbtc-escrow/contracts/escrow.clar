@@ -349,3 +349,85 @@
     (ok true)
   )
 )
+
+;; Refund to buyer (called by seller or after expiry)
+(define-public (refund (escrow-id uint))
+  (let (
+    (escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND))
+    (buyer (get buyer escrow))
+    (seller (get seller escrow))
+    (amount (get amount escrow))
+    (fee (get fee-amount escrow))
+    (total-amount (+ amount fee))
+    (status (get status escrow))
+    (expires-at (get expires-at escrow))
+  )
+    (try! (check-is-operational))
+    
+    ;; Escrow must be pending
+    (asserts! (is-eq status STATUS_PENDING) ERR_ESCROW_ALREADY_COMPLETED)
+    
+    ;; Either seller is refunding OR escrow is expired (anyone can trigger)
+    (asserts! 
+      (or 
+        (is-eq tx-sender seller)
+        (is-escrow-expired expires-at)
+      ) 
+      ERR_UNAUTHORIZED
+    )
+    
+    ;; Transfer funds back to buyer (swap to sbtc-token for production)
+    (try! (as-contract (stx-transfer? total-amount tx-sender buyer)))
+    
+    ;; Update escrow status
+    (map-set escrows escrow-id (merge escrow {
+      status: STATUS_REFUNDED,
+      completed-at: (some stacks-block-height)
+    }))
+    
+    ;; Update statistics (track amounts, not counts)
+    (var-set total-refunded (+ (var-get total-refunded) total-amount))
+    
+    (print {
+      event: "escrow-refunded",
+      escrow-id: escrow-id,
+      buyer: buyer,
+      amount: total-amount
+    })
+    
+    (ok true)
+  )
+)
+
+;; Raise a dispute (called by either party)
+(define-public (dispute (escrow-id uint))
+  (let (
+    (escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND))
+    (buyer (get buyer escrow))
+    (seller (get seller escrow))
+    (status (get status escrow))
+  )
+    ;; Only buyer or seller can dispute
+    (asserts! 
+      (or (is-eq tx-sender buyer) (is-eq tx-sender seller)) 
+      ERR_UNAUTHORIZED
+    )
+    
+    ;; Escrow must be pending
+    (asserts! (is-eq status STATUS_PENDING) ERR_ESCROW_ALREADY_COMPLETED)
+    
+    ;; Update status to disputed
+    (map-set escrows escrow-id (merge escrow { status: STATUS_DISPUTED }))
+    
+    ;; Update statistics
+    (var-set total-disputed (+ (var-get total-disputed) u1))
+    
+    (print {
+      event: "escrow-disputed",
+      escrow-id: escrow-id,
+      disputed-by: tx-sender
+    })
+    
+    (ok true)
+  )
+)
