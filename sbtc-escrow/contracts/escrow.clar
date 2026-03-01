@@ -211,3 +211,82 @@
     (ok true)
   )
 )
+
+;; Update platform fee (max 5%)
+(define-public (set-platform-fee (fee-bps uint))
+  (begin
+    (try! (check-is-owner))
+    (asserts! (<= fee-bps u500) ERR_INVALID_AMOUNT) ;; Max 5%
+    (var-set platform-fee-bps fee-bps)
+    (print { event: "platform-fee-updated", fee-bps: fee-bps })
+    (ok true)
+  )
+)
+
+;; ============================================================================
+;; ESCROW FUNCTIONS
+;; ============================================================================
+
+;; Create a new escrow - Buyer deposits funds
+(define-public (create-escrow
+  (seller principal)
+  (amount uint)
+  (description (string-utf8 256))
+  (duration uint)
+)
+  (let (
+    (buyer tx-sender)
+    (escrow-id (get-next-escrow-id))
+    (fee (calculate-fee amount))
+    (total-amount (+ amount fee))
+    (expires-at (+ stacks-block-height duration))
+    (buyer-stats (ensure-user-stats buyer))
+  )
+    (try! (check-is-operational))
+    
+    ;; Validations
+    (asserts! (not (is-eq buyer seller)) ERR_SELF_ESCROW)
+    (asserts! (>= amount MIN_AMOUNT) ERR_INVALID_AMOUNT)
+    (asserts! (<= amount MAX_AMOUNT) ERR_INVALID_AMOUNT)
+    (asserts! (> duration u0) ERR_INVALID_DURATION)
+    (asserts! (<= duration MAX_DURATION) ERR_INVALID_DURATION)
+    
+    ;; Transfer STX from buyer to contract (swap to sbtc-token for production)
+    (try! (stx-transfer? total-amount buyer (as-contract tx-sender)))
+    
+    ;; Create escrow record
+    (map-set escrows escrow-id {
+      buyer: buyer,
+      seller: seller,
+      amount: amount,
+      fee-amount: fee,
+      description: description,
+      status: STATUS_PENDING,
+      created-at: stacks-block-height,
+      expires-at: expires-at,
+      completed-at: none
+    })
+    
+    ;; Update statistics
+    (var-set total-escrows (+ (var-get total-escrows) u1))
+    (var-set total-volume (+ (var-get total-volume) amount))
+    
+    ;; Update user stats
+    (map-set user-stats buyer (merge buyer-stats {
+      escrows-created: (+ (get escrows-created buyer-stats) u1),
+      total-sent: (+ (get total-sent buyer-stats) total-amount)
+    }))
+    
+    (print {
+      event: "escrow-created",
+      escrow-id: escrow-id,
+      buyer: buyer,
+      seller: seller,
+      amount: amount,
+      fee: fee,
+      expires-at: expires-at
+    })
+    
+    (ok escrow-id)
+  )
+)
