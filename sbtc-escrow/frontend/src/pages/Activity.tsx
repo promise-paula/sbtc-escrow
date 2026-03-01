@@ -5,28 +5,52 @@ import { motion } from "framer-motion";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { staggerContainer, staggerChild } from "@/lib/animations";
 import { StatusBadge, RoleBadge } from "@/components/escrow/StatusBadge";
-import { MOCK_ESCROWS, formatStxAmount, type EscrowStatus } from "@/lib/mock-data";
-import { TimeDisplay } from "@/components/escrow/TimeDisplay";
-import { Activity as ActivityIcon, Filter } from "lucide-react";
+import { useAllEscrows } from "@/hooks/use-escrow";
+import { useWallet } from "@/contexts/WalletContext";
+import { EscrowStatus } from "@/lib/stacks-config";
+import { Activity as ActivityIcon, Filter, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSimulatedLoading } from "@/hooks/use-simulated-loading";
 import { SkeletonActivityRow } from "@/components/states/EmptyAndLoading";
 
-const FILTERS: { value: EscrowStatus | "all"; label: string }[] = [
+type FilterValue = 'all' | EscrowStatus;
+
+const FILTERS: { value: FilterValue; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "pending", label: "Pending" },
-  { value: "released", label: "Released" },
-  { value: "disputed", label: "Disputed" },
-  { value: "refunded", label: "Refunded" },
+  { value: EscrowStatus.PENDING, label: "Pending" },
+  { value: EscrowStatus.RELEASED, label: "Released" },
+  { value: EscrowStatus.DISPUTED, label: "Disputed" },
+  { value: EscrowStatus.REFUNDED, label: "Refunded" },
 ];
 
+// Format relative time
+function formatTimeAgo(blockHeight: bigint | number, currentBlock?: number): string {
+  // Without current block context, show block number
+  if (!currentBlock) {
+    return `Block ${Number(blockHeight).toLocaleString()}`;
+  }
+  const blocksAgo = currentBlock - Number(blockHeight);
+  if (blocksAgo < 0) return 'Pending';
+  const daysAgo = Math.floor(blocksAgo / 144); // ~144 blocks per day
+  if (daysAgo === 0) return 'Today';
+  if (daysAgo === 1) return '1d ago';
+  return `${daysAgo}d ago`;
+}
+
 export default function ActivityPage() {
-  const [filter, setFilter] = useState<EscrowStatus | "all">("all");
-  const isLoading = useSimulatedLoading();
+  const [filter, setFilter] = useState<FilterValue>("all");
+  const { data: escrows = [], isLoading, error } = useAllEscrows();
+  const { address } = useWallet();
   useDocumentHead({ title: "Activity | sBTC Escrow", description: "All escrow transactions and history." });
 
-  const filtered = MOCK_ESCROWS.filter((e) => filter === "all" || e.status === filter);
+  const filtered = escrows.filter((e) => filter === "all" || e.status === filter);
+
+  // Get user role for an escrow
+  const getUserRole = (escrow: { buyer: string; seller: string }): 'buyer' | 'seller' | undefined => {
+    if (!address) return undefined;
+    if (escrow.buyer === address) return 'buyer';
+    if (escrow.seller === address) return 'seller';
+    return undefined;
+  };
 
   return (
     <PageTransition>
@@ -59,6 +83,14 @@ export default function ActivityPage() {
           ))}
         </div>
 
+        {/* Error State */}
+        {error && (
+          <div className="mb-6 p-4 rounded-lg bg-error/10 border border-error/20 text-error flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            <span>Failed to load activity. Please try again.</span>
+          </div>
+        )}
+
         {/* Table */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           {/* Header */}
@@ -68,7 +100,7 @@ export default function ActivityPage() {
             <div className="col-span-2 text-right">Amount</div>
             <div className="col-span-1 text-center">Role</div>
             <div className="col-span-2 text-center">Status</div>
-            <div className="col-span-2 text-right">Time</div>
+            <div className="col-span-2 text-right">Expires</div>
           </div>
 
           {/* Rows */}
@@ -78,21 +110,28 @@ export default function ActivityPage() {
             ))
           ) : (
             <motion.div variants={staggerContainer} initial="initial" animate="animate">
-              {filtered.map((escrow) => (
-                <motion.div key={escrow.id} variants={staggerChild}>
-                  <Link
-                    to={`/escrow/${escrow.id}`}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 px-5 py-4 border-b border-border last:border-0 hover:bg-surface-1 transition-colors"
-                  >
-                    <div className="sm:col-span-2 font-mono text-sm font-semibold">{escrow.id}</div>
-                    <div className="sm:col-span-3 text-sm text-muted-foreground truncate">{escrow.description}</div>
-                    <div className="sm:col-span-2 text-sm font-mono text-right">{formatStxAmount(escrow.amount)} STX</div>
-                    <div className="sm:col-span-1 flex justify-center"><RoleBadge role={escrow.userRole} /></div>
-                    <div className="sm:col-span-2 flex justify-center"><StatusBadge status={escrow.status} /></div>
-                    <div className="sm:col-span-2 text-sm text-muted-foreground text-right"><TimeDisplay date={escrow.createdAt} /></div>
-                  </Link>
-                </motion.div>
-              ))}
+              {filtered.map((escrow) => {
+                const role = getUserRole(escrow);
+                return (
+                  <motion.div key={escrow.id} variants={staggerChild}>
+                    <Link
+                      to={`/escrow/${escrow.id}`}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 px-5 py-4 border-b border-border last:border-0 hover:bg-surface-1 transition-colors"
+                    >
+                      <div className="sm:col-span-2 font-mono text-sm font-semibold">ESC-{String(escrow.id).padStart(3, '0')}</div>
+                      <div className="sm:col-span-3 text-sm text-muted-foreground truncate">{escrow.description || 'No description'}</div>
+                      <div className="sm:col-span-2 text-sm font-mono text-right">{escrow.amountStx.toLocaleString()} STX</div>
+                      <div className="sm:col-span-1 flex justify-center">
+                        {role ? <RoleBadge role={role} /> : <span className="text-xs text-muted-foreground">-</span>}
+                      </div>
+                      <div className="sm:col-span-2 flex justify-center"><StatusBadge status={escrow.status} /></div>
+                      <div className="sm:col-span-2 text-sm text-muted-foreground text-right font-mono">
+                        {Number(escrow.expiresAt).toLocaleString()}
+                      </div>
+                    </Link>
+                  </motion.div>
+                );
+              })}
 
               {filtered.length === 0 && (
                 <div className="px-5 py-12 text-center text-sm text-muted-foreground">

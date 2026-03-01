@@ -9,7 +9,8 @@ import { GradientDivider } from "@/components/landing/GradientDivider";
 import { Footer } from "@/components/landing/Footer";
 import { TestimonialCard } from "@/components/landing/TestimonialCard";
 import { useWallet } from "@/contexts/WalletContext";
-import { PLATFORM_STATS, formatStxAmount } from "@/lib/mock-data";
+import { usePlatformStats } from "@/hooks/use-escrow";
+import { microStxToStx } from "@/lib/stacks-config";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { Shield, Lock, Zap, Users, ArrowRight, Wallet, FilePlus, LockKeyhole, CheckCircle } from "lucide-react";
 
@@ -28,7 +29,26 @@ const HOW_IT_WORKS = [
 export default function Landing() {
   const { isConnected, connect } = useWallet();
   const location = useLocation();
+  const { data: platformStats } = usePlatformStats();
   useDocumentHead({ title: "sBTC Escrow — Secure Bitcoin-Backed Escrow", description: "Enterprise-grade escrow platform powered by sBTC. Secure, trustless transactions backed by Bitcoin." });
+
+  // Calculate stats from contract data
+  const totalVolume = platformStats ? microStxToStx(platformStats.totalVolume) : 0;
+  const activeEscrows = platformStats ? Number(platformStats.activeEscrows) : 0;
+  const completedEscrows = platformStats 
+    ? Number(platformStats.totalReleased) + Number(platformStats.totalRefunded) 
+    : 0;
+  const totalEscrows = platformStats ? Number(platformStats.totalEscrows) : 0;
+  const successRate = totalEscrows > 0 
+    ? ((Number(platformStats?.totalReleased ?? 0) / totalEscrows) * 100).toFixed(1)
+    : '0.0';
+
+  // Format large numbers
+  const formatVolume = (amount: number): string => {
+    if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
+    if (amount >= 1_000) return `${(amount / 1_000).toFixed(0)}K`;
+    return amount.toLocaleString();
+  };
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -116,10 +136,10 @@ export default function Landing() {
               className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border"
             >
               {[
-                { label: "Total Volume", value: `${formatStxAmount(PLATFORM_STATS.totalVolume)} STX` },
-                { label: "Active Escrows", value: String(PLATFORM_STATS.activeEscrows) },
-                { label: "Completed", value: String(PLATFORM_STATS.completedEscrows) },
-                { label: "Success Rate", value: `${PLATFORM_STATS.successRate}%` },
+                { label: "Total Volume", value: `${formatVolume(totalVolume)} STX` },
+                { label: "Active Escrows", value: String(activeEscrows) },
+                { label: "Completed", value: String(completedEscrows) },
+                { label: "Success Rate", value: `${successRate}%` },
               ].map((stat) => (
                 <motion.div key={stat.label} variants={staggerChild} className="px-6 py-8 text-center">
                   <p className="text-2xl font-bold font-mono tracking-tight">{stat.value}</p>

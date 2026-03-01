@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { fadeInUp } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 interface EmptyStateProps {
   icon: React.ReactNode;
@@ -19,6 +20,25 @@ export function EmptyState({ icon, title, description, action, className }: Empt
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground max-w-sm mb-6">{description}</p>
       {action}
+    </motion.div>
+  );
+}
+
+interface LoadingStateProps {
+  message?: string;
+  className?: string;
+}
+
+export function LoadingState({ message = "Loading...", className }: LoadingStateProps) {
+  return (
+    <motion.div 
+      variants={fadeInUp} 
+      initial="initial" 
+      animate="animate" 
+      className={cn("flex flex-col items-center justify-center py-16 text-center", className)}
+    >
+      <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+      <p className="text-sm text-muted-foreground">{message}</p>
     </motion.div>
   );
 }

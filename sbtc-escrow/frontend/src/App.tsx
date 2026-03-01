@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import { WalletProvider } from "@/contexts/WalletContext";
 import { Navbar, MobileNav } from "@/components/layout/Navbar";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
+import { TestnetBanner } from "@/components/layout/TestnetBanner";
 import { FullPageLoader } from "@/components/states/FullPageLoader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSimulatedLoading } from "@/hooks/use-simulated-loading";
@@ -29,6 +30,7 @@ function AppContent() {
       <a href="#main-content" className="skip-to-content">Skip to main content</a>
       <AnimatePresence>{isLoading && <FullPageLoader />}</AnimatePresence>
       <ScrollToTop />
+      <TestnetBanner />
       <Navbar />
       <main id="main-content">
         <AnimatePresence mode="wait">

@@ -8,22 +8,30 @@ import { EscrowCard } from "@/components/escrow/EscrowCard";
 import { StatsCard } from "@/components/escrow/StatsCard";
 import { EmptyState, SkeletonCard, SkeletonStatsCard } from "@/components/states/EmptyAndLoading";
 import { useWallet } from "@/contexts/WalletContext";
-import { MOCK_ESCROWS, PLATFORM_STATS } from "@/lib/mock-data";
-import { LayoutDashboard, TrendingUp, CheckCircle2, ArrowUpDown, Wallet, Plus, Inbox } from "lucide-react";
+import { useUserEscrows, useDashboardStats, usePlatformStats } from "@/hooks/use-escrow";
+import { EscrowStatus, microStxToStx, STX_PRICE_USD } from "@/lib/stacks-config";
+import { toEscrowDisplay } from "@/lib/types";
+import { LayoutDashboard, TrendingUp, CheckCircle2, ArrowUpDown, Wallet, Plus, Inbox, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { useSimulatedLoading } from "@/hooks/use-simulated-loading";
 
 type Filter = "all" | "buyer" | "seller";
 
 export default function Dashboard() {
-  const { isConnected, connect } = useWallet();
+  const { isConnected, isConnecting, connect, address, error: walletError } = useWallet();
   const [filter, setFilter] = useState<Filter>("all");
   const navigate = useNavigate();
-  const isLoading = useSimulatedLoading();
+  
+  const { data: escrows = [], isLoading, error: escrowError } = useUserEscrows();
+  const { data: platformStats } = usePlatformStats();
+  const dashboardStats = useDashboardStats();
+  
   useDocumentHead({ title: "Dashboard | sBTC Escrow", description: "Manage your active escrows and transactions." });
 
-  const filtered = MOCK_ESCROWS.filter((e) => {
+  // Convert escrows to display format
+  const displayEscrows = escrows.map(e => toEscrowDisplay(e, address ?? undefined));
+  
+  const filtered = displayEscrows.filter((e) => {
     if (filter === "all") return true;
     return e.userRole === filter;
   });
@@ -41,12 +49,20 @@ export default function Dashboard() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={connect}
-                className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground"
+                disabled={isConnecting}
+                className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
-                <Wallet className="h-4 w-4" /> Connect Wallet
+                <Wallet className="h-4 w-4" /> 
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
               </motion.button>
             }
           />
+          {walletError && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-error justify-center">
+              <AlertCircle className="h-4 w-4" />
+              {walletError}
+            </div>
+          )}
         </div>
       </PageTransition>
     );
@@ -84,10 +100,32 @@ export default function Dashboard() {
           </div>
         ) : (
           <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-            <StatsCard label="Total Volume" value={PLATFORM_STATS.totalVolume} usdValue={PLATFORM_STATS.totalVolumeUsd} change={12.5} suffix="STX" icon={<TrendingUp className="h-4 w-4" />} />
-            <StatsCard label="Active Escrows" value={PLATFORM_STATS.activeEscrows} change={8.3} icon={<ArrowUpDown className="h-4 w-4" />} />
-            <StatsCard label="Completed" value={PLATFORM_STATS.completedEscrows} change={15.2} icon={<CheckCircle2 className="h-4 w-4" />} />
+            <StatsCard 
+              label="Total Sent" 
+              value={dashboardStats.totalSent} 
+              usdValue={dashboardStats.totalSent * STX_PRICE_USD} 
+              suffix="STX" 
+              icon={<TrendingUp className="h-4 w-4" />} 
+            />
+            <StatsCard 
+              label="Active Escrows" 
+              value={dashboardStats.activeCount} 
+              icon={<ArrowUpDown className="h-4 w-4" />} 
+            />
+            <StatsCard 
+              label="Completed" 
+              value={dashboardStats.completedCount} 
+              icon={<CheckCircle2 className="h-4 w-4" />} 
+            />
           </motion.div>
+        )}
+
+        {/* Error State */}
+        {escrowError && (
+          <div className="mb-6 p-4 rounded-lg bg-error/10 border border-error/20 text-error flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            <span>Failed to load escrows. Please try again.</span>
+          </div>
         )}
 
         {/* Filters */}
