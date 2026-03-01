@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { staggerContainer, staggerChild } from "@/lib/animations";
 import { useWallet } from "@/contexts/WalletContext";
+import { useCreateEscrow } from "@/hooks/use-escrow";
 import { STX_PRICE_USD, formatUsdAmount } from "@/lib/mock-data";
 import { SuccessModal } from "@/components/modals/Modals";
 import { EmptyState } from "@/components/states/EmptyAndLoading";
@@ -12,6 +12,11 @@ import { GlassCard } from "@/components/escrow/GlassCard";
 import { TransactionPending } from "@/components/escrow/TransactionPending";
 import { Plus, Wallet, ArrowLeft, ArrowRight, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Validate Stacks testnet address (ST prefix)
+function isValidStacksAddress(address: string): boolean {
+  return /^ST[0-9A-Z]{39,40}$/i.test(address);
+}
 
 interface FormData {
   sellerAddress: string;
@@ -29,10 +34,11 @@ const DURATIONS = [
 
 export default function CreateEscrow() {
   const { isConnected, connect } = useWallet();
+  const createEscrowMutation = useCreateEscrow();
   useDocumentHead({ title: "Create Escrow | sBTC Escrow", description: "Set up a new escrow transaction." });
   const [step, setStep] = useState<"form" | "review">("form");
-  const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [txId, setTxId] = useState<string>("");
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [form, setForm] = useState<FormData>({
     sellerAddress: "",
@@ -42,10 +48,13 @@ export default function CreateEscrow() {
   });
 
   const usdPreview = form.amount ? formatUsdAmount(parseFloat(form.amount) * STX_PRICE_USD) : "$0";
+  const loading = createEscrowMutation.isPending;
 
   const validate = (): boolean => {
     const errs: Partial<Record<keyof FormData, string>> = {};
-    if (!form.sellerAddress || !form.sellerAddress.startsWith("SP")) errs.sellerAddress = "Enter a valid Stacks address";
+    if (!form.sellerAddress || !isValidStacksAddress(form.sellerAddress)) {
+      errs.sellerAddress = "Enter a valid Stacks testnet address (ST...)";
+    }
     if (!form.amount || parseFloat(form.amount) <= 0) errs.amount = "Enter a valid amount";
     if (!form.description.trim()) errs.description = "Description is required";
     setErrors(errs);
@@ -56,17 +65,19 @@ export default function CreateEscrow() {
     if (validate()) setStep("review");
   };
 
-  const generatedId = `ESC-${String(Math.floor(Math.random() * 900) + 100)}`;
-
-  const handleSubmit = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setShowSuccess(true);
-      toast.success("Escrow Created", {
-        description: `${generatedId} is now active — ${parseFloat(form.amount).toLocaleString()} STX`,
+  const handleSubmit = async () => {
+    try {
+      const result = await createEscrowMutation.mutateAsync({
+        sellerAddress: form.sellerAddress,
+        amountStx: parseFloat(form.amount),
+        description: form.description,
       });
-    }, 2000);
+      setTxId(result.txid);
+      setShowSuccess(true);
+    } catch (error) {
+      // Error is handled by the mutation hook
+      console.error('Failed to create escrow:', error);
+    }
   };
 
   if (!isConnected) {
@@ -241,9 +252,9 @@ export default function CreateEscrow() {
             <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6">
               <GlassCard>
                 <TransactionPending
-                  txId="0xabc123def456789..."
+                  txId={txId || "Waiting for wallet..."}
                   message="Creating escrow..."
-                  estimatedTime="~2 min remaining"
+                  estimatedTime="Confirm in wallet"
                 />
               </GlassCard>
             </motion.div>
@@ -252,9 +263,15 @@ export default function CreateEscrow() {
 
         <SuccessModal
           open={showSuccess}
-          onClose={() => setShowSuccess(false)}
-          escrowId={generatedId}
-          txId="0xabc123def456"
+          onClose={() => {
+            setShowSuccess(false);
+            // Reset form after successful creation
+            setForm({ sellerAddress: "", amount: "", duration: "1008", description: "" });
+            setStep("form");
+            setTxId("");
+          }}
+          escrowId="View on Explorer"
+          txId={txId}
         />
       </div>
     </PageTransition>

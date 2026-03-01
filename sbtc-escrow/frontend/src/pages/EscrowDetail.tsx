@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useDocumentHead } from "@/hooks/use-document-head";
-import { toast } from "sonner";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { PageTransition } from "@/components/layout/PageTransition";
@@ -10,64 +9,106 @@ import { AddressDisplay } from "@/components/escrow/AddressDisplay";
 import { AmountDisplay } from "@/components/escrow/AmountDisplay";
 import { GlassCard } from "@/components/escrow/GlassCard";
 import { ConfirmationModal } from "@/components/modals/Modals";
-import { MOCK_ESCROWS, getTimeRemaining } from "@/lib/mock-data";
-import { TimeDisplay } from "@/components/escrow/TimeDisplay";
+import { LoadingState } from "@/components/states/EmptyAndLoading";
+import { useEscrow, useReleaseEscrow, useRefundEscrow, useDisputeEscrow, useBlockHeight, useUserRole } from "@/hooks/use-escrow";
+import { useWallet } from "@/contexts/WalletContext";
+import { EscrowStatus, microStxToStx, truncateAddress } from "@/lib/stacks-config";
+import { getBlockTimeRemaining } from "@/lib/types";
 import { ArrowLeft, Clock, ExternalLink, CheckCircle2, AlertTriangle, RotateCcw, FileText, Zap, Shield, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const eventIcons: Record<string, React.ReactNode> = {
-  created: <FileText className="h-3.5 w-3.5" />,
-  funded: <Zap className="h-3.5 w-3.5" />,
-  released: <CheckCircle2 className="h-3.5 w-3.5" />,
-  disputed: <AlertTriangle className="h-3.5 w-3.5" />,
-  refunded: <RotateCcw className="h-3.5 w-3.5" />,
-  expired: <Ban className="h-3.5 w-3.5" />,
+const getStatusLabel = (status: EscrowStatus): string => {
+  switch (status) {
+    case EscrowStatus.PENDING: return 'Pending';
+    case EscrowStatus.RELEASED: return 'Released';
+    case EscrowStatus.REFUNDED: return 'Refunded';
+    case EscrowStatus.DISPUTED: return 'Disputed';
+    default: return 'Unknown';
+  }
 };
 
 export default function EscrowDetail() {
   const { id } = useParams<{ id: string }>();
-  const escrow = MOCK_ESCROWS.find((e) => e.id === id);
-  const [modal, setModal] = useState<"release" | "dispute" | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
-  useDocumentHead({ title: escrow ? `${escrow.id} | sBTC Escrow` : "Escrow Not Found | sBTC Escrow", description: "View escrow details and transaction history." });
+  const escrowId = id ? parseInt(id, 10) : undefined;
+  const { data: escrow, isLoading, error } = useEscrow(escrowId);
+  const { data: currentBlock = 0 } = useBlockHeight();
+  const { address } = useWallet();
+  
+  const releaseMutation = useReleaseEscrow();
+  const refundMutation = useRefundEscrow();
+  const disputeMutation = useDisputeEscrow();
+  
+  const [modal, setModal] = useState<"release" | "dispute" | "refund" | null>(null);
+  
+  const userRole = escrow && address 
+    ? (escrow.buyer === address ? 'buyer' : escrow.seller === address ? 'seller' : 'observer')
+    : 'observer';
+  
+  useDocumentHead({ 
+    title: escrow ? `Escrow #${escrowId} | sBTC Escrow` : "Escrow Not Found | sBTC Escrow", 
+    description: "View escrow details and transaction history." 
+  });
 
-  if (!escrow) {
+  if (isLoading) {
+    return (
+      <PageTransition>
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 py-24">
+          <LoadingState message="Loading escrow details..." />
+        </div>
+      </PageTransition>
+    );
+  }
+
+  if (error || !escrow) {
     return (
       <PageTransition>
         <div className="mx-auto max-w-4xl px-4 sm:px-6 py-24 text-center">
           <h1 className="text-heading mb-2">Escrow Not Found</h1>
-          <p className="text-muted-foreground mb-6">The escrow you're looking for doesn't exist.</p>
+          <p className="text-muted-foreground mb-6">
+            {error ? 'Failed to load escrow details.' : "The escrow you're looking for doesn't exist."}
+          </p>
           <Link to="/dashboard" className="text-primary hover:underline text-sm">← Back to Dashboard</Link>
         </div>
       </PageTransition>
     );
   }
 
-  const isActive = escrow.status === "active";
-  const isBuyer = escrow.userRole === "buyer";
+  const isActive = escrow.status === EscrowStatus.PENDING;
+  const isBuyer = userRole === "buyer";
+  const isSeller = userRole === "seller";
+  const amountStx = microStxToStx(escrow.amount);
+  const timeRemaining = getBlockTimeRemaining(Number(escrow.expiresAt), currentBlock);
+  const isExpired = currentBlock >= Number(escrow.expiresAt);
+  const actionLoading = releaseMutation.isPending || refundMutation.isPending || disputeMutation.isPending;
 
-  const handleAction = () => {
-    setActionLoading(true);
-    const currentModal = modal;
-    setTimeout(() => {
-      setActionLoading(false);
+  const handleRelease = async () => {
+    if (!escrowId) return;
+    try {
+      await releaseMutation.mutateAsync(escrowId);
       setModal(null);
-      if (currentModal === "release") {
-        toast.success("Funds Released", {
-          description: `${escrow.amount.toLocaleString()} STX sent to seller`,
-        });
-      } else if (currentModal === "dispute") {
-        toast.error("Dispute Filed", {
-          description: "Arbitration process initiated",
-        });
-      }
-    }, 1500);
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleRefund = () => {
-    toast.success("Escrow Refunded", {
-      description: `${escrow.amount.toLocaleString()} STX returned to buyer`,
-    });
+  const handleRefund = async () => {
+    if (!escrowId) return;
+    try {
+      await refundMutation.mutateAsync(escrowId);
+      setModal(null);
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleDispute = async () => {
+    if (!escrowId) return;
+    try {
+      await disputeMutation.mutateAsync(escrowId);
+      setModal(null);
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
   return (
@@ -82,21 +123,23 @@ export default function EscrowDetail() {
           {/* Header */}
           <motion.div variants={staggerChild} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <h1 className="text-heading font-mono">{escrow.id}</h1>
+              <h1 className="text-heading font-mono">Escrow #{escrowId}</h1>
               <StatusBadge status={escrow.status} />
-              <RoleBadge role={escrow.userRole} />
+              <RoleBadge role={userRole} />
             </div>
             {isActive && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                {getTimeRemaining(escrow.expiresAt)}
+                {isExpired ? 'Expired' : timeRemaining}
               </div>
             )}
           </motion.div>
 
           {/* Description */}
           <motion.div variants={staggerChild}>
-            <p className="text-muted-foreground">{escrow.description}</p>
+            <p className="text-muted-foreground">
+              Escrow between {truncateAddress(escrow.buyer)} (buyer) and {truncateAddress(escrow.seller)} (seller)
+            </p>
           </motion.div>
 
           {/* Main Grid */}
@@ -111,54 +154,47 @@ export default function EscrowDetail() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-start py-2 border-b border-border">
                     <span className="text-sm text-muted-foreground">Amount</span>
-                    <AmountDisplay amount={escrow.amount} size="md" />
+                    <AmountDisplay amount={amountStx} size="md" />
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-border">
                     <span className="text-sm text-muted-foreground">Buyer</span>
-                    <AddressDisplay address={escrow.buyerAddress} />
+                    <AddressDisplay address={escrow.buyer} />
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-border">
                     <span className="text-sm text-muted-foreground">Seller</span>
-                    <AddressDisplay address={escrow.sellerAddress} />
+                    <AddressDisplay address={escrow.seller} />
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-sm text-muted-foreground">Release Block</span>
+                    <span className="text-sm font-mono">{Number(escrow.expiresAt).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-muted-foreground">Created</span>
-                    <span className="text-sm">{escrow.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <span className="text-sm">{getStatusLabel(escrow.status)}</span>
                   </div>
                 </div>
               </GlassCard>
 
-              {/* Timeline */}
-              <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="text-sm font-semibold mb-4">Activity Timeline</h3>
-                <div className="space-y-0">
-                  {escrow.events.map((event, i) => (
-                    <div key={event.id} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full border",
-                          event.type === "released" ? "border-success/30 bg-success/10 text-success" :
-                          event.type === "disputed" ? "border-error/30 bg-error/10 text-error" :
-                          event.type === "refunded" ? "border-info/30 bg-info/10 text-info" :
-                          "border-border bg-surface-2 text-muted-foreground"
-                        )}>
-                          {eventIcons[event.type]}
-                        </div>
-                        {i < escrow.events.length - 1 && <div className="w-px flex-1 bg-border my-1" />}
-                      </div>
-                      <div className="pb-6">
-                        <p className="text-sm font-medium">{event.description}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5"><TimeDisplay date={event.timestamp} /></p>
-                        {event.txId && (
-                          <a href={`https://explorer.stacks.co/txid/${event.txId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1">
-                            {event.txId.slice(0, 10)}... <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              {/* Current Block Info */}
+              <GlassCard>
+                <h3 className="text-sm font-semibold mb-4">Block Info</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Current Block</span>
+                    <span className="text-sm font-mono">{currentBlock.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Release Block</span>
+                    <span className="text-sm font-mono">{Number(escrow.expiresAt).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Blocks Remaining</span>
+                    <span className={cn("text-sm font-mono", isExpired ? "text-error" : "")}>
+                      {isExpired ? 'Expired' : (Number(escrow.expiresAt) - currentBlock).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              </GlassCard>
             </motion.div>
 
             {/* Right - Actions */}
@@ -171,23 +207,41 @@ export default function EscrowDetail() {
                       <motion.button
                         whileTap={{ scale: 0.97 }}
                         onClick={() => setModal("release")}
+                        disabled={actionLoading}
                         aria-label="Release escrow funds to seller"
-                        className="w-full rounded-lg bg-success py-2.5 text-sm font-semibold text-success-foreground hover:bg-success/90 transition-colors"
+                        className="w-full rounded-lg bg-success py-2.5 text-sm font-semibold text-success-foreground hover:bg-success/90 transition-colors disabled:opacity-50"
                       >
                         Release Funds
                       </motion.button>
                       <motion.button
                         whileTap={{ scale: 0.97 }}
                         onClick={() => setModal("dispute")}
+                        disabled={actionLoading}
                         aria-label="File a dispute for this escrow"
-                        className="w-full rounded-lg border border-error/30 bg-error/5 py-2.5 text-sm font-semibold text-error hover:bg-error/10 transition-colors"
+                        className="w-full rounded-lg border border-error/30 bg-error/5 py-2.5 text-sm font-semibold text-error hover:bg-error/10 transition-colors disabled:opacity-50"
                       >
                         Dispute
                       </motion.button>
                     </>
                   )}
-                  {!isBuyer && (
-                    <p className="text-xs text-muted-foreground">Waiting for buyer to release funds or the escrow to expire.</p>
+                  {isSeller && isExpired && (
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setModal("refund")}
+                      disabled={actionLoading}
+                      aria-label="Request refund after expiry"
+                      className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      Request Refund
+                    </motion.button>
+                  )}
+                  {isSeller && !isExpired && (
+                    <p className="text-xs text-muted-foreground">
+                      Waiting for buyer to release funds. Refund available after block {Number(escrow.expiresAt).toLocaleString()}.
+                    </p>
+                  )}
+                  {!isBuyer && !isSeller && (
+                    <p className="text-xs text-muted-foreground">You are viewing this escrow as an observer.</p>
                   )}
                 </div>
               )}
@@ -201,11 +255,11 @@ export default function EscrowDetail() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Your Role</span>
-                    <RoleBadge role={escrow.userRole} />
+                    <RoleBadge role={userRole} />
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Events</span>
-                    <span>{escrow.events.length}</span>
+                    <span className="text-muted-foreground">Amount (STX)</span>
+                    <span className="font-mono">{amountStx.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -217,20 +271,29 @@ export default function EscrowDetail() {
         <ConfirmationModal
           open={modal === "release"}
           onClose={() => setModal(null)}
-          onConfirm={handleAction}
+          onConfirm={handleRelease}
           title="Release Funds"
-          description={`Are you sure you want to release ${escrow.amount.toLocaleString()} STX to the seller? This action cannot be undone.`}
+          description={`Are you sure you want to release ${amountStx.toLocaleString()} STX to the seller? This action cannot be undone.`}
           confirmLabel="Release Funds"
           loading={actionLoading}
         />
         <ConfirmationModal
           open={modal === "dispute"}
           onClose={() => setModal(null)}
-          onConfirm={handleAction}
+          onConfirm={handleDispute}
           title="Dispute Escrow"
           description="Filing a dispute will freeze the funds and initiate the arbitration process. Are you sure?"
           confirmLabel="File Dispute"
           variant="danger"
+          loading={actionLoading}
+        />
+        <ConfirmationModal
+          open={modal === "refund"}
+          onClose={() => setModal(null)}
+          onConfirm={handleRefund}
+          title="Request Refund"
+          description={`Are you sure you want to refund ${amountStx.toLocaleString()} STX back to the buyer? This action cannot be undone.`}
+          confirmLabel="Request Refund"
           loading={actionLoading}
         />
       </div>
