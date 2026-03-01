@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="50%" style="stop-color:#141414"/>
+      <stop offset="100%" style="stop-color:#0a0a0a"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F7931A"/>
+      <stop offset="100%" style="stop-color:#E8850A"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#F7931A"/>
+      <stop offset="100%" style="stop-color:#FFB347"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="20" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  
+  <!-- Grid pattern -->
+  <g opacity="0.03">
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#fff" stroke-width="1"/>
+    </pattern>
+    <rect width="1200" height="630" fill="url(#grid)"/>
+  </g>
+  
+  <!-- Decorative circles -->
+  <circle cx="100" cy="530" r="200" fill="#F7931A" opacity="0.05"/>
+  <circle cx="1100" cy="100" r="250" fill="#F7931A" opacity="0.03"/>
+  
+  <!-- Shield icon -->
+  <g transform="translate(120, 165)" filter="url(#glow)">
+    <path d="M150 0L0 50v100c0 100 64 180 150 200 86-20 150-100 150-200V50L150 0z" 
+          fill="url(#shieldGrad)"/>
+    <path d="M150 20L24 62v88c0 82 54 150 126 168V20z" 
+          fill="rgba(255,255,255,0.1)"/>
+    <!-- Lock -->
+    <rect x="95" y="145" width="110" height="90" rx="15" fill="#fff"/>
+    <path d="M112 145v-30c0-21 17-38 38-38s38 17 38 38v30" 
+          fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="150" cy="180" r="14" fill="#F7931A"/>
+    <path d="M150 188l-7 25h14l-7-25z" fill="#F7931A"/>
+  </g>
+  
+  <!-- Main title -->
+  <text x="480" y="260" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="#fff">
+    <tspan>s</tspan><tspan fill="url(#textGrad)">BTC</tspan><tspan> Escrow</tspan>
+  </text>
+  
+  <!-- Tagline -->
+  <text x="480" y="340" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="500" fill="#888">
+    Secure Escrow. Bitcoin Backed.
+  </text>
+  
+  <!-- Features -->
+  <g transform="translate(480, 400)" font-family="Inter, system-ui, sans-serif" font-size="20" fill="#666">
+    <g>
+      <circle cx="8" cy="-6" r="4" fill="#F7931A"/>
+      <text x="24" y="0">Trustless Smart Contracts</text>
+    </g>
+    <g transform="translate(280, 0)">
+      <circle cx="8" cy="-6" r="4" fill="#F7931A"/>
+      <text x="24" y="0">Bitcoin Security</text>
+    </g>
+    <g transform="translate(0, 50)">
+      <circle cx="8" cy="-6" r="4" fill="#F7931A"/>
+      <text x="24" y="0">Instant Settlement</text>
+    </g>
+    <g transform="translate(280, 50)">
+      <circle cx="8" cy="-6" r="4" fill="#F7931A"/>
+      <text x="24" y="0">0.5% Platform Fee</text>
+    </g>
+  </g>
+  
+  <!-- URL -->
+  <text x="600" y="580" font-family="JetBrains Mono, monospace" font-size="18" fill="#F7931A" text-anchor="middle">
+    sbtc-escrow.app
+  </text>
+</svg>
