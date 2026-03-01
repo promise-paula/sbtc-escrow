@@ -180,3 +180,34 @@
     (ok true)
   )
 )
+
+;; Initiate ownership transfer (2-step for security)
+(define-public (transfer-ownership (new-owner principal))
+  (begin
+    (try! (check-is-owner))
+    (var-set pending-owner (some new-owner))
+    (print { event: "ownership-transfer-initiated", from: tx-sender, to: new-owner })
+    (ok true)
+  )
+)
+
+;; Accept ownership (called by new owner)
+(define-public (accept-ownership)
+  (let ((pending (unwrap! (var-get pending-owner) ERR_OWNERSHIP_PENDING)))
+    (asserts! (is-eq tx-sender pending) ERR_NOT_PENDING_OWNER)
+    (var-set contract-owner pending)
+    (var-set pending-owner none)
+    (print { event: "ownership-transferred", new-owner: tx-sender })
+    (ok true)
+  )
+)
+
+;; Update fee recipient
+(define-public (set-fee-recipient (recipient principal))
+  (begin
+    (try! (check-is-owner))
+    (var-set fee-recipient recipient)
+    (print { event: "fee-recipient-updated", recipient: recipient })
+    (ok true)
+  )
+)
