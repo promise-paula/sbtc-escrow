@@ -144,3 +144,39 @@
     }
   )
 )
+
+;; ============================================================================
+;; AUTHORIZATION CHECKS
+;; ============================================================================
+
+(define-read-only (check-is-owner)
+  (ok (asserts! (is-owner) ERR_UNAUTHORIZED))
+)
+
+(define-read-only (check-is-operational)
+  (ok (asserts! (is-operational) ERR_CONTRACT_PAUSED))
+)
+
+;; ============================================================================
+;; ADMIN FUNCTIONS
+;; ============================================================================
+
+;; Pause contract (emergency)
+(define-public (pause-contract)
+  (begin
+    (try! (check-is-owner))
+    (var-set contract-paused true)
+    (print { event: "contract-paused", by: tx-sender, block: stacks-block-height })
+    (ok true)
+  )
+)
+
+;; Unpause contract
+(define-public (unpause-contract)
+  (begin
+    (try! (check-is-owner))
+    (var-set contract-paused false)
+    (print { event: "contract-unpaused", by: tx-sender, block: stacks-block-height })
+    (ok true)
+  )
+)
