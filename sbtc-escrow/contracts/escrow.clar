@@ -431,3 +431,95 @@
     (ok true)
   )
 )
+
+;; Resolve dispute in favor of buyer (admin only)
+(define-public (resolve-dispute-for-buyer (escrow-id uint))
+  (let (
+    (escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND))
+    (buyer (get buyer escrow))
+    (amount (get amount escrow))
+    (fee (get fee-amount escrow))
+    (total-amount (+ amount fee))
+    (status (get status escrow))
+  )
+    (try! (check-is-owner))
+    
+    ;; Escrow must be disputed
+    (asserts! (is-eq status STATUS_DISPUTED) ERR_ESCROW_ALREADY_COMPLETED)
+    
+    ;; Refund full amount to buyer
+    (try! (as-contract (stx-transfer? total-amount tx-sender buyer)))
+    
+    ;; Update escrow status
+    (map-set escrows escrow-id (merge escrow {
+      status: STATUS_REFUNDED,
+      completed-at: (some stacks-block-height)
+    }))
+    
+    ;; Update statistics
+    (var-set total-refunded (+ (var-get total-refunded) total-amount))
+    
+    (print {
+      event: "dispute-resolved-for-buyer",
+      escrow-id: escrow-id,
+      buyer: buyer,
+      amount: total-amount,
+      resolved-by: tx-sender
+    })
+    
+    (ok true)
+  )
+)
+
+;; Resolve dispute in favor of seller (admin only)
+(define-public (resolve-dispute-for-seller (escrow-id uint))
+  (let (
+    (escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND))
+    (seller (get seller escrow))
+    (amount (get amount escrow))
+    (fee (get fee-amount escrow))
+    (status (get status escrow))
+    (seller-stats (ensure-user-stats seller))
+  )
+    (try! (check-is-owner))
+    
+    ;; Escrow must be disputed
+    (asserts! (is-eq status STATUS_DISPUTED) ERR_ESCROW_ALREADY_COMPLETED)
+    
+    ;; Transfer funds to seller
+    (try! (as-contract (stx-transfer? amount tx-sender seller)))
+    
+    ;; Transfer fee to platform
+    (if (> fee u0)
+      (try! (as-contract (stx-transfer? fee tx-sender (var-get fee-recipient))))
+      true
+    )
+    
+    ;; Update escrow status
+    (map-set escrows escrow-id (merge escrow {
+      status: STATUS_RELEASED,
+      completed-at: (some stacks-block-height)
+    }))
+    
+    ;; Update statistics
+    (var-set total-released (+ (var-get total-released) amount))
+    (var-set total-fees-collected (+ (var-get total-fees-collected) fee))
+    
+    ;; Update seller stats
+    (map-set user-stats seller (merge seller-stats {
+      escrows-received: (+ (get escrows-received seller-stats) u1),
+      total-received: (+ (get total-received seller-stats) amount)
+    }))
+    
+    (print {
+      event: "dispute-resolved-for-seller",
+      escrow-id: escrow-id,
+      seller: seller,
+      amount: amount,
+      fee: fee,
+      resolved-by: tx-sender
+    })
+    
+    (ok true)
+  )
+)
