@@ -109,7 +109,7 @@ function mapEventRow(row: any): EscrowEvent {
     eventType: row.event_type ?? row.eventType,
     actor: eventData.buyer ?? eventData.seller ?? eventData['disputed-by'] ?? eventData['resolved-by'] ?? '',
     blockHeight: row.block_height ?? row.blockHeight,
-    timestamp: row.indexed_at ?? row.created_at ?? new Date().toISOString(),
+    timestamp: row.indexed_at ?? new Date().toISOString(),
     metadata: eventData,
   };
 }
