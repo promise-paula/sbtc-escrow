@@ -81,9 +81,11 @@ export default function Dashboard() {
                 <span className="text-xs text-muted-foreground">Total Locked</span>
               </div>
               <p className="text-2xl font-mono font-semibold text-accent-warm">
-                {stats ? formatSTX(stats.totalLocked) : '0'}
+                {stats ? formatSTX(stats.totalLockedStx) : '0'}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">STX</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                STX{stats && stats.totalLockedSbtc > 0 ? ` + ${(stats.totalLockedSbtc / 1e8).toFixed(4)} sBTC` : ''}
+              </p>
             </CardContent>
           </Card>
         </motion.div>
