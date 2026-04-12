@@ -19,7 +19,7 @@ export function useEscrows(address: string | null) {
         .from('escrows')
         .select('*')
         .or(`buyer.eq.${address},seller.eq.${address}`)
-        .order('created_at', { ascending: false });
+        .order('indexed_at', { ascending: false });
       if (error || !data?.length) return [];
       return data.map(mapEscrowRow);
     },
