@@ -38,8 +38,10 @@ export interface EscrowEvent {
 
 export interface PlatformStats {
   totalEscrows: number;
-  totalVolume: number; // microSTX
-  totalFeesCollected: number;
+  totalVolumeStx: number;
+  totalVolumeSbtc: number;
+  totalFeesStx: number;
+  totalFeesSbtc: number;
   totalReleased: number; // count
   totalRefunded: number; // count
   activeDisputes: number; // count
@@ -59,7 +61,8 @@ export interface PlatformConfig {
 }
 
 export interface UserStats {
-  totalLocked: number;
+  totalLockedStx: number;
+  totalLockedSbtc: number;
   activeEscrows: number;
   completedEscrows: number;
   asBuyer: number;
