@@ -5,12 +5,18 @@ export enum EscrowStatus {
   Disputed = 3,
 }
 
+export enum TokenType {
+  STX = 0,
+  SBTC = 1,
+}
+
 export interface Escrow {
   id: number;
   buyer: string;
   seller: string;
-  amount: number; // microSTX
+  amount: number; // microSTX or satoshis depending on tokenType
   feeAmount: number;
+  tokenType: TokenType;
   description: string;
   status: EscrowStatus;
   createdAt: number; // block height
@@ -46,6 +52,8 @@ export interface PlatformConfig {
   isPaused: boolean;
   minAmount: number;
   maxAmount: number;
+  minAmountSbtc: number;
+  maxAmountSbtc: number;
   maxDuration: number;
   disputeTimeout: number; // blocks
 }
