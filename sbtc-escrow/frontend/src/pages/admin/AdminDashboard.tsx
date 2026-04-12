@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { usePlatformStats, usePlatformConfig } from '@/hooks/use-admin';
-import { formatSTX, blocksToTime } from '@/lib/utils';
+import { formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { cardVariants } from '@/lib/motion';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { ContractStatusIndicator } from '@/components/shared/ContractStatusIndicator';
@@ -23,17 +23,20 @@ export default function AdminDashboard() {
 
   const stats = [
     { label: 'Total Escrows', value: ps.totalEscrows.toLocaleString(), icon: ArrowRightLeft },
-    { label: 'Total Volume', value: `${formatSTX(ps.totalVolume)} STX`, icon: Coins },
-    { label: 'Fees Collected', value: `${formatSTX(ps.totalFeesCollected)} STX`, icon: DollarSign },
+    { label: 'Volume (STX)', value: `${formatSTX(ps.totalVolumeStx)} STX`, icon: Coins },
+    ...(ps.totalVolumeSbtc > 0 ? [{ label: 'Volume (sBTC)', value: `${formatSBTC(ps.totalVolumeSbtc)} sBTC`, icon: Coins }] : []),
+    { label: 'Fees (STX)', value: `${formatSTX(ps.totalFeesStx)} STX`, icon: DollarSign },
+    ...(ps.totalFeesSbtc > 0 ? [{ label: 'Fees (sBTC)', value: `${formatSBTC(ps.totalFeesSbtc)} sBTC`, icon: DollarSign }] : []),
     { label: 'Released', value: ps.totalReleased.toLocaleString(), icon: CheckCircle2 },
     { label: 'Refunded', value: ps.totalRefunded.toLocaleString(), icon: RotateCcw },
     { label: 'Active Disputes', value: ps.activeDisputes.toLocaleString(), icon: ShieldAlert, warn: ps.activeDisputes > 0 },
   ];
 
   const revenue = [
-    { label: 'Fees to Date', value: `${formatSTX(ps.totalFeesCollected)} STX` },
-    { label: 'Fee % of Volume', value: ps.totalVolume ? `${((ps.totalFeesCollected / ps.totalVolume) * 100).toFixed(2)}%` : '0.00%' },
-    { label: 'Avg Escrow Size', value: ps.totalEscrows ? `${formatSTX(Math.floor(ps.totalVolume / ps.totalEscrows))} STX` : '0 STX' },
+    { label: 'Fees to Date (STX)', value: `${formatSTX(ps.totalFeesStx)} STX` },
+    ...(ps.totalFeesSbtc > 0 ? [{ label: 'Fees to Date (sBTC)', value: `${formatSBTC(ps.totalFeesSbtc)} sBTC` }] : []),
+    { label: 'Fee % of Volume', value: ps.totalVolumeStx ? `${((ps.totalFeesStx / ps.totalVolumeStx) * 100).toFixed(2)}%` : '0.00%' },
+    { label: 'Avg Escrow Size', value: ps.totalEscrows ? `${formatSTX(Math.floor(ps.totalVolumeStx / ps.totalEscrows))} STX` : '0 STX' },
   ];
 
   return (
