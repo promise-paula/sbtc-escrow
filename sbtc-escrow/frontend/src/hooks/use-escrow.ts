@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { Escrow, EscrowEvent, EscrowStatus, UserStats } from '@/lib/types';
+import { Escrow, EscrowEvent, EscrowStatus, TokenType, UserStats } from '@/lib/types';
 
 const EMPTY_STATS: UserStats = {
   totalLocked: 0,
@@ -89,6 +89,7 @@ function mapEscrowRow(row: any): Escrow {
     seller: row.seller,
     amount: row.amount,
     feeAmount: row.fee_amount ?? row.feeAmount ?? 0,
+    tokenType: (row.token_type ?? row.tokenType ?? 0) as TokenType,
     description: row.description ?? '',
     status: row.status as EscrowStatus,
     createdAt: row.created_at_block ?? row.createdAt ?? 0,
