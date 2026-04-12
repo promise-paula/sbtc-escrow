@@ -3,7 +3,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Escrow, EscrowEvent, EscrowStatus, TokenType, UserStats } from '@/lib/types';
 
 const EMPTY_STATS: UserStats = {
-  totalLocked: 0,
+  totalLockedStx: 0,
+  totalLockedSbtc: 0,
   activeEscrows: 0,
   completedEscrows: 0,
   asBuyer: 0,
@@ -70,7 +71,8 @@ export function useUserStats(address: string | null) {
       const escrows = data.map(mapEscrowRow);
       const active = escrows.filter(e => e.status === EscrowStatus.Pending || e.status === EscrowStatus.Disputed);
       return {
-        totalLocked: active.reduce((sum, e) => sum + e.amount, 0),
+        totalLockedStx: active.filter(e => e.tokenType === TokenType.STX).reduce((sum, e) => sum + e.amount, 0),
+        totalLockedSbtc: active.filter(e => e.tokenType === TokenType.SBTC).reduce((sum, e) => sum + e.amount, 0),
         activeEscrows: active.length,
         completedEscrows: escrows.filter(e => e.status === EscrowStatus.Released || e.status === EscrowStatus.Refunded).length,
         asBuyer: escrows.filter(e => e.buyer === address).length,
