@@ -38,8 +38,8 @@ export function setDisputeTimeout(blocks: number): Promise<string> {
   return adminCall('set-dispute-timeout', [Cl.uint(blocks)], `Dispute timeout updated to ${blocks} blocks`);
 }
 
-export function initiateOwnershipTransfer(newOwner: string): Promise<string> {
-  return adminCall('initiate-ownership-transfer', [Cl.standardPrincipal(newOwner)], 'Ownership transfer initiated');
+export function transferOwnership(newOwner: string): Promise<string> {
+  return adminCall('transfer-ownership', [Cl.standardPrincipal(newOwner)], 'Ownership transfer initiated');
 }
 
 export function resolveDisputeForBuyer(escrowId: number): Promise<string> {

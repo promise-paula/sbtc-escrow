@@ -3,12 +3,21 @@ import { request } from '@stacks/connect';
 import { Cl, Pc } from '@stacks/transactions';
 import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
 
+/** Fee = amount * platformFeeBps / 10_000. Default platformFeeBps = 50 (0.5%). */
+function estimateFee(amount: number, feeBps = 50): number {
+  return Math.floor((amount * feeBps) / 10_000);
+}
+
 export async function createEscrow(params: {
+  buyer: string;
   seller: string;
   amount: number;
   description: string;
   duration: number;
+  feeBps?: number;
 }): Promise<string> {
+  const fee = estimateFee(params.amount, params.feeBps);
+  const totalAmount = params.amount + fee;
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
     functionName: 'create-escrow',
@@ -19,7 +28,7 @@ export async function createEscrow(params: {
       Cl.uint(params.duration),
     ],
     postConditions: [
-      Pc.principal(params.seller).willSendLte(params.amount).ustx(),
+      Pc.principal(params.buyer).willSendLte(totalAmount).ustx(),
     ],
     network: STACKS_NETWORK,
   });
@@ -30,7 +39,7 @@ export async function createEscrow(params: {
 export async function releaseEscrow(escrowId: number): Promise<string> {
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
-    functionName: 'release-escrow',
+    functionName: 'release',
     functionArgs: [Cl.uint(escrowId)],
     network: STACKS_NETWORK,
   });
@@ -41,7 +50,7 @@ export async function releaseEscrow(escrowId: number): Promise<string> {
 export async function refundEscrow(escrowId: number): Promise<string> {
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
-    functionName: 'refund-escrow',
+    functionName: 'refund',
     functionArgs: [Cl.uint(escrowId)],
     network: STACKS_NETWORK,
   });
@@ -52,7 +61,7 @@ export async function refundEscrow(escrowId: number): Promise<string> {
 export async function disputeEscrow(escrowId: number): Promise<string> {
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
-    functionName: 'dispute-escrow',
+    functionName: 'dispute',
     functionArgs: [Cl.uint(escrowId)],
     network: STACKS_NETWORK,
   });
