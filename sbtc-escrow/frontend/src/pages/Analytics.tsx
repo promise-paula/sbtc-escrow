@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
-import { mockMonthlyAnalytics } from '@/lib/mock-data';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { EscrowStatus } from '@/lib/types';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { TrendingUp, Hash, Coins, Calculator } from 'lucide-react';
 import { cardVariants } from '@/lib/motion';
@@ -10,6 +12,53 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, Legend, LineChart, Line,
 } from 'recharts';
+
+interface MonthlyBucket {
+  month: string;
+  volume: number;
+  escrowCount: number;
+  feesCollected: number;
+  released: number;
+  refunded: number;
+  disputed: number;
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function useMonthlyAnalytics() {
+  return useQuery({
+    queryKey: ['monthly-analytics'],
+    queryFn: async (): Promise<MonthlyBucket[]> => {
+      if (!isSupabaseConfigured) return [];
+      const { data, error } = await supabase
+        .from('escrows')
+        .select('amount, fee_amount, status, created_at');
+      if (error || !data?.length) return [];
+
+      const buckets = new Map<string, MonthlyBucket>();
+      for (const row of data) {
+        const d = new Date(row.created_at);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+        if (!buckets.has(key)) {
+          buckets.set(key, { month: label, volume: 0, escrowCount: 0, feesCollected: 0, released: 0, refunded: 0, disputed: 0 });
+        }
+        const b = buckets.get(key)!;
+        b.volume += row.amount ?? 0;
+        b.feesCollected += row.fee_amount ?? 0;
+        b.escrowCount += 1;
+        if (row.status === EscrowStatus.Released) b.released += 1;
+        else if (row.status === EscrowStatus.Refunded) b.refunded += 1;
+        else if (row.status === EscrowStatus.Disputed) b.disputed += 1;
+      }
+
+      return Array.from(buckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, v]) => v);
+    },
+    staleTime: 60_000,
+  });
+}
 
 const STATUS_COLORS = {
   released: 'hsl(142 71% 45%)',
@@ -26,18 +75,19 @@ const tooltipStyle = {
 
 export default function Analytics() {
   const { data: stats } = usePlatformStats();
+  const { data: monthlyData = [] } = useMonthlyAnalytics();
 
   const volumeData = useMemo(() =>
-    mockMonthlyAnalytics.map(m => ({ month: m.month, volume: m.volume / 1_000_000 })), []);
+    monthlyData.map(m => ({ month: m.month, volume: m.volume / 1_000_000 })), [monthlyData]);
 
   const feeData = useMemo(() =>
-    mockMonthlyAnalytics.map(m => ({ month: m.month, fees: m.feesCollected / 1_000_000 })), []);
+    monthlyData.map(m => ({ month: m.month, fees: m.feesCollected / 1_000_000 })), [monthlyData]);
 
   const countData = useMemo(() =>
-    mockMonthlyAnalytics.map(m => ({ month: m.month, count: m.escrowCount })), []);
+    monthlyData.map(m => ({ month: m.month, count: m.escrowCount })), [monthlyData]);
 
   const statusTotals = useMemo(() => {
-    const totals = mockMonthlyAnalytics.reduce(
+    const totals = monthlyData.reduce(
       (acc, m) => ({ released: acc.released + m.released, refunded: acc.refunded + m.refunded, disputed: acc.disputed + m.disputed }),
       { released: 0, refunded: 0, disputed: 0 }
     );
@@ -46,11 +96,11 @@ export default function Analytics() {
       { name: 'Refunded', value: totals.refunded, color: STATUS_COLORS.refunded },
       { name: 'Disputed', value: totals.disputed, color: STATUS_COLORS.disputed },
     ];
-  }, []);
+  }, [monthlyData]);
 
-  const totalVolume = mockMonthlyAnalytics.reduce((s, m) => s + m.volume, 0);
-  const totalEscrows = mockMonthlyAnalytics.reduce((s, m) => s + m.escrowCount, 0);
-  const totalFees = mockMonthlyAnalytics.reduce((s, m) => s + m.feesCollected, 0);
+  const totalVolume = monthlyData.reduce((s, m) => s + m.volume, 0);
+  const totalEscrows = monthlyData.reduce((s, m) => s + m.escrowCount, 0);
+  const totalFees = monthlyData.reduce((s, m) => s + m.feesCollected, 0);
   const avgSize = totalEscrows > 0 ? totalVolume / totalEscrows : 0;
 
   const summaryCards = [

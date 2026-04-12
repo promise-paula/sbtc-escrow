@@ -73,9 +73,10 @@ export default function CreateEscrow() {
   const progressPercent = step === 1 ? 33 : step === 2 ? 66 : 100;
 
   const handleSubmit = async () => {
+    if (!address) return;
     setTxStatus('pending');
     try {
-      const hash = await createEscrow({ seller: recipient, amount: microAmount, description: description.trim(), duration });
+      const hash = await createEscrow({ buyer: address, seller: recipient, amount: microAmount, description: description.trim(), duration, feeBps: cfg.platformFeeBps });
       setTxHash(hash);
       setTxStatus('success');
     } catch {

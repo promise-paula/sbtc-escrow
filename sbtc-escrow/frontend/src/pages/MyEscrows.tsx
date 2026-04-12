@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows } from '@/hooks/use-escrow';
 import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
@@ -34,6 +34,7 @@ export default function MyEscrows() {
   const navigate = useNavigate();
   const { address } = useWallet();
   const { data: allEscrows, isLoading, isError } = useEscrows(address);
+  const { data: currentBlock } = useBlockHeight();
   const [roleFilter, setRoleFilter] = useState<'all' | 'buyer' | 'seller'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -158,7 +159,7 @@ export default function MyEscrows() {
           {filtered.map((e, i) => {
             const isBuyer = e.buyer === address;
             const counterparty = isBuyer ? e.seller : e.buyer;
-            const blockAge = CURRENT_BLOCK_HEIGHT - e.createdAt;
+            const blockAge = (currentBlock ?? 0) - e.createdAt;
             return (
               <motion.div
                 key={e.id}
