@@ -32,12 +32,12 @@ function useMonthlyAnalytics() {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('escrows')
-        .select('amount, fee_amount, status, created_at');
+        .select('amount, fee_amount, status, indexed_at');
       if (error || !data?.length) return [];
 
       const buckets = new Map<string, MonthlyBucket>();
       for (const row of data) {
-        const d = new Date(row.created_at);
+        const d = new Date(row.indexed_at);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
         if (!buckets.has(key)) {
