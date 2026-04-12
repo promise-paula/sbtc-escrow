@@ -33,7 +33,7 @@ export async function createEscrow(params: {
     network: STACKS_NETWORK,
   });
   toast.success('Escrow created', { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }
 
 export async function releaseEscrow(escrowId: number): Promise<string> {
@@ -44,7 +44,7 @@ export async function releaseEscrow(escrowId: number): Promise<string> {
     network: STACKS_NETWORK,
   });
   toast.success('Payment released', { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }
 
 export async function refundEscrow(escrowId: number): Promise<string> {
@@ -55,7 +55,7 @@ export async function refundEscrow(escrowId: number): Promise<string> {
     network: STACKS_NETWORK,
   });
   toast.success('Escrow refunded', { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }
 
 export async function disputeEscrow(escrowId: number): Promise<string> {
@@ -66,7 +66,7 @@ export async function disputeEscrow(escrowId: number): Promise<string> {
     network: STACKS_NETWORK,
   });
   toast.success('Dispute filed', { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }
 
 export async function extendEscrow(escrowId: number, additionalBlocks: number): Promise<string> {
@@ -77,7 +77,7 @@ export async function extendEscrow(escrowId: number, additionalBlocks: number): 
     network: STACKS_NETWORK,
   });
   toast.success('Escrow extended', { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }
 
 export async function resolveExpiredDispute(escrowId: number): Promise<string> {
@@ -88,5 +88,5 @@ export async function resolveExpiredDispute(escrowId: number): Promise<string> {
     network: STACKS_NETWORK,
   });
   toast.success('Disputed funds recovered', { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }

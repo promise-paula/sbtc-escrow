@@ -15,7 +15,7 @@ async function adminCall(
     network: STACKS_NETWORK,
   });
   toast.success(successMsg, { description: 'Transaction submitted.' });
-  return response.txId;
+  return response.txid;
 }
 
 export function pauseContract(): Promise<string> {
