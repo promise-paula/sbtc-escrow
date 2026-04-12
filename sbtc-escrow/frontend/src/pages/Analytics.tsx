@@ -32,7 +32,7 @@ function useMonthlyAnalytics() {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('escrows')
-        .select('amount, fee_amount, status, indexed_at');
+        .select('amount, fee_amount, status, indexed_at, token_type');
       if (error || !data?.length) return [];
 
       const buckets = new Map<string, MonthlyBucket>();
