@@ -32,8 +32,8 @@ export default function AdminDashboard() {
 
   const revenue = [
     { label: 'Fees to Date', value: `${formatSTX(ps.totalFeesCollected)} STX` },
-    { label: 'Fee % of Volume', value: `${((ps.totalFeesCollected / ps.totalVolume) * 100).toFixed(2)}%` },
-    { label: 'Avg Escrow Size', value: `${formatSTX(Math.floor(ps.totalVolume / ps.totalEscrows))} STX` },
+    { label: 'Fee % of Volume', value: ps.totalVolume ? `${((ps.totalFeesCollected / ps.totalVolume) * 100).toFixed(2)}%` : '0.00%' },
+    { label: 'Avg Escrow Size', value: ps.totalEscrows ? `${formatSTX(Math.floor(ps.totalVolume / ps.totalEscrows))} STX` : '0 STX' },
   ];
 
   return (

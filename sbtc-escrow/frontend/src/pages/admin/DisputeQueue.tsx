@@ -97,7 +97,7 @@ export default function DisputeQueue() {
           ) : (
             <div className="space-y-3">
               {active.map((e, idx) => {
-                const elapsed = CURRENT_BLOCK_HEIGHT - (e.disputedAt || 0);
+                const elapsed = currentBlock - (e.disputedAt || 0);
                 const urgencyRatio = elapsed / disputeTimeout;
                 const isNearTimeout = urgencyRatio > 0.75;
                 const isConfirming = confirmAction?.escrowId === e.id;

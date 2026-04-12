@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, BLOCKS_PER_DAY, BLOCKS_PER_WEEK, STACKS_NETWORK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, blocksToTime } from '@/lib/utils';
-import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, initiateOwnershipTransfer } from '@/lib/admin-service';
+import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -151,7 +151,7 @@ export default function ContractControls() {
               <Label className="text-xs">New Owner Address</Label>
               <Input placeholder="ST... or SP..." value={newOwner} onChange={e => setNewOwner(e.target.value)} className="font-mono text-sm" />
             </div>
-            <Button size="sm" variant="outline" disabled={!isValidStacksAddress(newOwner) || loading === 'transfer'} onClick={async () => { setLoading('transfer'); await initiateOwnershipTransfer(newOwner); setLoading(null); }}>
+            <Button size="sm" variant="outline" disabled={!isValidStacksAddress(newOwner) || loading === 'transfer'} onClick={async () => { setLoading('transfer'); await transferOwnership(newOwner); setLoading(null); }}>
               Initiate Transfer
             </Button>
             <p className="text-[10px] text-muted-foreground">2-step process: initiate, then the new owner must accept.</p>
