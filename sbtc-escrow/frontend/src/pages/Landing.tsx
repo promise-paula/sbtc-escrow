@@ -48,7 +48,7 @@ const steps = [
 const security = [
   { icon: FileCheck, title: 'Clarity Smart Contract', desc: 'All escrow logic runs on-chain in a verified Clarity contract. Deterministic execution with no hidden behavior.' },
   { icon: Server, title: 'Non-Custodial Architecture', desc: 'Your keys never leave your wallet. The platform cannot move, freeze, or access your funds at any time.' },
-  { icon: Timer, title: 'Dispute Timeout Hardened', desc: 'V3 contract enforces a 4,320-block (~30-day) dispute window with buyer self-recovery after timeout.' },
+  { icon: Timer, title: 'Dispute Timeout Hardened', desc: 'V4 contract enforces a configurable dispute window with buyer self-recovery after timeout.' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -368,7 +368,7 @@ export default function Landing() {
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="text-center sm:text-left">sBTC Escrow v3.0.0 · Testnet</span>
+          <span className="text-center sm:text-left">sBTC Escrow v4.0.0 · Testnet</span>
           <div className="flex flex-wrap justify-center sm:justify-end gap-4">
             <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Explorer</a>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
