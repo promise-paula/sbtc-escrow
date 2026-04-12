@@ -1,14 +1,14 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
-import { LayoutDashboard, PlusCircle, List, Activity, BarChart3, Settings } from 'lucide-react';
+import { Home, LayoutDashboard, PlusCircle, List, Activity, Settings } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const items = [
-  { title: 'Home', url: '/dashboard', icon: LayoutDashboard },
+  { title: 'Home', url: '/', icon: Home },
+  { title: 'Board', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Create', url: '/create', icon: PlusCircle },
   { title: 'Escrows', url: '/escrows', icon: List },
   { title: 'Activity', url: '/activity', icon: Activity },
-  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
 

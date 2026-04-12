@@ -31,41 +31,39 @@ export function Logo({ size = 'md', className = '' }: LogoProps) {
       role="img"
       aria-label="sBTC Escrow logo"
     >
-      {/* Shield shape */}
+      <defs>
+        <linearGradient id="shield-grad" x1="16" y1="2" x2="16" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="currentColor" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.75" />
+        </linearGradient>
+      </defs>
+      {/* Shield */}
       <path
         d="M16 2L4 7v9c0 7.73 5.12 14.95 12 17 6.88-2.05 12-9.27 12-17V7L16 2z"
-        fill="currentColor"
-        opacity="0.12"
+        fill="url(#shield-grad)"
       />
+      {/* Lock shackle — thick, bold arc */}
       <path
-        d="M16 2L4 7v9c0 7.73 5.12 14.95 12 17 6.88-2.05 12-9.27 12-17V7L16 2z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      {/* Lock body */}
-      <rect
-        x="11"
-        y="14"
-        width="10"
-        height="8"
-        rx="1.5"
-        fill="currentColor"
-        opacity="0.9"
-      />
-      {/* Lock shackle */}
-      <path
-        d="M13 14v-3a3 3 0 0 1 6 0v3"
-        stroke="currentColor"
-        strokeWidth="1.5"
+        d="M12.5 15v-2.5a3.5 3.5 0 1 1 7 0V15"
+        stroke="hsl(var(--background))"
+        strokeWidth="2"
         strokeLinecap="round"
         fill="none"
       />
-      {/* Bitcoin B keyhole */}
-      <path
-        d="M15.2 16.5h1.3c.55 0 1 .35 1 .8s-.45.8-1 .8h-1.3v-1.6zm0 1.6h1.3c.55 0 1 .35 1 .8s-.45.8-1 .8h-1.3v-1.6z"
+      {/* Lock body — chunky rounded rect */}
+      <rect
+        x="10"
+        y="14.5"
+        width="12"
+        height="9"
+        rx="2"
         fill="hsl(var(--background))"
+      />
+      {/* Keyhole — Bitcoin-orange accent circle + drop */}
+      <circle cx="16" cy="18" r="1.5" fill="currentColor" />
+      <path
+        d="M15.1 18.5L16 22l.9-3.5"
+        fill="currentColor"
       />
     </svg>
   );
