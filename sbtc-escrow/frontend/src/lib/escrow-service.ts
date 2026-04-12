@@ -1,11 +1,28 @@
 import { toast } from 'sonner';
 import { request } from '@stacks/connect';
 import { Cl, Pc } from '@stacks/transactions';
-import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
+import { CONTRACT_PRINCIPAL, STACKS_NETWORK, SBTC_CONTRACT } from './stacks-config';
+import { TokenType } from './types';
 
 /** Fee = amount * platformFeeBps / 10_000. Default platformFeeBps = 50 (0.5%). */
 function estimateFee(amount: number, feeBps = 50): number {
   return Math.floor((amount * feeBps) / 10_000);
+}
+
+/** Build post-conditions for a contract-initiated outbound transfer. */
+function contractSendPc(amount: number, tokenType: TokenType) {
+  if (tokenType === TokenType.SBTC) {
+    return Pc.principal(CONTRACT_PRINCIPAL).willSendEq(amount).ft(SBTC_CONTRACT, 'sbtc-token');
+  }
+  return Pc.principal(CONTRACT_PRINCIPAL).willSendEq(amount).ustx();
+}
+
+/** Build post-conditions for a user-initiated inbound transfer. */
+function userSendPc(sender: string, amount: number, tokenType: TokenType) {
+  if (tokenType === TokenType.SBTC) {
+    return Pc.principal(sender).willSendLte(amount).ft(SBTC_CONTRACT, 'sbtc-token');
+  }
+  return Pc.principal(sender).willSendLte(amount).ustx();
 }
 
 export async function createEscrow(params: {
@@ -14,6 +31,7 @@ export async function createEscrow(params: {
   amount: number;
   description: string;
   duration: number;
+  tokenType: TokenType;
   feeBps?: number;
 }): Promise<string> {
   const fee = estimateFee(params.amount, params.feeBps);
@@ -26,9 +44,10 @@ export async function createEscrow(params: {
       Cl.uint(params.amount),
       Cl.stringUtf8(params.description),
       Cl.uint(params.duration),
+      Cl.uint(params.tokenType),
     ],
     postConditions: [
-      Pc.principal(params.buyer).willSendLte(totalAmount).ustx(),
+      userSendPc(params.buyer, totalAmount, params.tokenType),
     ],
     network: STACKS_NETWORK,
   });
@@ -36,22 +55,30 @@ export async function createEscrow(params: {
   return response.txid;
 }
 
-export async function releaseEscrow(escrowId: number): Promise<string> {
+export async function releaseEscrow(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
     functionName: 'release',
     functionArgs: [Cl.uint(escrowId)],
+    postConditions: [
+      contractSendPc(amount, tokenType),
+      ...(feeAmount > 0 ? [contractSendPc(feeAmount, tokenType)] : []),
+    ],
     network: STACKS_NETWORK,
   });
   toast.success('Payment released', { description: 'Transaction submitted.' });
   return response.txid;
 }
 
-export async function refundEscrow(escrowId: number): Promise<string> {
+export async function refundEscrow(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+  const totalRefund = amount + feeAmount;
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
     functionName: 'refund',
     functionArgs: [Cl.uint(escrowId)],
+    postConditions: [
+      contractSendPc(totalRefund, tokenType),
+    ],
     network: STACKS_NETWORK,
   });
   toast.success('Escrow refunded', { description: 'Transaction submitted.' });
@@ -80,11 +107,15 @@ export async function extendEscrow(escrowId: number, additionalBlocks: number): 
   return response.txid;
 }
 
-export async function resolveExpiredDispute(escrowId: number): Promise<string> {
+export async function resolveExpiredDispute(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+  const totalRefund = amount + feeAmount;
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
     functionName: 'resolve-expired-dispute',
     functionArgs: [Cl.uint(escrowId)],
+    postConditions: [
+      contractSendPc(totalRefund, tokenType),
+    ],
     network: STACKS_NETWORK,
   });
   toast.success('Disputed funds recovered', { description: 'Transaction submitted.' });
