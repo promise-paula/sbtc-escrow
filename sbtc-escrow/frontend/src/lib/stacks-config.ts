@@ -1,7 +1,11 @@
-export const STACKS_NETWORK = 'testnet';
+import { STACKS_TESTNET } from '@stacks/network';
 
-export const CONTRACT_ADDRESS = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
-export const CONTRACT_NAME = 'sbtc-escrow-v3';
+export const STACKS_NETWORK = STACKS_TESTNET;
+export const STACKS_API_URL = 'https://api.testnet.hiro.so';
+
+export const CONTRACT_ADDRESS = 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
+export const CONTRACT_NAME = 'escrow-v3';
+export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`;
 
 export const BLOCKS_PER_DAY = 144;
 export const BLOCKS_PER_WEEK = 1_008;

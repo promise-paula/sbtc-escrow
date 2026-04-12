@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows, useUserStats } from '@/hooks/use-escrow';
-import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const { address } = useWallet();
   const { data: escrows, isLoading: escrowsLoading, isError: escrowsError } = useEscrows(address);
   const { data: stats, isLoading: statsLoading } = useUserStats(address);
+  const { data: currentBlock = 0 } = useBlockHeight();
 
   if (escrowsLoading || statsLoading) return <DashboardSkeleton />;
 
@@ -213,7 +214,7 @@ export default function Dashboard() {
             <CardContent className="p-0 divide-y divide-border">
               {recentEscrows.map((e, i) => {
                 const counterparty = e.buyer === address ? e.seller : e.buyer;
-                const blockAge = CURRENT_BLOCK_HEIGHT - e.createdAt;
+                const blockAge = currentBlock - e.createdAt;
                 const role = e.buyer === address ? 'to' : 'from';
                 return (
                   <motion.div

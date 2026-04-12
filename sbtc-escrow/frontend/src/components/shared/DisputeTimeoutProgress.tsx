@@ -1,5 +1,6 @@
 import React from 'react';
-import { CURRENT_BLOCK_HEIGHT, mockConfig } from '@/lib/mock-data';
+import { useBlockHeight } from '@/hooks/use-block-height';
+import { DEFAULT_DISPUTE_TIMEOUT } from '@/lib/stacks-config';
 import { Progress } from '@/components/ui/progress';
 import { blocksToTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +10,9 @@ interface DisputeTimeoutProgressProps {
   timeoutBlocks?: number;
 }
 
-export function DisputeTimeoutProgress({ disputedAt, timeoutBlocks = mockConfig.disputeTimeout }: DisputeTimeoutProgressProps) {
-  const elapsed = CURRENT_BLOCK_HEIGHT - disputedAt;
+export function DisputeTimeoutProgress({ disputedAt, timeoutBlocks = DEFAULT_DISPUTE_TIMEOUT }: DisputeTimeoutProgressProps) {
+  const { data: currentBlock = 0 } = useBlockHeight();
+  const elapsed = currentBlock - disputedAt;
   const progress = Math.min((elapsed / timeoutBlocks) * 100, 100);
   const remaining = Math.max(timeoutBlocks - elapsed, 0);
   const timedOut = elapsed >= timeoutBlocks;

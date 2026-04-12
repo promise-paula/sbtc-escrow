@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CURRENT_BLOCK_HEIGHT, mockEvents } from '@/lib/mock-data';
 import { useWallet } from '@/contexts/WalletContext';
-import { useEscrow } from '@/hooks/use-escrow';
+import { useEscrow, useEscrowEvents } from '@/hooks/use-escrow';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -51,6 +51,8 @@ export default function EscrowDetail() {
   const { address } = useWallet();
   const { data: escrow, isLoading, isError: escrowError } = useEscrow(parseInt(id || '0'));
   const { data: config, isError: configError } = usePlatformConfig();
+  const { data: escrowEvents = [] } = useEscrowEvents(parseInt(id || '0'));
+  const { data: currentBlock = 0 } = useBlockHeight();
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -72,10 +74,10 @@ export default function EscrowDetail() {
   const isParty = isBuyer || isSeller;
   const isPending = escrow.status === EscrowStatus.Pending;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
-  const isExpired = escrow.expiresAt <= CURRENT_BLOCK_HEIGHT;
-  const blocksToExpiry = escrow.expiresAt - CURRENT_BLOCK_HEIGHT;
+  const isExpired = escrow.expiresAt <= currentBlock;
+  const blocksToExpiry = escrow.expiresAt - currentBlock;
   const disputeTimedOut = isDisputed && escrow.disputedAt
-    ? (CURRENT_BLOCK_HEIGHT - escrow.disputedAt) >= disputeTimeout
+    ? (currentBlock - escrow.disputedAt) >= disputeTimeout
     : false;
 
   const hasActions = (
@@ -87,9 +89,7 @@ export default function EscrowDetail() {
     (isBuyer && disputeTimedOut)
   );
 
-  const escrowEvents = mockEvents
-    .filter(e => e.escrowId === escrow.id)
-    .sort((a, b) => b.blockHeight - a.blockHeight);
+  const sortedEvents = [...escrowEvents].sort((a, b) => b.blockHeight - a.blockHeight);
 
   const handleAction = async (action: string) => {
     setLoading(true);
@@ -277,14 +277,14 @@ export default function EscrowDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {escrowEvents.length === 0 ? (
+            {sortedEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">No events recorded.</p>
             ) : (
               <div className="relative space-y-0">
-                {escrowEvents.map((event, i) => {
+                {sortedEvents.map((event, i) => {
                   const cfg = EVENT_CONFIG[event.eventType] || { label: event.eventType, color: 'bg-muted-foreground', icon: Clock };
                   const Icon = cfg.icon;
-                  const isLast = i === escrowEvents.length - 1;
+                  const isLast = i === sortedEvents.length - 1;
                   return (
                     <motion.div
                       key={event.id}

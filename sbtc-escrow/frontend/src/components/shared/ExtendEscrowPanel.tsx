@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
-import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { blockToEstimatedDate, blocksToTime } from '@/lib/utils';
 import { extendEscrow } from '@/lib/escrow-service';
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
@@ -23,10 +23,11 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
   const [customBlocks, setCustomBlocks] = useState('');
   const [selectedBlocks, setSelectedBlocks] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const { data: currentBlock = 0 } = useBlockHeight();
 
   const blocks = selectedBlocks || (customBlocks ? parseInt(customBlocks) : 0);
   const newExpiry = currentExpiresAt + blocks;
-  const maxAdditional = CURRENT_BLOCK_HEIGHT + MAX_DURATION_BLOCKS - currentExpiresAt;
+  const maxAdditional = currentBlock + MAX_DURATION_BLOCKS - currentExpiresAt;
   const valid = blocks > 0 && blocks <= maxAdditional;
 
   const handleExtend = async () => {
@@ -85,7 +86,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
 
       {valid && (
         <p className="text-xs text-muted-foreground">
-          New expiry: block {newExpiry.toLocaleString()} (~{blockToEstimatedDate(newExpiry, CURRENT_BLOCK_HEIGHT).toLocaleDateString()})
+          New expiry: block {newExpiry.toLocaleString()} (~{blockToEstimatedDate(newExpiry, currentBlock).toLocaleDateString()})
           · +{blocksToTime(blocks)}
         </p>
       )}

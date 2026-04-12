@@ -1,6 +1,12 @@
 import { toast } from 'sonner';
-
-// Stub functions for contract writes — these will be replaced with actual Stacks wallet signing
+import { openContractCall } from '@stacks/connect';
+import {
+  uintCV,
+  stringUtf8CV,
+  standardPrincipalCV,
+  Pc,
+} from '@stacks/transactions';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, STACKS_NETWORK } from './stacks-config';
 
 export async function createEscrow(params: {
   seller: string;
@@ -8,43 +14,129 @@ export async function createEscrow(params: {
   description: string;
   duration: number;
 }): Promise<string> {
-  toast.info('Transaction submitted', { description: 'Waiting for confirmation...' });
-  await new Promise(r => setTimeout(r, 2000));
-  toast.success('Escrow created successfully');
-  return '0xmock_tx_hash_create';
+  return new Promise((resolve, reject) => {
+    openContractCall({
+      network: STACKS_NETWORK,
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'create-escrow',
+      functionArgs: [
+        standardPrincipalCV(params.seller),
+        uintCV(params.amount),
+        stringUtf8CV(params.description),
+        uintCV(params.duration),
+      ],
+      postConditions: [
+        Pc.principal(params.seller).willSendLte(params.amount).ustx(),
+      ],
+      onFinish: (data) => {
+        toast.success('Escrow created', { description: 'Transaction submitted.' });
+        resolve(data.txId);
+      },
+      onCancel: () => {
+        toast.error('Transaction cancelled');
+        reject(new Error('User cancelled'));
+      },
+    });
+  });
 }
 
 export async function releaseEscrow(escrowId: number): Promise<string> {
-  toast.info('Transaction submitted', { description: 'Releasing payment...' });
-  await new Promise(r => setTimeout(r, 2000));
-  toast.success('Payment released successfully');
-  return '0xmock_tx_hash_release';
+  return new Promise((resolve, reject) => {
+    openContractCall({
+      network: STACKS_NETWORK,
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'release-escrow',
+      functionArgs: [uintCV(escrowId)],
+      onFinish: (data) => {
+        toast.success('Payment released', { description: 'Transaction submitted.' });
+        resolve(data.txId);
+      },
+      onCancel: () => {
+        toast.error('Transaction cancelled');
+        reject(new Error('User cancelled'));
+      },
+    });
+  });
 }
 
 export async function refundEscrow(escrowId: number): Promise<string> {
-  toast.info('Transaction submitted', { description: 'Processing refund...' });
-  await new Promise(r => setTimeout(r, 2000));
-  toast.success('Escrow refunded successfully');
-  return '0xmock_tx_hash_refund';
+  return new Promise((resolve, reject) => {
+    openContractCall({
+      network: STACKS_NETWORK,
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'refund-escrow',
+      functionArgs: [uintCV(escrowId)],
+      onFinish: (data) => {
+        toast.success('Escrow refunded', { description: 'Transaction submitted.' });
+        resolve(data.txId);
+      },
+      onCancel: () => {
+        toast.error('Transaction cancelled');
+        reject(new Error('User cancelled'));
+      },
+    });
+  });
 }
 
 export async function disputeEscrow(escrowId: number): Promise<string> {
-  toast.info('Transaction submitted', { description: 'Filing dispute...' });
-  await new Promise(r => setTimeout(r, 2000));
-  toast.success('Dispute filed successfully');
-  return '0xmock_tx_hash_dispute';
+  return new Promise((resolve, reject) => {
+    openContractCall({
+      network: STACKS_NETWORK,
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'dispute-escrow',
+      functionArgs: [uintCV(escrowId)],
+      onFinish: (data) => {
+        toast.success('Dispute filed', { description: 'Transaction submitted.' });
+        resolve(data.txId);
+      },
+      onCancel: () => {
+        toast.error('Transaction cancelled');
+        reject(new Error('User cancelled'));
+      },
+    });
+  });
 }
 
 export async function extendEscrow(escrowId: number, additionalBlocks: number): Promise<string> {
-  toast.info('Transaction submitted', { description: 'Extending deadline...' });
-  await new Promise(r => setTimeout(r, 2000));
-  toast.success('Escrow deadline extended');
-  return '0xmock_tx_hash_extend';
+  return new Promise((resolve, reject) => {
+    openContractCall({
+      network: STACKS_NETWORK,
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'extend-escrow',
+      functionArgs: [uintCV(escrowId), uintCV(additionalBlocks)],
+      onFinish: (data) => {
+        toast.success('Escrow extended', { description: 'Transaction submitted.' });
+        resolve(data.txId);
+      },
+      onCancel: () => {
+        toast.error('Transaction cancelled');
+        reject(new Error('User cancelled'));
+      },
+    });
+  });
 }
 
 export async function resolveExpiredDispute(escrowId: number): Promise<string> {
-  toast.info('Transaction submitted', { description: 'Recovering funds from timed-out dispute...' });
-  await new Promise(r => setTimeout(r, 2000));
-  toast.success('Funds recovered successfully');
-  return '0xmock_tx_hash_resolve_expired';
+  return new Promise((resolve, reject) => {
+    openContractCall({
+      network: STACKS_NETWORK,
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'resolve-expired-dispute',
+      functionArgs: [uintCV(escrowId)],
+      onFinish: (data) => {
+        toast.success('Disputed funds recovered', { description: 'Transaction submitted.' });
+        resolve(data.txId);
+      },
+      onCancel: () => {
+        toast.error('Transaction cancelled');
+        reject(new Error('User cancelled'));
+      },
+    });
+  });
 }

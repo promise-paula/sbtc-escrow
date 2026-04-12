@@ -83,3 +83,40 @@ export function useDisputedEscrows() {
     },
   });
 }
+
+export function useResolvedDisputes() {
+  return useQuery({
+    queryKey: ['resolved-disputes'],
+    queryFn: async (): Promise<Escrow[]> => {
+      const mockResult = mockEscrows.filter(
+        e => (e.status === EscrowStatus.Released || e.status === EscrowStatus.Refunded) && e.disputedAt
+      );
+      if (!isSupabaseConfigured) return mockResult;
+      try {
+        const { data, error } = await supabase
+          .from('escrows')
+          .select('*')
+          .not('disputed_at_block', 'is', null)
+          .in('status', [EscrowStatus.Released, EscrowStatus.Refunded])
+          .order('completed_at_block', { ascending: false });
+        if (error || !data?.length) return mockResult;
+        return data.map((row) => ({
+          id: row.id,
+          buyer: row.buyer,
+          seller: row.seller,
+          amount: row.amount,
+          feeAmount: row.fee_amount ?? 0,
+          description: row.description ?? '',
+          status: row.status as EscrowStatus,
+          createdAt: row.created_at_block ?? 0,
+          expiresAt: row.expires_at_block ?? 0,
+          completedAt: row.completed_at_block ?? null,
+          disputedAt: row.disputed_at_block ?? null,
+          txHash: row.tx_hash,
+        }));
+      } catch {
+        return mockResult;
+      }
+    },
+  });
+}

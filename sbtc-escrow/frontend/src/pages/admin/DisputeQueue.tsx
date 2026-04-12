@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useDisputedEscrows, usePlatformConfig } from '@/hooks/use-admin';
-import { CURRENT_BLOCK_HEIGHT, mockEscrows } from '@/lib/mock-data';
-import { EscrowStatus } from '@/lib/types';
+import { useDisputedEscrows, usePlatformConfig, useResolvedDisputes } from '@/hooks/use-admin';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import { DisputeTimeoutProgress } from '@/components/shared/DisputeTimeoutProgress';
@@ -21,6 +20,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 export default function DisputeQueue() {
   const { data: disputed, isLoading, isError } = useDisputedEscrows();
   const { data: config } = usePlatformConfig();
+  const { data: resolvedDisputes = [] } = useResolvedDisputes();
+  const { data: currentBlock = 0 } = useBlockHeight();
   const [confirmAction, setConfirmAction] = useState<{ escrowId: number; type: 'buyer' | 'seller' } | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,17 +29,15 @@ export default function DisputeQueue() {
 
   const disputeTimeout = config?.disputeTimeout || 4320;
   const active = (disputed || []).sort((a, b) => (a.disputedAt || 0) - (b.disputedAt || 0));
-  const resolved = mockEscrows.filter(e =>
-    (e.status === EscrowStatus.Released || e.status === EscrowStatus.Refunded) && e.disputedAt
-  );
+  const resolved = resolvedDisputes;
 
   const nearTimeoutCount = active.filter(e => {
-    const elapsed = CURRENT_BLOCK_HEIGHT - (e.disputedAt || 0);
+    const elapsed = currentBlock - (e.disputedAt || 0);
     return elapsed / disputeTimeout > 0.75;
   }).length;
 
   const avgTimeOpen = active.length > 0
-    ? Math.round(active.reduce((sum, e) => sum + (CURRENT_BLOCK_HEIGHT - (e.disputedAt || 0)), 0) / active.length)
+    ? Math.round(active.reduce((sum, e) => sum + (currentBlock - (e.disputedAt || 0)), 0) / active.length)
     : 0;
 
   const handleResolve = async (escrowId: number, type: 'buyer' | 'seller') => {

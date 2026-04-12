@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrowEvents } from '@/hooks/use-escrow';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -35,6 +35,7 @@ export default function ActivityPage() {
   const navigate = useNavigate();
   const { address } = useWallet();
   const { data: allEvents, isLoading, isError } = useEscrowEvents();
+  const { data: currentBlock = 0 } = useBlockHeight();
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const sortedAll = useMemo(
@@ -50,7 +51,7 @@ export default function ActivityPage() {
   // Summary stats
   const totalEvents = sortedAll.length;
   const recentEvents = sortedAll.filter(
-    e => CURRENT_BLOCK_HEIGHT - e.blockHeight <= 144, // ~1 day
+    e => currentBlock - e.blockHeight <= 144, // ~1 day
   ).length;
   const mostActiveType = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -144,7 +145,7 @@ export default function ActivityPage() {
                   {events.map((evt, i) => {
                     const cfg = eventConfig[evt.eventType] || eventConfig.created;
                     const Icon = cfg.icon;
-                    const blockAge = CURRENT_BLOCK_HEIGHT - evt.blockHeight;
+                    const blockAge = currentBlock - evt.blockHeight;
 
                     return (
                       <motion.div

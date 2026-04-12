@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { isValidStacksAddress, formatSTX, calculateFee, blockToEstimatedDate, blocksToTime } from '@/lib/utils';
-import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { useBlockHeight } from '@/hooks/use-block-height';
 import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -41,6 +41,7 @@ export default function CreateEscrow() {
   const navigate = useNavigate();
   const { address } = useWallet();
   const { data: config } = usePlatformConfig();
+  const { data: currentBlock = 0 } = useBlockHeight();
   const [step, setStep] = useState(1);
 
   const [recipient, setRecipient] = useState('');
@@ -273,7 +274,7 @@ export default function CreateEscrow() {
                   </div>
                   {durationValid && (
                     <p className="text-xs text-muted-foreground">
-                      Expires: ~{blockToEstimatedDate(CURRENT_BLOCK_HEIGHT + duration, CURRENT_BLOCK_HEIGHT).toLocaleDateString()} ({blocksToTime(duration)})
+                      Expires: ~{blockToEstimatedDate(currentBlock + duration, currentBlock).toLocaleDateString()} ({blocksToTime(duration)})
                     </p>
                   )}
                 </div>
