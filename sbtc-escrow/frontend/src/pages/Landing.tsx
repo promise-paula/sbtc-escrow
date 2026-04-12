@@ -1,7 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
+import { usePlatformStats } from '@/hooks/use-admin';
+import { usePlatformConfig } from '@/hooks/use-admin';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { formatSTX } from '@/lib/utils';
+import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,13 +45,6 @@ const steps = [
   { num: '3', title: 'Release or Resolve', desc: 'Funds release on mutual approval, auto-refund on expiry, or resolve via dispute.' },
 ];
 
-const stats = [
-  { value: '142', label: 'Escrows Created' },
-  { value: '15,750 STX', label: 'Total Volume' },
-  { value: '0.5%', label: 'Platform Fee' },
-  { value: '30 days', label: 'Dispute Window' },
-];
-
 const security = [
   { icon: FileCheck, title: 'Clarity Smart Contract', desc: 'All escrow logic runs on-chain in a verified Clarity contract. Deterministic execution with no hidden behavior.' },
   { icon: Server, title: 'Non-Custodial Architecture', desc: 'Your keys never leave your wallet. The platform cannot move, freeze, or access your funds at any time.' },
@@ -79,14 +78,39 @@ const trustItemVariants = {
 /*  Dashboard Preview (decorative)                                    */
 /* ------------------------------------------------------------------ */
 
-const previewRows = [
-  { id: '#1042', amount: '50.00 STX', status: 'Pending', color: 'bg-status-pending' },
-  { id: '#1041', amount: '150.00 STX', status: 'Released', color: 'bg-status-released' },
-  { id: '#1040', amount: '25.00 STX', status: 'Refunded', color: 'bg-status-refunded' },
-  { id: '#1039', amount: '500.00 STX', status: 'Disputed', color: 'bg-status-disputed' },
-];
+const STATUS_COLOR: Record<number, string> = {
+  [EscrowStatus.Pending]: 'bg-status-pending',
+  [EscrowStatus.Released]: 'bg-status-released',
+  [EscrowStatus.Refunded]: 'bg-status-refunded',
+  [EscrowStatus.Disputed]: 'bg-status-disputed',
+};
+
+function useRecentEscrows() {
+  return useQuery({
+    queryKey: ['landing-recent-escrows'],
+    queryFn: async () => {
+      if (!isSupabaseConfigured) return [];
+      const { data } = await supabase
+        .from('escrows')
+        .select('id, amount, status')
+        .order('id', { ascending: false })
+        .limit(4);
+      return data ?? [];
+    },
+    staleTime: 60_000,
+  });
+}
 
 function DashboardPreview() {
+  const { data: ps } = usePlatformStats();
+  const { data: rows } = useRecentEscrows();
+
+  const locked = ps ? formatSTX(ps.totalVolume - (ps.totalReleased + ps.totalRefunded > 0 ? 0 : 0)) : '0.00';
+  const pending = ps?.totalEscrows
+    ? ps.totalEscrows - ps.totalReleased - ps.totalRefunded - ps.activeDisputes
+    : 0;
+  const completed = ps ? ps.totalReleased + ps.totalRefunded : 0;
+
   return (
     <div className="relative">
       {/* Floating badge */}
@@ -103,9 +127,9 @@ function DashboardPreview() {
         {/* Mini stat bar */}
         <div className="grid grid-cols-3 gap-px bg-border">
           {[
-            { v: '60.00 STX', l: 'Locked' },
-            { v: '2', l: 'Active' },
-            { v: '3', l: 'Completed' },
+            { v: ps ? `${formatSTX(ps.totalVolume)} STX` : '—', l: 'Volume' },
+            { v: `${pending + (ps?.activeDisputes ?? 0)}`, l: 'Active' },
+            { v: `${completed}`, l: 'Completed' },
           ].map((s) => (
             <div key={s.l} className="bg-card px-4 py-3 text-center">
               <p className="font-mono text-sm font-semibold text-foreground">{s.v}</p>
@@ -122,16 +146,19 @@ function DashboardPreview() {
         </div>
 
         {/* Rows */}
-        {previewRows.map((r) => (
+        {(rows ?? []).map((r) => (
           <div key={r.id} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
-            <span className="font-mono text-xs text-foreground">{r.id}</span>
-            <span className="font-mono text-xs text-foreground">{r.amount}</span>
+            <span className="font-mono text-xs text-foreground">#{r.id}</span>
+            <span className="font-mono text-xs text-foreground">{formatSTX(r.amount)} STX</span>
             <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
-              <span className={`h-1.5 w-1.5 rounded-full ${r.color}`} />
-              {r.status}
+              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_COLOR[r.status] ?? 'bg-muted-foreground'}`} />
+              {STATUS_LABELS[r.status as EscrowStatus] ?? 'Unknown'}
             </span>
           </div>
         ))}
+        {(!rows || rows.length === 0) && (
+          <div className="px-4 py-6 text-center text-xs text-muted-foreground">No escrows yet</div>
+        )}
       </div>
     </div>
   );
@@ -144,6 +171,8 @@ function DashboardPreview() {
 export default function Landing() {
   const { connect, isConnected } = useWallet();
   const navigate = useNavigate();
+  const { data: ps } = usePlatformStats();
+  const { data: cfg } = usePlatformConfig();
 
   const handleGetStarted = () => {
     if (isConnected) {
@@ -206,7 +235,7 @@ export default function Landing() {
 
             {/* Inline social proof */}
             <p className="mt-3 text-sm text-muted-foreground/70 font-mono">
-              142 escrows created · 15,750 STX secured
+              {ps?.totalEscrows ?? 0} escrows created · {formatSTX(ps?.totalVolume ?? 0)} STX secured
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -293,7 +322,12 @@ export default function Landing() {
       {/* ── Stats ──────────────────────────────────────────────── */}
       <section className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-14 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {stats.map((s) => (
+          {[
+            { value: (ps?.totalEscrows ?? 0).toLocaleString(), label: 'Escrows Created' },
+            { value: `${formatSTX(ps?.totalVolume ?? 0)} STX`, label: 'Total Volume' },
+            { value: `${((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%`, label: 'Platform Fee' },
+            { value: `${Math.round((cfg?.disputeTimeout ?? 4320) / 144)} days`, label: 'Dispute Window' },
+          ].map((s) => (
             <div key={s.label} className="rounded-lg border border-border bg-card p-5 text-center">
               <p className="text-xl font-bold font-mono text-foreground">{s.value}</p>
               <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
