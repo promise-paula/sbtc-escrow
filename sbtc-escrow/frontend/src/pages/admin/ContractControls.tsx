@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, BLOCKS_PER_DAY, BLOCKS_PER_WEEK, STACKS_NETWORK } from '@/lib/stacks-config';
-import { isValidStacksAddress, formatSTX, blocksToTime } from '@/lib/utils';
+import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -171,8 +171,10 @@ export default function ContractControls() {
               { label: 'Version', value: 'v4.0.0', mono: true },
               { label: 'Network', value: STACKS_NETWORK, capitalize: true },
               { label: 'Dispute Timeout', value: `${cfg.disputeTimeout.toLocaleString()} blocks` },
-              { label: 'Min Amount', value: `${formatSTX(cfg.minAmount)} STX`, mono: true },
-              { label: 'Max Amount', value: `${formatSTX(cfg.maxAmount)} STX`, mono: true },
+              { label: 'Min Amount (STX)', value: `${formatSTX(cfg.minAmount)} STX`, mono: true },
+              { label: 'Max Amount (STX)', value: `${formatSTX(cfg.maxAmount)} STX`, mono: true },
+              { label: 'Min Amount (sBTC)', value: `${formatSBTC(cfg.minAmountSbtc)} sBTC`, mono: true },
+              { label: 'Max Amount (sBTC)', value: `${formatSBTC(cfg.maxAmountSbtc)} sBTC`, mono: true },
               { label: 'Max Duration', value: `${cfg.maxDuration.toLocaleString()} blocks (~${blocksToTime(cfg.maxDuration)})` },
             ].map((row, idx) => (
               <div key={row.label} className={`flex justify-between items-center p-3 text-sm ${idx % 2 === 1 ? 'bg-muted/30' : ''}`}>
