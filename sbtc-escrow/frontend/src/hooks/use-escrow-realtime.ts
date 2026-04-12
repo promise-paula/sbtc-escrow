@@ -15,6 +15,9 @@ export function useEscrowRealtime() {
         queryClient.invalidateQueries({ queryKey: ['escrow'] });
         queryClient.invalidateQueries({ queryKey: ['disputed-escrows'] });
         queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['resolved-disputes'] });
+        queryClient.invalidateQueries({ queryKey: ['monthly-analytics'] });
+        queryClient.invalidateQueries({ queryKey: ['platform-stats'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'escrow_events' }, () => {
         queryClient.invalidateQueries({ queryKey: ['events'] });
