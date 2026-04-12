@@ -95,10 +95,10 @@ export default function EscrowDetail() {
     setLoading(true);
     try {
       switch (action) {
-        case 'release': await releaseEscrow(escrow.id); break;
-        case 'refund': await refundEscrow(escrow.id); break;
+        case 'release': await releaseEscrow(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
+        case 'refund': await refundEscrow(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
         case 'dispute': await disputeEscrow(escrow.id); break;
-        case 'recover': await resolveExpiredDispute(escrow.id); break;
+        case 'recover': await resolveExpiredDispute(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
       }
     } finally {
       setLoading(false);
@@ -160,7 +160,7 @@ export default function EscrowDetail() {
               <div className="flex items-start gap-2">
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground mb-0.5">Amount</p>
-                  <AmountDisplay micro={escrow.amount} className="text-lg" />
+                  <AmountDisplay micro={escrow.amount} tokenType={escrow.tokenType} className="text-lg" />
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -247,7 +247,7 @@ export default function EscrowDetail() {
               )}
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-xs text-muted-foreground">Platform Fee</span>
-                <AmountDisplay micro={escrow.feeAmount} showUsd={false} />
+                <AmountDisplay micro={escrow.feeAmount} tokenType={escrow.tokenType} showUsd={false} />
               </div>
               {(escrow.status === EscrowStatus.Released || escrow.status === EscrowStatus.Refunded) && escrow.txHash && (
                 <div className="flex items-center justify-between py-2.5 last:pb-0">
