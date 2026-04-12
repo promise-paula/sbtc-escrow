@@ -178,7 +178,7 @@ export default function MyEscrows() {
                   </div>
                   <p className="text-sm font-medium text-foreground truncate">{e.description}</p>
                   <div className="flex items-center justify-between">
-                    <AmountDisplay micro={e.amount} showUsd={false} />
+                    <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
                     <AddressDisplay address={counterparty} showCopy={false} />
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
