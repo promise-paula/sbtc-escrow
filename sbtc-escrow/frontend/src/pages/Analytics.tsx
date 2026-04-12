@@ -15,9 +15,11 @@ import {
 
 interface MonthlyBucket {
   month: string;
-  volume: number;
+  volumeStx: number;
+  volumeSbtc: number;
   escrowCount: number;
-  feesCollected: number;
+  feesStx: number;
+  feesSbtc: number;
   released: number;
   refunded: number;
   disputed: number;
@@ -41,11 +43,17 @@ function useMonthlyAnalytics() {
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
         if (!buckets.has(key)) {
-          buckets.set(key, { month: label, volume: 0, escrowCount: 0, feesCollected: 0, released: 0, refunded: 0, disputed: 0 });
+          buckets.set(key, { month: label, volumeStx: 0, volumeSbtc: 0, escrowCount: 0, feesStx: 0, feesSbtc: 0, released: 0, refunded: 0, disputed: 0 });
         }
         const b = buckets.get(key)!;
-        b.volume += row.amount ?? 0;
-        b.feesCollected += row.fee_amount ?? 0;
+        const isSbtc = (row.token_type ?? 0) === 1;
+        if (isSbtc) {
+          b.volumeSbtc += (row.amount ?? 0) / 1e8;
+          b.feesSbtc += (row.fee_amount ?? 0) / 1e8;
+        } else {
+          b.volumeStx += (row.amount ?? 0) / 1e6;
+          b.feesStx += (row.fee_amount ?? 0) / 1e6;
+        }
         b.escrowCount += 1;
         if (row.status === EscrowStatus.Released) b.released += 1;
         else if (row.status === EscrowStatus.Refunded) b.refunded += 1;
@@ -78,10 +86,10 @@ export default function Analytics() {
   const { data: monthlyData = [] } = useMonthlyAnalytics();
 
   const volumeData = useMemo(() =>
-    monthlyData.map(m => ({ month: m.month, volume: m.volume / 1_000_000 })), [monthlyData]);
+    monthlyData.map(m => ({ month: m.month, stx: Number(m.volumeStx.toFixed(2)), sbtc: Number(m.volumeSbtc.toFixed(6)) })), [monthlyData]);
 
   const feeData = useMemo(() =>
-    monthlyData.map(m => ({ month: m.month, fees: m.feesCollected / 1_000_000 })), [monthlyData]);
+    monthlyData.map(m => ({ month: m.month, stx: Number(m.feesStx.toFixed(4)), sbtc: Number(m.feesSbtc.toFixed(8)) })), [monthlyData]);
 
   const countData = useMemo(() =>
     monthlyData.map(m => ({ month: m.month, count: m.escrowCount })), [monthlyData]);
@@ -98,16 +106,20 @@ export default function Analytics() {
     ];
   }, [monthlyData]);
 
-  const totalVolume = monthlyData.reduce((s, m) => s + m.volume, 0);
+  const totalVolumeStx = monthlyData.reduce((s, m) => s + m.volumeStx, 0);
+  const totalVolumeSbtc = monthlyData.reduce((s, m) => s + m.volumeSbtc, 0);
   const totalEscrows = monthlyData.reduce((s, m) => s + m.escrowCount, 0);
-  const totalFees = monthlyData.reduce((s, m) => s + m.feesCollected, 0);
-  const avgSize = totalEscrows > 0 ? totalVolume / totalEscrows : 0;
+  const totalFeesStx = monthlyData.reduce((s, m) => s + m.feesStx, 0);
+  const totalFeesSbtc = monthlyData.reduce((s, m) => s + m.feesSbtc, 0);
+  const avgSizeStx = totalEscrows > 0 ? totalVolumeStx / totalEscrows : 0;
 
   const summaryCards = [
-    { title: 'Total Volume', value: totalVolume, icon: TrendingUp, isAmount: true },
-    { title: 'Total Escrows', value: totalEscrows, icon: Hash, isAmount: false },
-    { title: 'Fees Collected', value: totalFees, icon: Coins, isAmount: true },
-    { title: 'Avg Escrow Size', value: avgSize, icon: Calculator, isAmount: true },
+    { title: 'Volume (STX)', value: `${totalVolumeStx.toFixed(2)} STX`, icon: TrendingUp },
+    ...(totalVolumeSbtc > 0 ? [{ title: 'Volume (sBTC)', value: `${totalVolumeSbtc.toFixed(6)} sBTC`, icon: TrendingUp }] : []),
+    { title: 'Total Escrows', value: totalEscrows.toLocaleString(), icon: Hash },
+    { title: 'Fees (STX)', value: `${totalFeesStx.toFixed(4)} STX`, icon: Coins },
+    ...(totalFeesSbtc > 0 ? [{ title: 'Fees (sBTC)', value: `${totalFeesSbtc.toFixed(8)} sBTC`, icon: Coins }] : []),
+    { title: 'Avg Escrow Size', value: `${avgSizeStx.toFixed(2)} STX`, icon: Calculator },
   ];
 
   return (
@@ -125,7 +137,7 @@ export default function Analytics() {
                   <span className="text-xs font-medium">{card.title}</span>
                 </div>
                 <p className="text-xl font-mono font-semibold">
-                  {card.isAmount ? <AmountDisplay micro={card.value} showUsd={false} /> : card.value.toLocaleString()}
+                  {card.value}
                 </p>
               </CardContent>
             </Card>
@@ -145,9 +157,10 @@ export default function Analytics() {
                 <BarChart data={volumeData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
-                  <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={(v) => `${v} STX`} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString()} STX`, 'Volume']} />
-                  <Bar dataKey="volume" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Bar dataKey="stx" name="STX" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="sbtc" name="sBTC" fill="hsl(var(--accent-warm))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -190,9 +203,10 @@ export default function Analytics() {
                   <AreaChart data={feeData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
-                    <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={(v) => `${v} STX`} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString()} STX`, 'Fees']} />
-                    <Area type="monotone" dataKey="fees" stroke="hsl(var(--accent-warm))" fill="hsl(var(--accent-warm))" fillOpacity={0.15} strokeWidth={2} />
+                    <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Area type="monotone" dataKey="stx" name="STX" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} strokeWidth={2} />
+                    <Area type="monotone" dataKey="sbtc" name="sBTC" stroke="hsl(var(--accent-warm))" fill="hsl(var(--accent-warm))" fillOpacity={0.15} strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
