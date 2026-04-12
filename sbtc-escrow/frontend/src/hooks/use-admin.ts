@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { PlatformStats, PlatformConfig, Escrow, EscrowStatus } from '@/lib/types';
+import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '@/lib/types';
 
 const EMPTY_STATS: PlatformStats = {
   totalEscrows: 0,
@@ -79,13 +79,14 @@ export function useDisputedEscrows() {
         seller: row.seller,
         amount: row.amount,
         feeAmount: row.fee_amount ?? 0,
+        tokenType: (row.token_type ?? 0) as TokenType,
         description: row.description ?? '',
         status: row.status as EscrowStatus,
         createdAt: row.created_at_block ?? 0,
         expiresAt: row.expires_at_block ?? 0,
         completedAt: row.completed_at_block ?? null,
         disputedAt: row.disputed_at_block ?? null,
-        txHash: row.tx_hash,
+        txHash: row.tx_id,
       }));
     },
   });
@@ -109,13 +110,14 @@ export function useResolvedDisputes() {
         seller: row.seller,
         amount: row.amount,
         feeAmount: row.fee_amount ?? 0,
+        tokenType: (row.token_type ?? 0) as TokenType,
         description: row.description ?? '',
         status: row.status as EscrowStatus,
         createdAt: row.created_at_block ?? 0,
         expiresAt: row.expires_at_block ?? 0,
         completedAt: row.completed_at_block ?? null,
         disputedAt: row.disputed_at_block ?? null,
-        txHash: row.tx_hash,
+        txHash: row.tx_id,
       }));
     },
   });
