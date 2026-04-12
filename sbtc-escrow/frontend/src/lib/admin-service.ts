@@ -1,30 +1,21 @@
 import { toast } from 'sonner';
-import { openContractCall } from '@stacks/connect';
-import { uintCV, standardPrincipalCV } from '@stacks/transactions';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, STACKS_NETWORK } from './stacks-config';
+import { request } from '@stacks/connect';
+import { Cl, type ClarityValue } from '@stacks/transactions';
+import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
 
-function adminCall(
+async function adminCall(
   functionName: string,
-  functionArgs: ReturnType<typeof uintCV>[],
+  functionArgs: ClarityValue[],
   successMsg: string,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    openContractCall({
-      network: STACKS_NETWORK,
-      contractAddress: CONTRACT_ADDRESS,
-      contractName: CONTRACT_NAME,
-      functionName,
-      functionArgs,
-      onFinish: (data) => {
-        toast.success(successMsg, { description: 'Transaction submitted.' });
-        resolve(data.txId);
-      },
-      onCancel: () => {
-        toast.error('Transaction cancelled');
-        reject(new Error('User cancelled'));
-      },
-    });
+  const response = await request('stx_callContract', {
+    contract: CONTRACT_PRINCIPAL,
+    functionName,
+    functionArgs,
+    network: STACKS_NETWORK,
   });
+  toast.success(successMsg, { description: 'Transaction submitted.' });
+  return response.txId;
 }
 
 export function pauseContract(): Promise<string> {
@@ -36,57 +27,25 @@ export function unpauseContract(): Promise<string> {
 }
 
 export function setPlatformFee(bps: number): Promise<string> {
-  return adminCall('set-platform-fee', [uintCV(bps)], `Fee updated to ${bps} BPS (${(bps / 100).toFixed(2)}%)`);
+  return adminCall('set-platform-fee', [Cl.uint(bps)], `Fee updated to ${bps} BPS (${(bps / 100).toFixed(2)}%)`);
 }
 
 export function setFeeRecipient(address: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    openContractCall({
-      network: STACKS_NETWORK,
-      contractAddress: CONTRACT_ADDRESS,
-      contractName: CONTRACT_NAME,
-      functionName: 'set-fee-recipient',
-      functionArgs: [standardPrincipalCV(address)],
-      onFinish: (data) => {
-        toast.success('Fee recipient updated', { description: 'Transaction submitted.' });
-        resolve(data.txId);
-      },
-      onCancel: () => {
-        toast.error('Transaction cancelled');
-        reject(new Error('User cancelled'));
-      },
-    });
-  });
+  return adminCall('set-fee-recipient', [Cl.standardPrincipal(address)], 'Fee recipient updated');
 }
 
 export function setDisputeTimeout(blocks: number): Promise<string> {
-  return adminCall('set-dispute-timeout', [uintCV(blocks)], `Dispute timeout updated to ${blocks} blocks`);
+  return adminCall('set-dispute-timeout', [Cl.uint(blocks)], `Dispute timeout updated to ${blocks} blocks`);
 }
 
 export function initiateOwnershipTransfer(newOwner: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    openContractCall({
-      network: STACKS_NETWORK,
-      contractAddress: CONTRACT_ADDRESS,
-      contractName: CONTRACT_NAME,
-      functionName: 'initiate-ownership-transfer',
-      functionArgs: [standardPrincipalCV(newOwner)],
-      onFinish: (data) => {
-        toast.success('Ownership transfer initiated', { description: 'Awaiting acceptance.' });
-        resolve(data.txId);
-      },
-      onCancel: () => {
-        toast.error('Transaction cancelled');
-        reject(new Error('User cancelled'));
-      },
-    });
-  });
+  return adminCall('initiate-ownership-transfer', [Cl.standardPrincipal(newOwner)], 'Ownership transfer initiated');
 }
 
 export function resolveDisputeForBuyer(escrowId: number): Promise<string> {
-  return adminCall('resolve-dispute-for-buyer', [uintCV(escrowId)], 'Dispute resolved — funds returned to buyer');
+  return adminCall('resolve-dispute-for-buyer', [Cl.uint(escrowId)], 'Dispute resolved — funds returned to buyer');
 }
 
 export function resolveDisputeForSeller(escrowId: number): Promise<string> {
-  return adminCall('resolve-dispute-for-seller', [uintCV(escrowId)], 'Dispute resolved — funds released to seller');
+  return adminCall('resolve-dispute-for-seller', [Cl.uint(escrowId)], 'Dispute resolved — funds released to seller');
 }

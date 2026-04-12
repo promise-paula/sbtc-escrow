@@ -1,60 +1,55 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { AppConfig, showConnect, UserSession } from '@stacks/connect';
+import {
+  connect as stacksConnect,
+  disconnect as stacksDisconnect,
+  isConnected as stacksIsConnected,
+  getLocalStorage,
+} from '@stacks/connect';
 import { CONTRACT_ADDRESS } from '@/lib/stacks-config';
-
-const appConfig = new AppConfig(['store_write']);
-const userSession = new UserSession({ appConfig });
 
 interface WalletContextType {
   address: string | null;
   isConnected: boolean;
   isAdmin: boolean;
-  connect: () => void;
+  connect: () => Promise<void>;
   disconnect: () => void;
-  userSession: UserSession;
 }
 
 const WalletContext = createContext<WalletContextType>({
   address: null,
   isConnected: false,
   isAdmin: false,
-  connect: () => {},
+  connect: async () => {},
   disconnect: () => {},
-  userSession,
 });
 
-function getAddress(): string | null {
-  if (!userSession.isUserSignedIn()) return null;
-  const userData = userSession.loadUserData();
-  return userData.profile?.stxAddress?.testnet ?? null;
+function getPersistedAddress(): string | null {
+  const stored = getLocalStorage();
+  return stored?.addresses?.stx?.[0]?.address ?? null;
 }
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [address, setAddress] = useState<string | null>(getAddress);
+  const [address, setAddress] = useState<string | null>(() => {
+    if (stacksIsConnected()) return getPersistedAddress();
+    return null;
+  });
 
   useEffect(() => {
-    if (userSession.isSignInPending()) {
-      userSession.handlePendingSignIn().then(() => {
-        setAddress(getAddress());
-      });
+    if (stacksIsConnected()) {
+      setAddress(getPersistedAddress());
     }
   }, []);
 
-  const connect = useCallback(() => {
-    showConnect({
-      appDetails: {
-        name: 'sBTC Escrow',
-        icon: window.location.origin + '/favicon.ico',
-      },
-      onFinish: () => {
-        setAddress(getAddress());
-      },
-      userSession,
-    });
+  const connect = useCallback(async () => {
+    const response = await stacksConnect();
+    const stxAddr = response.addresses.find(
+      (a) => a.symbol === 'STX',
+    )?.address ?? null;
+    setAddress(stxAddr);
   }, []);
 
   const disconnect = useCallback(() => {
-    userSession.signUserOut();
+    stacksDisconnect();
     setAddress(null);
   }, []);
 
@@ -62,7 +57,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = address === CONTRACT_ADDRESS;
 
   return (
-    <WalletContext.Provider value={{ address, isConnected, isAdmin, connect, disconnect, userSession }}>
+    <WalletContext.Provider value={{ address, isConnected, isAdmin, connect, disconnect }}>
       {children}
     </WalletContext.Provider>
   );
