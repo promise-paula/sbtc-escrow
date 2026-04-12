@@ -42,6 +42,10 @@ export function transferOwnership(newOwner: string): Promise<string> {
   return adminCall('transfer-ownership', [Cl.standardPrincipal(newOwner)], 'Ownership transfer initiated');
 }
 
+export function acceptOwnership(): Promise<string> {
+  return adminCall('accept-ownership', [], 'Ownership transfer accepted');
+}
+
 export function resolveDisputeForBuyer(escrowId: number): Promise<string> {
   return adminCall('resolve-dispute-for-buyer', [Cl.uint(escrowId)], 'Dispute resolved — funds returned to buyer');
 }
