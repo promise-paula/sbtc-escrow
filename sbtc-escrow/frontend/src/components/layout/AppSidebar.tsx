@@ -137,7 +137,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-3">
         {!collapsed && (
           <p className="text-[10px] text-muted-foreground">
-            v3.0.0 · Testnet
+            v4.0.0 · Testnet
           </p>
         )}
       </SidebarFooter>
