@@ -110,7 +110,7 @@ export default function DisputeQueue() {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-sm font-medium">#{e.id}</span>
-                              <AmountDisplay micro={e.amount} showUsd={false} />
+                              <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
                               {isNearTimeout && (
                                 <span className="text-[10px] font-medium text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">URGENT</span>
                               )}
@@ -178,7 +178,7 @@ export default function DisputeQueue() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm font-medium">#{e.id}</span>
-                          <AmountDisplay micro={e.amount} showUsd={false} />
+                          <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
                         </div>
                         <p className="text-xs text-muted-foreground">Completed block {e.completedAt?.toLocaleString()}</p>
                       </div>
