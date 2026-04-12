@@ -1,19 +1,34 @@
 import React from 'react';
 
+/** Standard logo sizes used across the app */
+export const LOGO_SIZE = {
+  xs: 16,
+  sm: 22,
+  md: 24,
+  lg: 32,
+  xl: 48,
+} as const;
+
+type LogoSizeKey = keyof typeof LOGO_SIZE;
+
 interface LogoProps {
-  size?: number;
+  /** Predefined size token or custom pixel value */
+  size?: LogoSizeKey | number;
   className?: string;
 }
 
-export function Logo({ size = 24, className = '' }: LogoProps) {
+export function Logo({ size = 'md', className = '' }: LogoProps) {
+  const px = typeof size === 'number' ? size : LOGO_SIZE[size];
+
   return (
     <svg
-      width={size}
-      height={size}
+      width={px}
+      height={px}
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      role="img"
       aria-label="sBTC Escrow logo"
     >
       {/* Shield shape */}

@@ -58,7 +58,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
         <NavLink to="/dashboard" className="flex items-center gap-2 no-underline">
-          <Logo size={24} className="text-accent-warm shrink-0" />
+          <Logo size="md" className="text-accent-warm shrink-0" />
           {!collapsed && (
             <span className="font-semibold text-foreground text-sm tracking-tight">
               sBTC Escrow

@@ -163,7 +163,7 @@ export default function Landing() {
       <nav aria-label="Main" className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-6xl mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-2">
-            <Logo size={22} className="text-accent-warm" />
+            <Logo size="sm" className="text-accent-warm" />
             <span className="font-semibold">sBTC Escrow</span>
           </div>
 
