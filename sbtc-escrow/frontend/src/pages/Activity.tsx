@@ -1,147 +1,185 @@
-import { useState } from "react";
-import { useDocumentHead } from "@/hooks/use-document-head";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { PageTransition } from "@/components/layout/PageTransition";
-import { staggerContainer, staggerChild } from "@/lib/animations";
-import { StatusBadge, RoleBadge } from "@/components/escrow/StatusBadge";
-import { useAllEscrows } from "@/hooks/use-escrow";
-import { useWallet } from "@/contexts/WalletContext";
-import { EscrowStatus } from "@/lib/stacks-config";
-import { Activity as ActivityIcon, Filter, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { SkeletonActivityRow } from "@/components/states/EmptyAndLoading";
+import React, { useState, useMemo } from 'react';
+import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { useWallet } from '@/contexts/WalletContext';
+import { useEscrowEvents } from '@/hooks/use-escrow';
+import { AddressDisplay } from '@/components/shared/AddressDisplay';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { ActivitySkeleton } from '@/components/shared/PageSkeletons';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useNavigate } from 'react-router-dom';
+import { blocksToTime } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import { cardVariants, listItemVariants } from '@/lib/motion';
+import {
+  PlusCircle, CheckCircle2, XCircle, AlertTriangle, Shield, Clock, Inbox, ArrowUpRight,
+  Activity, TrendingUp, Zap,
+} from 'lucide-react';
 
-type FilterValue = 'all' | EscrowStatus;
+const eventConfig: Record<string, { icon: typeof PlusCircle; color: string; label: string }> = {
+  created: { icon: PlusCircle, color: 'text-primary', label: 'Escrow Created' },
+  released: { icon: CheckCircle2, color: 'text-success', label: 'Payment Released' },
+  refunded: { icon: XCircle, color: 'text-status-refunded', label: 'Escrow Refunded' },
+  disputed: { icon: AlertTriangle, color: 'text-destructive', label: 'Dispute Filed' },
+  'dispute-resolved': { icon: Shield, color: 'text-success', label: 'Dispute Resolved' },
+  'dispute-timeout-resolved': { icon: Clock, color: 'text-warning', label: 'Dispute Timeout Resolved' },
+  extended: { icon: Clock, color: 'text-primary', label: 'Escrow Extended' },
+  expired: { icon: XCircle, color: 'text-muted-foreground', label: 'Escrow Expired' },
+};
 
-const FILTERS: { value: FilterValue; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: EscrowStatus.PENDING, label: "Pending" },
-  { value: EscrowStatus.RELEASED, label: "Released" },
-  { value: EscrowStatus.DISPUTED, label: "Disputed" },
-  { value: EscrowStatus.REFUNDED, label: "Refunded" },
-];
-
-// Format relative time
-function formatTimeAgo(blockHeight: bigint | number, currentBlock?: number): string {
-  // Without current block context, show block number
-  if (!currentBlock) {
-    return `Block ${Number(blockHeight).toLocaleString()}`;
-  }
-  const blocksAgo = currentBlock - Number(blockHeight);
-  if (blocksAgo < 0) return 'Pending';
-  const daysAgo = Math.floor(blocksAgo / 144); // ~144 blocks per day
-  if (daysAgo === 0) return 'Today';
-  if (daysAgo === 1) return '1d ago';
-  return `${daysAgo}d ago`;
-}
+const filterTypes = ['all', 'created', 'released', 'refunded', 'disputed', 'extended'] as const;
 
 export default function ActivityPage() {
-  const [filter, setFilter] = useState<FilterValue>("all");
-  const { data: escrows = [], isLoading, error } = useAllEscrows();
+  const navigate = useNavigate();
   const { address } = useWallet();
-  useDocumentHead({ title: "Activity | sBTC Escrow", description: "All escrow transactions and history." });
+  const { data: allEvents, isLoading, isError } = useEscrowEvents();
+  const [typeFilter, setTypeFilter] = useState<string>('all');
 
-  const filtered = escrows.filter((e) => filter === "all" || e.status === filter);
+  const sortedAll = useMemo(
+    () => (allEvents || []).slice().sort((a, b) => b.blockHeight - a.blockHeight),
+    [allEvents],
+  );
 
-  // Get user role for an escrow
-  const getUserRole = (escrow: { buyer: string; seller: string }): 'buyer' | 'seller' | undefined => {
-    if (!address) return undefined;
-    if (escrow.buyer === address) return 'buyer';
-    if (escrow.seller === address) return 'seller';
-    return undefined;
-  };
+  const events = useMemo(
+    () => sortedAll.filter(e => typeFilter === 'all' || e.eventType === typeFilter),
+    [sortedAll, typeFilter],
+  );
+
+  // Summary stats
+  const totalEvents = sortedAll.length;
+  const recentEvents = sortedAll.filter(
+    e => CURRENT_BLOCK_HEIGHT - e.blockHeight <= 144, // ~1 day
+  ).length;
+  const mostActiveType = useMemo(() => {
+    const counts: Record<string, number> = {};
+    sortedAll.forEach(e => { counts[e.eventType] = (counts[e.eventType] || 0) + 1; });
+    let max = ''; let maxC = 0;
+    Object.entries(counts).forEach(([k, v]) => { if (v > maxC) { max = k; maxC = v; } });
+    return max || 'created';
+  }, [sortedAll]);
+
+  // Count per filter type
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: sortedAll.length };
+    filterTypes.forEach(t => { if (t !== 'all') c[t] = sortedAll.filter(e => e.eventType === t).length; });
+    return c;
+  }, [sortedAll]);
+
+  if (isLoading) return <ActivitySkeleton />;
+
+  const summaryCards = [
+    { icon: Activity, label: 'Total Events', value: totalEvents.toString() },
+    { icon: Zap, label: 'Last 24h', value: recentEvents.toString() },
+    { icon: TrendingUp, label: 'Most Active', value: (eventConfig[mostActiveType]?.label || 'Created').replace('Escrow ', '') },
+  ];
 
   return (
-    <PageTransition>
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-8 pb-24 md:pb-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-heading flex items-center gap-2">
-              <ActivityIcon className="h-6 w-6 text-primary" /> Activity
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">All escrow transactions and history</p>
-          </div>
-        </div>
+    <div className="p-4 sm:p-6 max-w-3xl space-y-5">
+      <h1 className="text-lg font-semibold text-foreground">Activity</h1>
 
-        {/* Filters */}
-        <div className="flex items-center gap-1 mb-6 flex-wrap">
-          <Filter className="h-4 w-4 text-muted-foreground mr-1" />
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              aria-label={`Filter by ${f.label}`}
-              aria-pressed={filter === f.value}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors border",
-                filter === f.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+      {isError && <ErrorBanner message="Failed to load activity. Showing cached data." />}
 
-        {/* Error State */}
-        {error && (
-          <div className="mb-6 p-4 rounded-lg bg-error/10 border border-error/20 text-error flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            <span>Failed to load activity. Please try again.</span>
-          </div>
-        )}
-
-        {/* Table */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          {/* Header */}
-          <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <div className="col-span-2">ID</div>
-            <div className="col-span-3">Description</div>
-            <div className="col-span-2 text-right">Amount</div>
-            <div className="col-span-1 text-center">Role</div>
-            <div className="col-span-2 text-center">Status</div>
-            <div className="col-span-2 text-right">Expires</div>
-          </div>
-
-          {/* Rows */}
-          {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonActivityRow key={i} />
-            ))
-          ) : (
-            <motion.div variants={staggerContainer} initial="initial" animate="animate">
-              {filtered.map((escrow) => {
-                const role = getUserRole(escrow);
-                return (
-                  <motion.div key={escrow.id} variants={staggerChild}>
-                    <Link
-                      to={`/escrow/${escrow.id}`}
-                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 px-5 py-4 border-b border-border last:border-0 hover:bg-surface-1 transition-colors"
-                    >
-                      <div className="sm:col-span-2 font-mono text-sm font-semibold">ESC-{String(escrow.id).padStart(3, '0')}</div>
-                      <div className="sm:col-span-3 text-sm text-muted-foreground truncate">{escrow.description || 'No description'}</div>
-                      <div className="sm:col-span-2 text-sm font-mono text-right">{escrow.amountStx.toLocaleString()} STX</div>
-                      <div className="sm:col-span-1 flex justify-center">
-                        {role ? <RoleBadge role={role} /> : <span className="text-xs text-muted-foreground">-</span>}
-                      </div>
-                      <div className="sm:col-span-2 flex justify-center"><StatusBadge status={escrow.status} /></div>
-                      <div className="sm:col-span-2 text-sm text-muted-foreground text-right font-mono">
-                        {Number(escrow.expiresAt).toLocaleString()}
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
-
-              {filtered.length === 0 && (
-                <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                  No transactions found for this filter.
+      {/* Summary bar */}
+      <div className="grid grid-cols-3 gap-3">
+        {summaryCards.map((s, i) => (
+          <motion.div key={s.label} custom={i} variants={cardVariants} initial="hidden" animate="visible">
+            <Card>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <div className="rounded-md bg-muted p-1.5">
+                  <s.icon className="h-3.5 w-3.5 text-primary" />
                 </div>
-              )}
-            </motion.div>
-          )}
-        </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground font-mono truncate">{s.value}</p>
+                  <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
       </div>
-    </PageTransition>
+
+      {/* Filter tabs */}
+      <Tabs value={typeFilter} onValueChange={setTypeFilter}>
+        <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
+          {filterTypes.map(t => (
+            <TabsTrigger
+              key={t}
+              value={t}
+              className="text-xs capitalize data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-2.5 py-1"
+            >
+              {t}
+              {counts[t] > 0 && (
+                <span className="ml-1 text-[10px] opacity-70">{counts[t]}</span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {/* Timeline */}
+      {events.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title="No activity"
+          description="Events will appear here once you create or interact with escrows."
+          actionLabel="Create Escrow"
+          onAction={() => navigate('/create')}
+        />
+      ) : (
+        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Timeline
+                <span className="text-xs font-normal text-muted-foreground">· {events.length} events</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="relative">
+                <div className="absolute left-7 top-0 bottom-0 w-px bg-border" />
+                <div className="divide-y divide-border">
+                  {events.map((evt, i) => {
+                    const cfg = eventConfig[evt.eventType] || eventConfig.created;
+                    const Icon = cfg.icon;
+                    const blockAge = CURRENT_BLOCK_HEIGHT - evt.blockHeight;
+
+                    return (
+                      <motion.div
+                        key={evt.id}
+                        custom={i}
+                        variants={listItemVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="relative flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => navigate(`/escrow/${evt.escrowId}`)}
+                      >
+                        <div className="relative z-10 flex items-center justify-center h-7 w-7 rounded-full bg-card border border-border shrink-0">
+                          <Icon className={`h-3 w-3 ${cfg.color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{cfg.label}</span>
+                            <span className="text-xs font-mono text-muted-foreground">
+                              #{evt.escrowId} <ArrowUpRight className="h-2.5 w-2.5 inline" />
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <AddressDisplay address={evt.actor} showCopy={false} truncateChars={3} />
+                            <span className="text-xs text-muted-foreground">· {blocksToTime(blockAge)} ago</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+    </div>
   );
 }

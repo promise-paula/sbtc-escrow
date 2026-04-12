@@ -1,175 +1,225 @@
-export type EscrowStatus = "pending" | "active" | "released" | "refunded" | "disputed" | "expired";
-export type UserRole = "buyer" | "seller";
+import { Escrow, EscrowEvent, EscrowStatus, PlatformConfig, PlatformStats, UserStats } from './types';
 
-export interface EscrowEvent {
-  id: string;
-  type: "created" | "funded" | "released" | "disputed" | "refunded" | "expired";
-  timestamp: Date;
-  description: string;
-  txId?: string;
-}
+const CURRENT_BLOCK = 156_200;
 
-export interface Escrow {
-  id: string;
-  status: EscrowStatus;
-  buyerAddress: string;
-  sellerAddress: string;
-  amount: number; // in STX
-  usdValue: number;
-  description: string;
-  createdAt: Date;
-  expiresAt: Date;
-  userRole: UserRole;
-  events: EscrowEvent[];
-}
+export const MOCK_WALLET = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
+export const MOCK_ADMIN = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
 
-export const STX_PRICE_USD = 1.42;
+export const mockConfig: PlatformConfig = {
+  owner: MOCK_ADMIN,
+  feeRecipient: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+  platformFeeBps: 50,
+  isPaused: false,
+  minAmount: 1_000_000, // 1 STX
+  maxAmount: 100_000_000_000, // 100,000 STX
+  maxDuration: 52_560, // ~365 days
+  disputeTimeout: 4_320, // ~30 days
+};
 
-export const MOCK_WALLET_ADDRESS = "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7";
-
-export const MOCK_ESCROWS: Escrow[] = [
+export const mockEscrows: Escrow[] = [
   {
-    id: "ESC-001",
-    status: "active",
-    buyerAddress: "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
-    sellerAddress: "SP1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE",
-    amount: 25000,
-    usdValue: 35500,
-    description: "NFT Collection Purchase — CryptoPunks derivative set",
-    createdAt: new Date("2026-02-18T10:30:00"),
-    expiresAt: new Date("2026-02-25T10:30:00"),
-    userRole: "buyer",
-    events: [
-      { id: "e1", type: "created", timestamp: new Date("2026-02-18T10:30:00"), description: "Escrow created by buyer" },
-      { id: "e2", type: "funded", timestamp: new Date("2026-02-18T10:32:00"), description: "25,000 STX deposited", txId: "0xabc123" },
-    ],
+    id: 1,
+    buyer: MOCK_WALLET,
+    seller: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+    amount: 50_000_000,
+    feeAmount: 250_000,
+    description: 'Logo design for sBTC marketplace',
+    status: EscrowStatus.Pending,
+    createdAt: CURRENT_BLOCK - 200,
+    expiresAt: CURRENT_BLOCK + 4_000,
+    completedAt: null,
+    disputedAt: null,
   },
   {
-    id: "ESC-002",
-    status: "pending",
-    buyerAddress: "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE",
-    sellerAddress: "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
-    amount: 8500,
-    usdValue: 12070,
-    description: "Smart Contract Audit — DeFi Protocol v2",
-    createdAt: new Date("2026-02-19T14:15:00"),
-    expiresAt: new Date("2026-03-05T14:15:00"),
-    userRole: "seller",
-    events: [
-      { id: "e3", type: "created", timestamp: new Date("2026-02-19T14:15:00"), description: "Escrow created by buyer" },
-    ],
+    id: 2,
+    buyer: 'ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC',
+    seller: MOCK_WALLET,
+    amount: 150_000_000,
+    feeAmount: 750_000,
+    description: 'Smart contract audit for DeFi protocol',
+    status: EscrowStatus.Released,
+    createdAt: CURRENT_BLOCK - 2_000,
+    expiresAt: CURRENT_BLOCK - 500,
+    completedAt: CURRENT_BLOCK - 800,
+    disputedAt: null,
+    txHash: '0xabc123def456',
   },
   {
-    id: "ESC-003",
-    status: "released",
-    buyerAddress: "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
-    sellerAddress: "SPNWZ5V2TPWGQGVDR6T7B6RQ4XMGZ4PXTEE0VQ0S",
-    amount: 50000,
-    usdValue: 71000,
-    description: "DAO Treasury Management Setup",
-    createdAt: new Date("2026-02-10T09:00:00"),
-    expiresAt: new Date("2026-02-20T09:00:00"),
-    userRole: "buyer",
-    events: [
-      { id: "e4", type: "created", timestamp: new Date("2026-02-10T09:00:00"), description: "Escrow created by buyer" },
-      { id: "e5", type: "funded", timestamp: new Date("2026-02-10T09:05:00"), description: "50,000 STX deposited", txId: "0xdef456" },
-      { id: "e6", type: "released", timestamp: new Date("2026-02-17T16:20:00"), description: "Funds released to seller", txId: "0xghi789" },
-    ],
+    id: 3,
+    buyer: MOCK_WALLET,
+    seller: 'ST3NBRSFKX28FQ2ZJ1MAKPH2VMMSP119H72PPMP3',
+    amount: 25_000_000,
+    feeAmount: 125_000,
+    description: 'Website development milestone 1',
+    status: EscrowStatus.Refunded,
+    createdAt: CURRENT_BLOCK - 5_000,
+    expiresAt: CURRENT_BLOCK - 3_000,
+    completedAt: CURRENT_BLOCK - 3_200,
+    disputedAt: null,
   },
   {
-    id: "ESC-004",
-    status: "disputed",
-    buyerAddress: "SP2C2YFP12AJZB1MADFWKX5Q4RAP3PCR7T3HKGGXC",
-    sellerAddress: "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
-    amount: 15000,
-    usdValue: 21300,
-    description: "Website Development — E-commerce Platform",
-    createdAt: new Date("2026-02-05T11:00:00"),
-    expiresAt: new Date("2026-02-19T11:00:00"),
-    userRole: "seller",
-    events: [
-      { id: "e7", type: "created", timestamp: new Date("2026-02-05T11:00:00"), description: "Escrow created by buyer" },
-      { id: "e8", type: "funded", timestamp: new Date("2026-02-05T11:10:00"), description: "15,000 STX deposited", txId: "0xjkl012" },
-      { id: "e9", type: "disputed", timestamp: new Date("2026-02-15T08:30:00"), description: "Dispute raised by buyer" },
-    ],
+    id: 4,
+    buyer: 'ST3AM1A56AK2C1XAFJ4115ZSV26EB49BVQ10MGCS0',
+    seller: MOCK_WALLET,
+    amount: 500_000_000,
+    feeAmount: 2_500_000,
+    description: 'NFT collection development and deployment',
+    status: EscrowStatus.Disputed,
+    createdAt: CURRENT_BLOCK - 3_000,
+    expiresAt: CURRENT_BLOCK + 1_000,
+    completedAt: null,
+    disputedAt: CURRENT_BLOCK - 1_000,
   },
   {
-    id: "ESC-005",
-    status: "refunded",
-    buyerAddress: "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
-    sellerAddress: "SP1K1A1PMQP3MRGX7CKGKXQJEZ1WQH0DWBFT8MN2",
-    amount: 3200,
-    usdValue: 4544,
-    description: "Logo Design — Rebrand Project",
-    createdAt: new Date("2026-01-28T16:00:00"),
-    expiresAt: new Date("2026-02-07T16:00:00"),
-    userRole: "buyer",
-    events: [
-      { id: "e10", type: "created", timestamp: new Date("2026-01-28T16:00:00"), description: "Escrow created by buyer" },
-      { id: "e11", type: "funded", timestamp: new Date("2026-01-28T16:05:00"), description: "3,200 STX deposited", txId: "0xmno345" },
-      { id: "e12", type: "refunded", timestamp: new Date("2026-02-04T12:00:00"), description: "Funds refunded to buyer", txId: "0xpqr678" },
-    ],
+    id: 5,
+    buyer: MOCK_WALLET,
+    seller: 'ST2REHHS5J3CERCRBEPMGH7921Q6PYKAADT7JP2VB',
+    amount: 10_000_000,
+    feeAmount: 50_000,
+    description: 'Content writing for blog posts',
+    status: EscrowStatus.Pending,
+    createdAt: CURRENT_BLOCK - 50,
+    expiresAt: CURRENT_BLOCK + 8_000,
+    completedAt: null,
+    disputedAt: null,
   },
   {
-    id: "ESC-006",
-    status: "active",
-    buyerAddress: "SP1234ABCD5678EFGH9012IJKL3456MNOP7890QRST",
-    sellerAddress: "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
-    amount: 120000,
-    usdValue: 170400,
-    description: "Full-Stack dApp Development — Lending Protocol",
-    createdAt: new Date("2026-02-15T08:00:00"),
-    expiresAt: new Date("2026-03-15T08:00:00"),
-    userRole: "seller",
-    events: [
-      { id: "e13", type: "created", timestamp: new Date("2026-02-15T08:00:00"), description: "Escrow created by buyer" },
-      { id: "e14", type: "funded", timestamp: new Date("2026-02-15T08:12:00"), description: "120,000 STX deposited", txId: "0xstu901" },
-    ],
+    id: 6,
+    buyer: 'ST18MDW2PDTBSCR1ACXYRG6MMPZVFMCTPVT6YC9MX',
+    seller: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+    amount: 75_000_000,
+    feeAmount: 375_000,
+    description: 'UI/UX design for mobile wallet',
+    status: EscrowStatus.Disputed,
+    createdAt: CURRENT_BLOCK - 6_000,
+    expiresAt: CURRENT_BLOCK - 1_000,
+    completedAt: null,
+    disputedAt: CURRENT_BLOCK - 4_500, // near timeout
+  },
+  {
+    id: 7,
+    buyer: MOCK_WALLET,
+    seller: 'ST3PF13W7Z0RRM42A8VZRVFQ75SV1K26RXEP8YGKJ',
+    amount: 200_000_000,
+    feeAmount: 1_000_000,
+    description: 'sBTC integration consulting',
+    status: EscrowStatus.Released,
+    createdAt: CURRENT_BLOCK - 10_000,
+    expiresAt: CURRENT_BLOCK - 6_000,
+    completedAt: CURRENT_BLOCK - 7_000,
+    disputedAt: null,
+    txHash: '0xdef789abc012',
   },
 ];
 
-export const PLATFORM_STATS = {
-  totalVolume: 2450000,
-  totalVolumeUsd: 3479000,
-  activeEscrows: 47,
-  completedEscrows: 312,
-  totalUsers: 1289,
-  avgEscrowSize: 18500,
-  avgEscrowSizeUsd: 26270,
-  successRate: 96.8,
+export const mockPlatformStats: PlatformStats = {
+  totalEscrows: 142,
+  totalVolume: 15_750_000_000,
+  totalFeesCollected: 78_750_000,
+  totalReleased: 98,
+  totalRefunded: 31,
+  activeDisputes: 4,
 };
 
-export function formatStxAmount(amount: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount);
+export const mockUserStats: UserStats = {
+  totalLocked: 60_000_000,
+  activeEscrows: 2,
+  completedEscrows: 3,
+  asBuyer: 4,
+  asSeller: 3,
+};
+
+export const mockEvents: EscrowEvent[] = [
+  {
+    id: 'evt-1',
+    escrowId: 5,
+    eventType: 'created',
+    actor: MOCK_WALLET,
+    blockHeight: CURRENT_BLOCK - 50,
+    timestamp: new Date(Date.now() - 50 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-2',
+    escrowId: 4,
+    eventType: 'disputed',
+    actor: 'ST3AM1A56AK2C1XAFJ4115ZSV26EB49BVQ10MGCS0',
+    blockHeight: CURRENT_BLOCK - 1_000,
+    timestamp: new Date(Date.now() - 1000 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-3',
+    escrowId: 2,
+    eventType: 'released',
+    actor: 'ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC',
+    blockHeight: CURRENT_BLOCK - 800,
+    timestamp: new Date(Date.now() - 800 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-4',
+    escrowId: 3,
+    eventType: 'refunded',
+    actor: MOCK_WALLET,
+    blockHeight: CURRENT_BLOCK - 3_200,
+    timestamp: new Date(Date.now() - 3200 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-5',
+    escrowId: 1,
+    eventType: 'created',
+    actor: MOCK_WALLET,
+    blockHeight: CURRENT_BLOCK - 200,
+    timestamp: new Date(Date.now() - 200 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-6',
+    escrowId: 7,
+    eventType: 'released',
+    actor: MOCK_WALLET,
+    blockHeight: CURRENT_BLOCK - 7_000,
+    timestamp: new Date(Date.now() - 7000 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-7',
+    escrowId: 6,
+    eventType: 'disputed',
+    actor: 'ST18MDW2PDTBSCR1ACXYRG6MMPZVFMCTPVT6YC9MX',
+    blockHeight: CURRENT_BLOCK - 4_500,
+    timestamp: new Date(Date.now() - 4500 * 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'evt-8',
+    escrowId: 1,
+    eventType: 'extended',
+    actor: MOCK_WALLET,
+    blockHeight: CURRENT_BLOCK - 100,
+    timestamp: new Date(Date.now() - 100 * 10 * 60 * 1000).toISOString(),
+    metadata: { newExpiresAt: CURRENT_BLOCK + 4_000, previousExpiresAt: CURRENT_BLOCK + 2_000 },
+  },
+];
+
+export const CURRENT_BLOCK_HEIGHT = CURRENT_BLOCK;
+
+export interface MonthlyAnalytics {
+  month: string;
+  volume: number;
+  escrowCount: number;
+  feesCollected: number;
+  released: number;
+  refunded: number;
+  disputed: number;
 }
 
-export function formatUsdAmount(amount: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
-}
-
-export function truncateAddress(address: string, startChars = 5, endChars = 4): string {
-  if (address.length <= startChars + endChars) return address;
-  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
-}
-
-export function getTimeRemaining(expiresAt: Date): string {
-  const now = new Date();
-  const diff = expiresAt.getTime() - now.getTime();
-  if (diff <= 0) return "Expired";
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  if (days > 0) return `${days}d ${hours}h remaining`;
-  return `${hours}h remaining`;
-}
-
-export function getRelativeTime(date: Date): string {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${days}d ago`;
-}
+export const mockMonthlyAnalytics: MonthlyAnalytics[] = [
+  { month: 'May', volume: 820_000_000, escrowCount: 8, feesCollected: 4_100_000, released: 5, refunded: 2, disputed: 1 },
+  { month: 'Jun', volume: 1_150_000_000, escrowCount: 11, feesCollected: 5_750_000, released: 7, refunded: 3, disputed: 1 },
+  { month: 'Jul', volume: 950_000_000, escrowCount: 9, feesCollected: 4_750_000, released: 6, refunded: 2, disputed: 1 },
+  { month: 'Aug', volume: 1_400_000_000, escrowCount: 14, feesCollected: 7_000_000, released: 9, refunded: 3, disputed: 2 },
+  { month: 'Sep', volume: 1_100_000_000, escrowCount: 10, feesCollected: 5_500_000, released: 7, refunded: 2, disputed: 1 },
+  { month: 'Oct', volume: 1_650_000_000, escrowCount: 15, feesCollected: 8_250_000, released: 10, refunded: 3, disputed: 2 },
+  { month: 'Nov', volume: 1_300_000_000, escrowCount: 12, feesCollected: 6_500_000, released: 8, refunded: 3, disputed: 1 },
+  { month: 'Dec', volume: 900_000_000, escrowCount: 8, feesCollected: 4_500_000, released: 5, refunded: 2, disputed: 1 },
+  { month: 'Jan', volume: 1_500_000_000, escrowCount: 13, feesCollected: 7_500_000, released: 9, refunded: 3, disputed: 1 },
+  { month: 'Feb', volume: 1_750_000_000, escrowCount: 16, feesCollected: 8_750_000, released: 11, refunded: 3, disputed: 2 },
+  { month: 'Mar', volume: 1_980_000_000, escrowCount: 14, feesCollected: 9_900_000, released: 10, refunded: 3, disputed: 1 },
+  { month: 'Apr', volume: 1_250_000_000, escrowCount: 12, feesCollected: 6_250_000, released: 8, refunded: 3, disputed: 1 },
+];

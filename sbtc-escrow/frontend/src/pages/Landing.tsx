@@ -1,264 +1,349 @@
-import { useEffect } from "react";
-import { useDocumentHead } from "@/hooks/use-document-head";
-import { motion } from "framer-motion";
-import { Link, useLocation } from "react-router-dom";
-import { staggerContainer, staggerChild, fadeInUp } from "@/lib/animations";
-import { FeatureCard } from "@/components/escrow/FeatureCard";
-import { GlassCard } from "@/components/escrow/GlassCard";
-import { GradientDivider } from "@/components/landing/GradientDivider";
-import { Footer } from "@/components/landing/Footer";
-import { TestimonialCard } from "@/components/landing/TestimonialCard";
-import { useWallet } from "@/contexts/WalletContext";
-import { usePlatformStats } from "@/hooks/use-escrow";
-import { microStxToStx } from "@/lib/stacks-config";
-import { PageTransition } from "@/components/layout/PageTransition";
-import { Shield, Lock, Zap, Users, ArrowRight, Wallet, FilePlus, LockKeyhole, CheckCircle } from "lucide-react";
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useWallet } from '@/contexts/WalletContext';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { dur } from '@/lib/motion';
+import { Logo } from '@/components/shared/Logo';
+import {
+  Wallet, ArrowRight, Shield, Clock,
+  Lock, Code, Activity, Scale, CalendarPlus, Users,
+  FileCheck, Server, Timer,
+} from 'lucide-react';
 
-const TESTIMONIALS = [
-  { quote: "sBTC Escrow replaced our entire custody workflow. Settlement is instant and we sleep better knowing funds are Bitcoin-secured.", name: "Alex Chen", role: "DeFi Trader", company: "Meridian Capital", initials: "AC" },
-  { quote: "As a freelancer, getting stiffed on payments was my biggest fear. Now every contract is locked in escrow before I write a single line of code.", name: "Priya Sharma", role: "Freelance Dev", company: "Independent", initials: "PS" },
-  { quote: "Our DAO treasury needed trustless disbursement. sBTC Escrow's multi-party arbitration solved it out of the box.", name: "Marcus Webb", role: "DAO Treasurer", company: "NovusDAO", initials: "MW" },
+/* ------------------------------------------------------------------ */
+/*  Static data                                                       */
+/* ------------------------------------------------------------------ */
+
+const trustSignals = [
+  { icon: Shield, label: 'Smart Contract Audited' },
+  { icon: Lock, label: 'Non-Custodial' },
+  { icon: Code, label: 'Open Source' },
+  { icon: Activity, label: '99.9% Uptime' },
 ];
 
-const HOW_IT_WORKS = [
-  { icon: <FilePlus className="h-5 w-5" />, title: "Create Escrow", description: "Define the terms, set the amount, and invite the counterparty." },
-  { icon: <LockKeyhole className="h-5 w-5" />, title: "Lock Funds", description: "sBTC is locked in a Clarity smart contract — trustless and transparent." },
-  { icon: <CheckCircle className="h-5 w-5" />, title: "Release on Completion", description: "Funds release automatically when conditions are met, or via arbitration." },
+const features = [
+  { icon: Shield, title: 'Trustless Settlement', desc: 'Funds held in a Clarity smart contract, released only when both parties agree.' },
+  { icon: Scale, title: 'Dispute Resolution', desc: 'Built-in arbitration flow with configurable timeout windows.' },
+  { icon: Clock, title: 'Auto-Refund on Expiry', desc: 'Buyer funds automatically return if the seller does not deliver within the agreed timeframe.' },
+  { icon: CalendarPlus, title: 'Extend Deadlines', desc: 'Both parties can mutually agree to extend escrow deadlines without creating a new contract.' },
+  { icon: Activity, title: 'Real-Time Monitoring', desc: 'Track escrow status, block confirmations, and dispute progress in real time.' },
+  { icon: Users, title: 'Multi-Role Support', desc: 'Separate buyer, seller, and arbiter roles with granular permissions.' },
 ];
+
+const steps = [
+  { num: '1', title: 'Connect Wallet', desc: 'Link your Stacks wallet to authenticate and sign transactions.' },
+  { num: '2', title: 'Create Escrow', desc: 'Lock funds with terms both parties agree to — amount, deadline, and description.' },
+  { num: '3', title: 'Release or Resolve', desc: 'Funds release on mutual approval, auto-refund on expiry, or resolve via dispute.' },
+];
+
+const stats = [
+  { value: '142', label: 'Escrows Created' },
+  { value: '15,750 STX', label: 'Total Volume' },
+  { value: '0.5%', label: 'Platform Fee' },
+  { value: '30 days', label: 'Dispute Window' },
+];
+
+const security = [
+  { icon: FileCheck, title: 'Clarity Smart Contract', desc: 'All escrow logic runs on-chain in a verified Clarity contract. Deterministic execution with no hidden behavior.' },
+  { icon: Server, title: 'Non-Custodial Architecture', desc: 'Your keys never leave your wallet. The platform cannot move, freeze, or access your funds at any time.' },
+  { icon: Timer, title: 'Dispute Timeout Hardened', desc: 'V3 contract enforces a 4,320-block (~30-day) dispute window with buyer self-recovery after timeout.' },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Animation variants                                                */
+/* ------------------------------------------------------------------ */
+
+const heroLeftVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0, transition: { duration: dur(500), ease: 'easeOut' as const } },
+};
+
+const heroRightVariants = {
+  hidden: { opacity: 0, x: 20 },
+  visible: { opacity: 1, x: 0, transition: { duration: dur(500), delay: dur(200), ease: 'easeOut' as const } },
+};
+
+const trustItemVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: dur(400) + i * dur(80), duration: dur(300), ease: 'easeOut' as const },
+  }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Dashboard Preview (decorative)                                    */
+/* ------------------------------------------------------------------ */
+
+const previewRows = [
+  { id: '#1042', amount: '50.00 STX', status: 'Pending', color: 'bg-status-pending' },
+  { id: '#1041', amount: '150.00 STX', status: 'Released', color: 'bg-status-released' },
+  { id: '#1040', amount: '25.00 STX', status: 'Refunded', color: 'bg-status-refunded' },
+  { id: '#1039', amount: '500.00 STX', status: 'Disputed', color: 'bg-status-disputed' },
+];
+
+function DashboardPreview() {
+  return (
+    <div className="relative">
+      {/* Floating badge */}
+      <div className="absolute -top-3 -right-2 z-10">
+        <Badge variant="outline" className="bg-background text-xs font-medium shadow-sm border-accent-warm/40 text-accent-warm">
+          Live on Testnet
+        </Badge>
+      </div>
+
+      <div
+        aria-hidden="true"
+        className="rounded-xl border border-border bg-card shadow-lg overflow-hidden select-none pointer-events-none"
+      >
+        {/* Mini stat bar */}
+        <div className="grid grid-cols-3 gap-px bg-border">
+          {[
+            { v: '60.00 STX', l: 'Locked' },
+            { v: '2', l: 'Active' },
+            { v: '3', l: 'Completed' },
+          ].map((s) => (
+            <div key={s.l} className="bg-card px-4 py-3 text-center">
+              <p className="font-mono text-sm font-semibold text-foreground">{s.v}</p>
+              <p className="text-[11px] text-muted-foreground">{s.l}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table header */}
+        <div className="grid grid-cols-3 px-4 py-2 text-[11px] font-medium text-muted-foreground border-t border-border bg-muted/40">
+          <span>Escrow</span>
+          <span>Amount</span>
+          <span>Status</span>
+        </div>
+
+        {/* Rows */}
+        {previewRows.map((r) => (
+          <div key={r.id} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
+            <span className="font-mono text-xs text-foreground">{r.id}</span>
+            <span className="font-mono text-xs text-foreground">{r.amount}</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
+              <span className={`h-1.5 w-1.5 rounded-full ${r.color}`} />
+              {r.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Landing Page                                                      */
+/* ------------------------------------------------------------------ */
 
 export default function Landing() {
-  const { isConnected, connect } = useWallet();
-  const location = useLocation();
-  const { data: platformStats } = usePlatformStats();
-  useDocumentHead({ title: "sBTC Escrow — Secure Bitcoin-Backed Escrow", description: "Enterprise-grade escrow platform powered by sBTC. Secure, trustless transactions backed by Bitcoin." });
+  const { connect, isConnected } = useWallet();
+  const navigate = useNavigate();
 
-  // Calculate stats from contract data
-  const totalVolume = platformStats ? microStxToStx(platformStats.totalVolume) : 0;
-  const activeEscrows = platformStats ? Number(platformStats.activeEscrows) : 0;
-  const completedEscrows = platformStats 
-    ? Number(platformStats.totalReleased) + Number(platformStats.totalRefunded) 
-    : 0;
-  const totalEscrows = platformStats ? Number(platformStats.totalEscrows) : 0;
-  const successRate = totalEscrows > 0 
-    ? ((Number(platformStats?.totalReleased ?? 0) / totalEscrows) * 100).toFixed(1)
-    : '0.0';
-
-  // Format large numbers
-  const formatVolume = (amount: number): string => {
-    if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
-    if (amount >= 1_000) return `${(amount / 1_000).toFixed(0)}K`;
-    return amount.toLocaleString();
+  const handleGetStarted = () => {
+    if (isConnected) {
+      navigate('/dashboard');
+    } else {
+      connect();
+      navigate('/dashboard');
+    }
   };
 
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      setTimeout(() => {
-        document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth" });
-      }, 400);
-    }
-  }, [location]);
+  const scrollTo = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   return (
-    <PageTransition>
-      <div className="min-h-screen">
-        {/* Hero */}
-        <section className="relative overflow-hidden">
-          <div className="gradient-mesh min-h-[85vh] flex items-center">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 py-24">
-              <motion.div variants={staggerContainer} initial="initial" animate="animate" className="max-w-3xl">
-                <motion.div variants={staggerChild} className="mb-4">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary status-dot-pulse" />
-                    Powered by Bitcoin
-                  </span>
-                </motion.div>
+    <div className="min-h-screen bg-background">
+      {/* ── Navbar ─────────────────────────────────────────────── */}
+      <nav aria-label="Main" className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="max-w-6xl mx-auto flex items-center justify-between h-16 px-4">
+          <div className="flex items-center gap-2">
+            <Logo size={22} className="text-accent-warm" />
+            <span className="font-semibold">sBTC Escrow</span>
+          </div>
 
-                <motion.h1 variants={staggerChild} className="text-display-xl mb-6">
-                  Secure Escrow.{" "}
-                  <span className="text-primary">Bitcoin Backed.</span>
-                </motion.h1>
+          <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
+            <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">Features</button>
+            <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
+            <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">How it Works</button>
+          </div>
 
-                <motion.p variants={staggerChild} className="text-body-lg text-muted-foreground max-w-xl mb-10">
-                  Enterprise-grade escrow built on Stacks. Trustless, transparent, and secured by the most
-                  decentralized blockchain in the world.
-                </motion.p>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {isConnected ? (
+              <Button size="sm" onClick={() => navigate('/dashboard')}>Dashboard</Button>
+            ) : (
+              <Button size="sm" onClick={connect} className="gap-1.5">
+                <Wallet className="h-3.5 w-3.5" /> Connect Wallet
+              </Button>
+            )}
+          </div>
+        </div>
+      </nav>
 
-                <motion.div variants={staggerChild} className="flex flex-wrap gap-4">
-                  {isConnected ? (
-                    <Link to="/create">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.97 }}
-                        aria-label="Create a new escrow"
-                        className="flex items-center gap-2 rounded-xl btn-gradient px-6 py-3 text-sm font-semibold glow-orange transition-shadow hover:glow-orange-strong"
-                      >
-                        Create Escrow <ArrowRight className="h-4 w-4" />
-                      </motion.button>
-                    </Link>
-                  ) : (
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={connect}
-                      aria-label="Connect your wallet"
-                      className="flex items-center gap-2 rounded-xl btn-gradient px-6 py-3 text-sm font-semibold glow-orange transition-shadow hover:glow-orange-strong"
-                    >
-                      <Wallet className="h-4 w-4" /> Connect Wallet
-                    </motion.button>
-                  )}
-                  <Link to="/dashboard">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      aria-label="View dashboard"
-                      className="flex items-center gap-2 rounded-xl border border-border bg-surface-1 px-6 py-3 text-sm font-medium hover:bg-surface-2 transition-colors"
-                    >
-                      View Dashboard
-                    </motion.button>
-                  </Link>
-                </motion.div>
-              </motion.div>
+      {/* ── Hero ───────────────────────────────────────────────── */}
+      <section className="max-w-6xl mx-auto px-4 py-20 lg:py-28">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left — copy */}
+          <motion.div variants={heroLeftVariants} initial="hidden" animate="visible">
+            {/* Pill badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground mb-5">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-warm" />
+              Built on Stacks · Testnet Live
             </div>
-          </div>
-        </section>
 
-        <GradientDivider variant="orange" />
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-[1.15]">
+              Institutional-Grade Escrow&nbsp;for&nbsp;Bitcoin
+            </h1>
+            <p className="mt-4 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
+              Purpose-built smart contract infrastructure for secure, non-custodial escrow on Stacks. Trusted by teams managing digital asset transactions.
+            </p>
 
-        {/* Stats */}
-        <section className="border-y border-border bg-surface-1/50">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            {/* Inline social proof */}
+            <p className="mt-3 text-sm text-muted-foreground/70 font-mono">
+              142 escrows created · 15,750 STX secured
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={{ duration: dur(100) }}>
+                <Button size="lg" onClick={handleGetStarted} className="gap-2">
+                  Get Started <ArrowRight className="h-4 w-4" />
+                </Button>
+              </motion.div>
+              <Button size="lg" variant="outline" onClick={() => scrollTo('how-it-works')}>
+                How it Works
+              </Button>
+            </div>
+          </motion.div>
+
+          {/* Right — dashboard preview */}
+          <motion.div variants={heroRightVariants} initial="hidden" animate="visible" className="lg:pl-4">
+            <DashboardPreview />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Trust Bar ──────────────────────────────────────────── */}
+      <section className="border-y border-border bg-muted/30">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex flex-wrap justify-center gap-x-10 gap-y-3">
+          {trustSignals.map((t, i) => (
             <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border"
+              key={t.label}
+              custom={i}
+              variants={trustItemVariants}
+              initial="hidden"
+              animate="visible"
+              className="flex items-center gap-2 text-sm text-muted-foreground"
             >
-              {[
-                { label: "Total Volume", value: `${formatVolume(totalVolume)} STX` },
-                { label: "Active Escrows", value: String(activeEscrows) },
-                { label: "Completed", value: String(completedEscrows) },
-                { label: "Success Rate", value: `${successRate}%` },
-              ].map((stat) => (
-                <motion.div key={stat.label} variants={staggerChild} className="px-6 py-8 text-center">
-                  <p className="text-2xl font-bold font-mono tracking-tight">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-                </motion.div>
-              ))}
+              <t.icon className="h-4 w-4 text-primary" />
+              <span>{t.label}</span>
             </motion.div>
-          </div>
-        </section>
+          ))}
+        </div>
+      </section>
 
-        <GradientDivider variant="purple" />
+      {/* ── Features ───────────────────────────────────────────── */}
+      <section id="features" className="max-w-6xl mx-auto px-4 py-20">
+        <h2 className="text-2xl font-bold text-foreground">Platform Features</h2>
+        <p className="mt-2 text-muted-foreground max-w-lg">Everything you need to manage escrow transactions with confidence.</p>
 
-        {/* Features */}
-        <section id="features" className="py-24 scroll-mt-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <motion.div variants={fadeInUp} initial="initial" whileInView="animate" viewport={{ once: true }} className="text-center mb-16">
-              <h2 className="text-display mb-4">Why sBTC Escrow?</h2>
-              <p className="text-muted-foreground max-w-lg mx-auto">Built for professionals who need trustless, secure transactions with the finality of Bitcoin.</p>
-            </motion.div>
-            <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true }} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <FeatureCard icon={<Shield className="h-5 w-5" />} title="Bitcoin Security" description="Every escrow is backed by sBTC, inheriting Bitcoin's unmatched security and finality." />
-              <FeatureCard icon={<Lock className="h-5 w-5" />} title="Smart Contracts" description="Automated, trustless execution via Clarity smart contracts on the Stacks blockchain." />
-              <FeatureCard icon={<Zap className="h-5 w-5" />} title="Instant Settlement" description="Near-instant escrow creation and settlement with minimal transaction fees." />
-              <FeatureCard icon={<Users className="h-5 w-5" />} title="Dispute Resolution" description="Built-in dispute mechanism with multi-party arbitration for complex transactions." />
-            </motion.div>
-          </div>
-        </section>
-
-        <GradientDivider variant="blue" />
-
-        {/* How It Works */}
-        <section id="how-it-works" className="py-24 scroll-mt-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <motion.div variants={fadeInUp} initial="initial" whileInView="animate" viewport={{ once: true }} className="text-center mb-16">
-              <h2 className="text-display mb-4">How It Works</h2>
-              <p className="text-muted-foreground max-w-lg mx-auto">Three simple steps to trustless, Bitcoin-backed transactions.</p>
-            </motion.div>
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              className="grid sm:grid-cols-3 gap-8 relative"
+        <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="rounded-lg border border-border bg-card p-5 transition-shadow hover:shadow-md"
             >
-              {/* Dashed connector lines (desktop only) */}
-              <div className="hidden sm:block absolute top-16 left-[calc(33.33%_-_16px)] w-[calc(33.33%_+_32px)] border-t-2 border-dashed border-border" />
-              <div className="hidden sm:block absolute top-16 left-[calc(66.66%_-_16px)] w-[calc(33.33%_+_32px)] border-t-2 border-dashed border-border" />
+              <div className="inline-flex items-center justify-center rounded-md bg-muted p-2.5 mb-4">
+                <f.icon className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground">{f.title}</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-              {HOW_IT_WORKS.map((step, i) => (
-                <motion.div key={step.title} variants={staggerChild} className="relative text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold font-mono text-lg relative z-10">
-                    {i + 1}
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center mx-auto mb-3 text-muted-foreground">
-                    {step.icon}
-                  </div>
-                  <h3 className="text-subheading mb-2">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">{step.description}</p>
-                </motion.div>
-              ))}
-            </motion.div>
+      {/* ── How it Works ───────────────────────────────────────── */}
+      <section id="how-it-works" className="border-t border-border bg-card">
+        <div className="max-w-6xl mx-auto px-4 py-20">
+          <h2 className="text-2xl font-bold text-foreground">How it Works</h2>
+          <p className="mt-2 text-muted-foreground">Three steps from wallet to settlement.</p>
+
+          <div className="mt-12 grid sm:grid-cols-3 gap-8 relative">
+            <div className="hidden sm:block absolute top-6 left-[16.67%] right-[16.67%] h-px bg-border" aria-hidden="true" />
+
+            {steps.map((s) => (
+              <div key={s.num} className="relative text-center">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full border-2 border-primary bg-background text-primary font-bold text-lg relative z-10">
+                  {s.num}
+                </div>
+                <h3 className="mt-4 text-sm font-semibold text-foreground">{s.title}</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground max-w-[260px] mx-auto leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <GradientDivider variant="orange" />
+      {/* ── Stats ──────────────────────────────────────────────── */}
+      <section className="border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 py-14 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {stats.map((s) => (
+            <div key={s.label} className="rounded-lg border border-border bg-card p-5 text-center">
+              <p className="text-xl font-bold font-mono text-foreground">{s.value}</p>
+              <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-        {/* Testimonials */}
-        <section id="testimonials" className="py-24 scroll-mt-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <motion.div variants={fadeInUp} initial="initial" whileInView="animate" viewport={{ once: true }} className="text-center mb-16">
-              <h2 className="text-display mb-4">Trusted by Teams</h2>
-              <p className="text-muted-foreground max-w-lg mx-auto">Hear from professionals who rely on sBTC Escrow for their most critical transactions.</p>
-            </motion.div>
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              className="grid sm:grid-cols-3 gap-6"
-            >
-              {TESTIMONIALS.map((t) => (
-                <TestimonialCard key={t.name} {...t} />
-              ))}
-            </motion.div>
+      {/* ── Security ───────────────────────────────────────────── */}
+      <section id="security" className="border-t border-border bg-card">
+        <div className="max-w-6xl mx-auto px-4 py-20">
+          <h2 className="text-2xl font-bold text-foreground">Built for Security</h2>
+          <p className="mt-2 text-muted-foreground max-w-lg">Enterprise-grade protections at every layer of the stack.</p>
+
+          <div className="mt-10 grid sm:grid-cols-3 gap-5">
+            {security.map((s) => (
+              <div key={s.title} className="rounded-lg border border-border bg-background p-6">
+                <s.icon className="h-6 w-6 text-primary mb-4" />
+                <h3 className="text-sm font-semibold text-foreground">{s.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <GradientDivider variant="purple" />
+      {/* ── CTA ────────────────────────────────────────────────── */}
+      <section className="border-t border-border bg-muted/40">
+        <div className="max-w-6xl mx-auto px-4 py-20 text-center">
+          <h2 className="text-2xl font-bold text-foreground">Ready to get started?</h2>
+          <p className="mt-2 text-muted-foreground">Create your first escrow in under a minute.</p>
+          <Button size="lg" onClick={handleGetStarted} className="mt-6 gap-2">
+            Launch App <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </section>
 
-        {/* CTA */}
-        <section className="py-24 border-t border-border">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <motion.div variants={fadeInUp} initial="initial" whileInView="animate" viewport={{ once: true }}>
-              <GlassCard className="text-center py-16 px-8">
-                <h2 className="text-heading mb-4">Ready to get started?</h2>
-                <p className="text-muted-foreground max-w-md mx-auto mb-8">Connect your wallet and create your first escrow in seconds.</p>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={isConnected ? undefined : connect}
-                  className="inline-flex items-center gap-2 rounded-xl btn-gradient px-8 py-3 text-sm font-semibold glow-orange hover:glow-orange-strong transition-shadow"
-                >
-                  {isConnected ? (
-                    <Link to="/create" className="flex items-center gap-2">
-                      Create Escrow <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  ) : (
-                    <>
-                      <Wallet className="h-4 w-4" /> Connect Wallet
-                    </>
-                  )}
-                </motion.button>
-              </GlassCard>
-            </motion.div>
+      {/* ── Footer ─────────────────────────────────────────────── */}
+      <footer className="border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span className="text-center sm:text-left">sBTC Escrow v3.0.0 · Testnet</span>
+          <div className="flex flex-wrap justify-center sm:justify-end gap-4">
+            <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Explorer</a>
+            <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
+            <a href="#" className="hover:text-foreground transition-colors">Docs</a>
+            <a href="#" className="hover:text-foreground transition-colors">GitHub</a>
+            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
           </div>
-        </section>
-
-        <Footer />
-      </div>
-    </PageTransition>
+        </div>
+      </footer>
+    </div>
   );
 }

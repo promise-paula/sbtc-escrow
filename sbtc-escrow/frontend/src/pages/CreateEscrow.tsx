@@ -1,279 +1,352 @@
-import { useState } from "react";
-import { useDocumentHead } from "@/hooks/use-document-head";
-import { motion, AnimatePresence } from "framer-motion";
-import { PageTransition } from "@/components/layout/PageTransition";
-import { staggerContainer, staggerChild } from "@/lib/animations";
-import { useWallet } from "@/contexts/WalletContext";
-import { useCreateEscrow } from "@/hooks/use-escrow";
-import { STX_PRICE_USD, formatUsdAmount } from "@/lib/mock-data";
-import { SuccessModal } from "@/components/modals/Modals";
-import { EmptyState } from "@/components/states/EmptyAndLoading";
-import { GlassCard } from "@/components/escrow/GlassCard";
-import { TransactionPending } from "@/components/escrow/TransactionPending";
-import { Plus, Wallet, ArrowLeft, ArrowRight, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useWallet } from '@/contexts/WalletContext';
+import { usePlatformConfig } from '@/hooks/use-admin';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { isValidStacksAddress, formatSTX, calculateFee, blockToEstimatedDate, blocksToTime } from '@/lib/utils';
+import { CURRENT_BLOCK_HEIGHT } from '@/lib/mock-data';
+import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
+import { createEscrow } from '@/lib/escrow-service';
+import { TransactionPending } from '@/components/shared/TransactionPending';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cardVariants, dur } from '@/lib/motion';
+import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } from 'lucide-react';
 
-// Validate Stacks testnet address (ST prefix)
-function isValidStacksAddress(address: string): boolean {
-  return /^ST[0-9A-Z]{39,40}$/i.test(address);
-}
-
-interface FormData {
-  sellerAddress: string;
-  amount: string;
-  duration: string;
-  description: string;
-}
-
-const DURATIONS = [
-  { value: "144", label: "~1 Day", blocks: "144 blocks" },
-  { value: "1008", label: "~1 Week", blocks: "1,008 blocks" },
-  { value: "2016", label: "~2 Weeks", blocks: "2,016 blocks" },
-  { value: "4320", label: "~1 Month", blocks: "4,320 blocks" },
+const durationPresets = [
+  { label: '1 Day', blocks: BLOCKS_PER_DAY },
+  { label: '1 Week', blocks: BLOCKS_PER_WEEK },
+  { label: '2 Weeks', blocks: BLOCKS_PER_WEEK * 2 },
+  { label: '30 Days', blocks: BLOCKS_PER_DAY * 30 },
 ];
 
+const steps = [
+  { label: 'Counterparty', icon: User },
+  { label: 'Asset Details', icon: Coins },
+  { label: 'Review', icon: FileCheck },
+];
+
+const stepTransition = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0, transition: { duration: dur(300), ease: 'easeOut' as const } },
+  exit: { opacity: 0, x: -20, transition: { duration: dur(200) } },
+};
+
 export default function CreateEscrow() {
-  const { isConnected, connect } = useWallet();
-  const createEscrowMutation = useCreateEscrow();
-  useDocumentHead({ title: "Create Escrow | sBTC Escrow", description: "Set up a new escrow transaction." });
-  const [step, setStep] = useState<"form" | "review">("form");
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [txId, setTxId] = useState<string>("");
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-  const [form, setForm] = useState<FormData>({
-    sellerAddress: "",
-    amount: "",
-    duration: "1008",
-    description: "",
-  });
+  const navigate = useNavigate();
+  const { address } = useWallet();
+  const { data: config } = usePlatformConfig();
+  const [step, setStep] = useState(1);
 
-  const usdPreview = form.amount ? formatUsdAmount(parseFloat(form.amount) * STX_PRICE_USD) : "$0";
-  const loading = createEscrowMutation.isPending;
+  const [recipient, setRecipient] = useState('');
+  const [amountStr, setAmountStr] = useState('');
+  const [description, setDescription] = useState('');
+  const [durationBlocks, setDurationBlocks] = useState(BLOCKS_PER_WEEK);
+  const [customDuration, setCustomDuration] = useState('');
+  const [consent, setConsent] = useState(false);
 
-  const validate = (): boolean => {
-    const errs: Partial<Record<keyof FormData, string>> = {};
-    if (!form.sellerAddress || !isValidStacksAddress(form.sellerAddress)) {
-      errs.sellerAddress = "Enter a valid Stacks testnet address (ST...)";
-    }
-    if (!form.amount || parseFloat(form.amount) <= 0) errs.amount = "Enter a valid amount";
-    if (!form.description.trim()) errs.description = "Description is required";
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+  const [txStatus, setTxStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+  const [txHash, setTxHash] = useState('');
 
-  const handleReview = () => {
-    if (validate()) setStep("review");
-  };
+  const cfg = config || { platformFeeBps: 50, minAmount: 1_000_000, maxAmount: 100_000_000_000 };
+  const amount = parseFloat(amountStr) || 0;
+  const microAmount = Math.floor(amount * 1_000_000);
+  const fee = calculateFee(microAmount, cfg.platformFeeBps);
+  const total = microAmount + fee;
+  const duration = customDuration ? parseInt(customDuration) : durationBlocks;
+
+  const recipientValid = isValidStacksAddress(recipient);
+  const selfEscrow = recipient === address;
+  const amountValid = microAmount >= cfg.minAmount && microAmount <= cfg.maxAmount;
+  const descValid = description.trim().length > 0 && description.length <= 256;
+  const durationValid = duration >= 1 && duration <= MAX_DURATION_BLOCKS;
+
+  const step1Valid = recipientValid && !selfEscrow;
+  const step2Valid = amountValid && descValid && durationValid;
+
+  const progressPercent = step === 1 ? 33 : step === 2 ? 66 : 100;
 
   const handleSubmit = async () => {
+    setTxStatus('pending');
     try {
-      const result = await createEscrowMutation.mutateAsync({
-        sellerAddress: form.sellerAddress,
-        amountStx: parseFloat(form.amount),
-        description: form.description,
-      });
-      setTxId(result.txid);
-      setShowSuccess(true);
-    } catch (error) {
-      // Error is handled by the mutation hook
-      console.error('Failed to create escrow:', error);
+      const hash = await createEscrow({ seller: recipient, amount: microAmount, description: description.trim(), duration });
+      setTxHash(hash);
+      setTxStatus('success');
+    } catch {
+      setTxStatus('error');
     }
   };
 
-  if (!isConnected) {
+  if (txStatus === 'pending') {
     return (
-      <PageTransition>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-24">
-          <EmptyState
-            icon={<Wallet className="h-8 w-8 text-muted-foreground" />}
-            title="Connect Your Wallet"
-            description="Connect your wallet to create a new escrow transaction."
-            action={
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={connect} className="flex items-center gap-2 rounded-xl btn-gradient px-6 py-3 text-sm font-semibold">
-                <Wallet className="h-4 w-4" /> Connect Wallet
-              </motion.button>
-            }
-          />
-        </div>
-      </PageTransition>
+      <div className="p-4 sm:p-6 max-w-lg">
+        <h1 className="text-lg font-semibold text-foreground mb-6">Create Escrow</h1>
+        <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
+          <TransactionPending txHash={txHash || undefined} message="Creating escrow…" />
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (txStatus === 'success') {
+    return (
+      <div className="p-4 sm:p-6 max-w-lg">
+        <h1 className="text-lg font-semibold text-foreground mb-6">Create Escrow</h1>
+        <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible" className="flex flex-col items-center py-12 text-center">
+          <div className="rounded-full bg-success/10 p-3 mb-4"><Check className="h-6 w-6 text-success" /></div>
+          <h3 className="text-sm font-medium">Escrow Created Successfully</h3>
+          <p className="text-xs text-muted-foreground mt-1">Your escrow has been created and funds are locked.</p>
+          <div className="flex gap-2 mt-4">
+            <Button size="sm" onClick={() => navigate('/escrows')}>View Escrows</Button>
+            <Button size="sm" variant="outline" asChild>
+              <a href={`https://explorer.stacks.co/txid/${txHash}?chain=testnet`} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+                <ExternalLink className="h-3.5 w-3.5" /> Explorer
+              </a>
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (txStatus === 'error') {
+    return (
+      <div className="p-4 sm:p-6 max-w-lg">
+        <h1 className="text-lg font-semibold text-foreground mb-6">Create Escrow</h1>
+        <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible" className="flex flex-col items-center py-12 text-center">
+          <h3 className="text-sm font-medium text-destructive">Transaction Failed</h3>
+          <p className="text-xs text-muted-foreground mt-1">Something went wrong. Please try again.</p>
+          <Button size="sm" onClick={() => setTxStatus('idle')} className="mt-4">Retry</Button>
+        </motion.div>
+      </div>
     );
   }
 
   return (
-    <PageTransition>
-      <div className="mx-auto max-w-2xl px-4 sm:px-6 py-8 pb-24 md:pb-8">
-        <div className="mb-8">
-          <h1 className="text-heading flex items-center gap-2">
-            <Plus className="h-6 w-6 text-primary" /> Create Escrow
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">Set up a new escrow transaction</p>
+    <div className="p-4 sm:p-6 max-w-lg space-y-6">
+      <h1 className="text-lg font-semibold text-foreground">Create Escrow</h1>
+
+      {/* Step indicator */}
+      <div className="space-y-3">
+        <div className="flex items-start gap-2">
+          {steps.map((s, i) => {
+            const num = i + 1;
+            const StepIcon = s.icon;
+            return (
+              <React.Fragment key={num}>
+                <div className="flex flex-col items-center gap-1.5 min-w-0">
+                  <div className={`flex items-center justify-center h-8 w-8 rounded-full text-xs font-medium transition-colors ${
+                    num < step ? 'bg-primary text-primary-foreground' :
+                    num === step ? 'bg-primary text-primary-foreground' :
+                    'bg-muted text-muted-foreground'
+                  }`}>
+                    {num < step ? <Check className="h-3.5 w-3.5" /> : <StepIcon className="h-3.5 w-3.5" />}
+                  </div>
+                  <span className={`text-[11px] font-medium truncate ${
+                    num <= step ? 'text-foreground' : 'text-muted-foreground'
+                  }`}>{s.label}</span>
+                </div>
+                {num < 3 && (
+                  <div className={`flex-1 h-px mt-4 ${num < step ? 'bg-primary' : 'bg-border'}`} />
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
+        <Progress value={progressPercent} className="h-1" />
+      </div>
 
-        <AnimatePresence mode="wait">
-          {step === "form" ? (
-            <motion.div key="form" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
-              <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-6">
-                {/* Seller Address */}
-                <motion.div variants={staggerChild} className="space-y-2">
-                  <label htmlFor="seller-address" className="text-sm font-medium">Seller Address</label>
-                  <div className={cn("focus-glow rounded-lg border border-border bg-surface-1 transition-colors", errors.sellerAddress && "border-error")}>
-                    <input
-                      id="seller-address"
-                      value={form.sellerAddress}
-                      onChange={(e) => { setForm({ ...form, sellerAddress: e.target.value }); setErrors({ ...errors, sellerAddress: undefined }); }}
-                      placeholder="SP1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE"
-                      aria-invalid={!!errors.sellerAddress}
-                      aria-describedby={errors.sellerAddress ? "seller-address-error" : undefined}
-                      className="w-full bg-transparent px-4 py-3 text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none"
-                    />
-                  </div>
-                  {errors.sellerAddress && <p id="seller-address-error" className="flex items-center gap-1 text-xs text-error"><AlertCircle className="h-3 w-3" />{errors.sellerAddress}</p>}
-                </motion.div>
+      {/* Animated step content */}
+      <AnimatePresence mode="wait">
+        {step === 1 && (
+          <motion.div key="step1" {...stepTransition}>
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <User className="h-4 w-4 text-primary" /> Counterparty
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Recipient Address</Label>
+                  <Input
+                    placeholder="ST... or SP..."
+                    value={recipient}
+                    onChange={e => setRecipient(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                  {recipient && !recipientValid && (
+                    <p className="text-xs text-destructive" role="alert">Invalid Stacks address</p>
+                  )}
+                  {selfEscrow && (
+                    <p className="text-xs text-destructive" role="alert">Cannot escrow to yourself</p>
+                  )}
+                </div>
+                <Button onClick={() => setStep(2)} disabled={!step1Valid} className="w-full gap-1.5">
+                  Next <ArrowRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
-                {/* Amount */}
-                <motion.div variants={staggerChild} className="space-y-2">
-                  <label htmlFor="escrow-amount" className="text-sm font-medium">Amount</label>
-                  <div className={cn("focus-glow rounded-lg border border-border bg-surface-1 flex items-center transition-colors", errors.amount && "border-error")}>
-                    <input
-                      id="escrow-amount"
-                      type="number"
-                      value={form.amount}
-                      onChange={(e) => { setForm({ ...form, amount: e.target.value }); setErrors({ ...errors, amount: undefined }); }}
-                      placeholder="0"
-                      aria-invalid={!!errors.amount}
-                      aria-describedby={errors.amount ? "amount-error" : undefined}
-                      className="flex-1 bg-transparent px-4 py-3 text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none"
-                    />
-                    <span className="pr-4 text-sm font-mono text-muted-foreground">STX</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    {errors.amount ? <p id="amount-error" className="flex items-center gap-1 text-xs text-error"><AlertCircle className="h-3 w-3" />{errors.amount}</p> : <span />}
-                    <p className="text-xs text-muted-foreground font-mono">≈ {usdPreview} USD</p>
-                  </div>
-                </motion.div>
+        {step === 2 && (
+          <motion.div key="step2" {...stepTransition}>
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <Coins className="h-4 w-4 text-primary" /> Asset Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Amount (STX)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={amountStr}
+                    onChange={e => setAmountStr(e.target.value)}
+                    className="font-mono text-sm"
+                    min={0}
+                    step={0.01}
+                  />
+                  {amountStr && !amountValid && (
+                    <p className="text-xs text-destructive" role="alert">
+                      Amount must be between {formatSTX(cfg.minAmount)} and {formatSTX(cfg.maxAmount)} STX
+                    </p>
+                  )}
+                  {amountValid && (
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      <p>Fee: {formatSTX(fee)} STX ({cfg.platformFeeBps / 100}%)</p>
+                      <p>Total: {formatSTX(total)} STX</p>
+                    </div>
+                  )}
+                </div>
 
-                {/* Duration */}
-                <motion.div variants={staggerChild} className="space-y-2">
-                  <label className="text-sm font-medium">Duration</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {DURATIONS.map((d) => (
-                      <button
-                        key={d.value}
-                        onClick={() => setForm({ ...form, duration: d.value })}
-                        className={cn(
-                          "rounded-lg border p-3 text-left transition-colors",
-                          form.duration === d.value ? "border-primary bg-primary/5" : "border-border bg-surface-1 hover:bg-surface-2"
-                        )}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Description</Label>
+                  <Textarea
+                    placeholder="Describe the goods or services..."
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    maxLength={256}
+                    rows={3}
+                    aria-describedby="desc-counter"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground" id="desc-counter">
+                    <span>{!descValid && description.length === 0 ? 'Required' : ''}</span>
+                    <span>{description.length}/256</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Duration</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {durationPresets.map(p => (
+                      <Button
+                        key={p.label}
+                        type="button"
+                        variant={!customDuration && durationBlocks === p.blocks ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setDurationBlocks(p.blocks); setCustomDuration(''); }}
                       >
-                        <span className="block text-sm font-medium">{d.label}</span>
-                        <span className="block text-xs text-muted-foreground font-mono">{d.blocks}</span>
-                      </button>
+                        {p.label}
+                      </Button>
                     ))}
                   </div>
-                </motion.div>
-
-                {/* Description */}
-                <motion.div variants={staggerChild} className="space-y-2">
-                  <label htmlFor="escrow-description" className="text-sm font-medium">Description</label>
-                  <div className={cn("focus-glow rounded-lg border border-border bg-surface-1 transition-colors", errors.description && "border-error")}>
-                    <textarea
-                      id="escrow-description"
-                      value={form.description}
-                      onChange={(e) => { setForm({ ...form, description: e.target.value }); setErrors({ ...errors, description: undefined }); }}
-                      placeholder="Describe what this escrow is for..."
-                      rows={3}
-                      aria-invalid={!!errors.description}
-                      aria-describedby={errors.description ? "description-error" : undefined}
-                      className="w-full bg-transparent px-4 py-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none resize-none"
+                  <div className="flex items-center gap-2 mt-2">
+                    <Input
+                      type="number"
+                      placeholder="Custom blocks"
+                      value={customDuration}
+                      onChange={e => setCustomDuration(e.target.value)}
+                      className="font-mono text-sm w-40"
+                      min={1}
+                      max={MAX_DURATION_BLOCKS}
                     />
+                    <span className="text-xs text-muted-foreground">blocks</span>
                   </div>
-                  {errors.description && <p id="description-error" className="flex items-center gap-1 text-xs text-error"><AlertCircle className="h-3 w-3" />{errors.description}</p>}
-                </motion.div>
-
-                <motion.div variants={staggerChild}>
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={handleReview}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl btn-gradient py-3 text-sm font-semibold"
-                  >
-                    Review Escrow <ArrowRight className="h-4 w-4" />
-                  </motion.button>
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          ) : (
-            <motion.div key="review" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
-              <GlassCard className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-semibold mb-1">Review & Confirm</h2>
-                  <p className="text-sm text-muted-foreground">Please review the details before creating the escrow.</p>
+                  {durationValid && (
+                    <p className="text-xs text-muted-foreground">
+                      Expires: ~{blockToEstimatedDate(CURRENT_BLOCK_HEIGHT + duration, CURRENT_BLOCK_HEIGHT).toLocaleDateString()} ({blocksToTime(duration)})
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-4 text-sm">
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-muted-foreground">Seller</span>
-                    <span className="font-mono text-xs">{form.sellerAddress.slice(0, 10)}...{form.sellerAddress.slice(-6)}</span>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </Button>
+                  <Button onClick={() => setStep(3)} disabled={!step2Valid} className="flex-1 gap-1.5">
+                    Next <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div key="step3" {...stepTransition}>
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <FileCheck className="h-4 w-4 text-primary" /> Review & Confirm
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border border-border divide-y divide-border text-sm">
+                  <div className="flex justify-between p-3">
+                    <span className="text-muted-foreground">Recipient</span>
+                    <span className="font-mono text-xs">{recipient}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border">
+                  <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Amount</span>
-                    <div className="text-right">
-                      <span className="font-mono font-semibold">{parseFloat(form.amount).toLocaleString()} STX</span>
-                      <p className="text-xs text-muted-foreground font-mono">{usdPreview}</p>
-                    </div>
+                    <span className="font-mono">{formatSTX(microAmount)} STX</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border">
+                  <div className="flex justify-between p-3">
+                    <span className="text-muted-foreground">Fee ({cfg.platformFeeBps / 100}%)</span>
+                    <span className="font-mono">{formatSTX(fee)} STX</span>
+                  </div>
+                  <div className="flex justify-between p-3 font-medium">
+                    <span>Total</span>
+                    <span className="font-mono">{formatSTX(total)} STX</span>
+                  </div>
+                  <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Duration</span>
-                    <span>{DURATIONS.find((d) => d.value === form.duration)?.label}</span>
+                    <span>{blocksToTime(duration)} ({duration.toLocaleString()} blocks)</span>
                   </div>
-                  <div className="py-2">
-                    <span className="text-muted-foreground">Description</span>
-                    <p className="mt-1">{form.description}</p>
+                  <div className="p-3">
+                    <span className="text-muted-foreground text-xs">Description</span>
+                    <p className="mt-0.5 text-sm">{description}</p>
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setStep("form")} className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-medium hover:bg-surface-2 transition-colors">
-                    <ArrowLeft className="h-4 w-4" /> Edit
-                  </button>
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl btn-gradient py-3 text-sm font-semibold disabled:opacity-50"
-                  >
-                    Create Escrow
-                  </motion.button>
+
+                <div className="flex items-start gap-2">
+                  <Checkbox id="consent" checked={consent} onCheckedChange={(c) => setConsent(!!c)} />
+                  <label htmlFor="consent" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                    I understand that funds will be locked in a smart contract until released, refunded, or resolved through dispute.
+                  </label>
                 </div>
-              </GlassCard>
-            </motion.div>
-          )}
 
-          {/* Transaction Pending overlay */}
-          {loading && (
-            <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6">
-              <GlassCard>
-                <TransactionPending
-                  txId={txId || "Waiting for wallet..."}
-                  message="Creating escrow..."
-                  estimatedTime="Confirm in wallet"
-                />
-              </GlassCard>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <SuccessModal
-          open={showSuccess}
-          onClose={() => {
-            setShowSuccess(false);
-            // Reset form after successful creation
-            setForm({ sellerAddress: "", amount: "", duration: "1008", description: "" });
-            setStep("form");
-            setTxId("");
-          }}
-          escrowId="View on Explorer"
-          txId={txId}
-        />
-      </div>
-    </PageTransition>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </Button>
+                  <Button onClick={handleSubmit} disabled={!consent} className="flex-1">
+                    Confirm & Deposit
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
