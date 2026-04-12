@@ -4,8 +4,10 @@ import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '
 
 const EMPTY_STATS: PlatformStats = {
   totalEscrows: 0,
-  totalVolume: 0,
-  totalFeesCollected: 0,
+  totalVolumeStx: 0,
+  totalVolumeSbtc: 0,
+  totalFeesStx: 0,
+  totalFeesSbtc: 0,
   totalReleased: 0,
   totalRefunded: 0,
   activeDisputes: 0,
@@ -18,6 +20,8 @@ const DEFAULT_CONFIG: PlatformConfig = {
   isPaused: false,
   minAmount: 1_000_000,
   maxAmount: 100_000_000_000,
+  minAmountSbtc: 10_000,
+  maxAmountSbtc: 10_000_000_000,
   maxDuration: 52_560,
   disputeTimeout: 4_320,
 };
@@ -27,12 +31,16 @@ export function usePlatformStats() {
     queryKey: ['platform-stats'],
     queryFn: async (): Promise<PlatformStats> => {
       if (!isSupabaseConfigured) return EMPTY_STATS;
-      const { data, error } = await supabase.from('escrows').select('amount, fee_amount, status');
+      const { data, error } = await supabase.from('escrows').select('amount, fee_amount, status, token_type');
       if (error || !data?.length) return EMPTY_STATS;
+      const stx = data.filter(r => (r.token_type ?? 0) === 0);
+      const sbtc = data.filter(r => (r.token_type ?? 0) === 1);
       return {
         totalEscrows: data.length,
-        totalVolume: data.reduce((s, r) => s + (r.amount ?? 0), 0),
-        totalFeesCollected: data.reduce((s, r) => s + (r.fee_amount ?? 0), 0),
+        totalVolumeStx: stx.reduce((s, r) => s + (r.amount ?? 0), 0),
+        totalVolumeSbtc: sbtc.reduce((s, r) => s + (r.amount ?? 0), 0),
+        totalFeesStx: stx.reduce((s, r) => s + (r.fee_amount ?? 0), 0),
+        totalFeesSbtc: sbtc.reduce((s, r) => s + (r.fee_amount ?? 0), 0),
         totalReleased: data.filter(r => r.status === EscrowStatus.Released).length,
         totalRefunded: data.filter(r => r.status === EscrowStatus.Refunded).length,
         activeDisputes: data.filter(r => r.status === EscrowStatus.Disputed).length,
@@ -55,6 +63,8 @@ export function usePlatformConfig() {
         isPaused: data.contract_paused ?? false,
         minAmount: 1_000_000,
         maxAmount: 100_000_000_000,
+        minAmountSbtc: 10_000,
+        maxAmountSbtc: 10_000_000_000,
         maxDuration: 52_560,
         disputeTimeout: data.dispute_timeout ?? 4_320,
       };
