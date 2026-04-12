@@ -9,10 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { isValidStacksAddress, formatSTX, calculateFee, blockToEstimatedDate, blocksToTime } from '@/lib/utils';
+import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
-import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
+import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
+import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, dur } from '@/lib/motion';
@@ -50,20 +51,25 @@ export default function CreateEscrow() {
   const [durationBlocks, setDurationBlocks] = useState(BLOCKS_PER_WEEK);
   const [customDuration, setCustomDuration] = useState('');
   const [consent, setConsent] = useState(false);
+  const [tokenType, setTokenType] = useState<TokenType>(TokenType.STX);
 
   const [txStatus, setTxStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [txHash, setTxHash] = useState('');
 
-  const cfg = config || { platformFeeBps: 50, minAmount: 1_000_000, maxAmount: 100_000_000_000 };
+  const cfg = config || { platformFeeBps: 50, minAmount: MIN_AMOUNT_STX, maxAmount: MAX_AMOUNT_STX, minAmountSbtc: MIN_AMOUNT_SBTC, maxAmountSbtc: MAX_AMOUNT_SBTC };
   const amount = parseFloat(amountStr) || 0;
-  const microAmount = Math.floor(amount * 1_000_000);
-  const fee = calculateFee(microAmount, cfg.platformFeeBps);
-  const total = microAmount + fee;
+  const decimals = tokenType === TokenType.SBTC ? 8 : 6;
+  const smallestUnit = Math.floor(amount * (10 ** decimals));
+  const minAmt = tokenType === TokenType.SBTC ? (cfg.minAmountSbtc ?? MIN_AMOUNT_SBTC) : cfg.minAmount;
+  const maxAmt = tokenType === TokenType.SBTC ? (cfg.maxAmountSbtc ?? MAX_AMOUNT_SBTC) : cfg.maxAmount;
+  const fee = calculateFee(smallestUnit, cfg.platformFeeBps);
+  const total = smallestUnit + fee;
   const duration = customDuration ? parseInt(customDuration) : durationBlocks;
+  const token = tokenLabel(tokenType);
 
   const recipientValid = isValidStacksAddress(recipient);
   const selfEscrow = recipient === address;
-  const amountValid = microAmount >= cfg.minAmount && microAmount <= cfg.maxAmount;
+  const amountValid = smallestUnit >= minAmt && smallestUnit <= maxAmt;
   const descValid = description.trim().length > 0 && description.length <= 256;
   const durationValid = duration >= 1 && duration <= MAX_DURATION_BLOCKS;
 
@@ -76,7 +82,7 @@ export default function CreateEscrow() {
     if (!address) return;
     setTxStatus('pending');
     try {
-      const hash = await createEscrow({ buyer: address, seller: recipient, amount: microAmount, description: description.trim(), duration, feeBps: cfg.platformFeeBps });
+      const hash = await createEscrow({ buyer: address, seller: recipient, amount: smallestUnit, description: description.trim(), duration, tokenType, feeBps: cfg.platformFeeBps });
       setTxHash(hash);
       setTxStatus('success');
     } catch {
@@ -207,7 +213,29 @@ export default function CreateEscrow() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Amount (STX)</Label>
+                  <Label className="text-xs">Token</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={tokenType === TokenType.STX ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => { setTokenType(TokenType.STX); setAmountStr(''); }}
+                    >
+                      STX
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={tokenType === TokenType.SBTC ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => { setTokenType(TokenType.SBTC); setAmountStr(''); }}
+                    >
+                      sBTC
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Amount ({token})</Label>
                   <Input
                     type="number"
                     placeholder="0.00"
@@ -215,17 +243,17 @@ export default function CreateEscrow() {
                     onChange={e => setAmountStr(e.target.value)}
                     className="font-mono text-sm"
                     min={0}
-                    step={0.01}
+                    step={tokenType === TokenType.SBTC ? 0.0001 : 0.01}
                   />
                   {amountStr && !amountValid && (
                     <p className="text-xs text-destructive" role="alert">
-                      Amount must be between {formatSTX(cfg.minAmount)} and {formatSTX(cfg.maxAmount)} STX
+                      Amount must be between {formatAmount(minAmt, tokenType)} and {formatAmount(maxAmt, tokenType)} {token}
                     </p>
                   )}
                   {amountValid && (
                     <div className="text-xs text-muted-foreground space-y-0.5">
-                      <p>Fee: {formatSTX(fee)} STX ({cfg.platformFeeBps / 100}%)</p>
-                      <p>Total: {formatSTX(total)} STX</p>
+                      <p>Fee: {formatAmount(fee, tokenType)} {token} ({cfg.platformFeeBps / 100}%)</p>
+                      <p>Total: {formatAmount(total, tokenType)} {token}</p>
                     </div>
                   )}
                 </div>
@@ -308,16 +336,20 @@ export default function CreateEscrow() {
                     <span className="font-mono text-xs">{recipient}</span>
                   </div>
                   <div className="flex justify-between p-3">
+                    <span className="text-muted-foreground">Token</span>
+                    <span className="font-mono">{token}</span>
+                  </div>
+                  <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Amount</span>
-                    <span className="font-mono">{formatSTX(microAmount)} STX</span>
+                    <span className="font-mono">{formatAmount(smallestUnit, tokenType)} {token}</span>
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Fee ({cfg.platformFeeBps / 100}%)</span>
-                    <span className="font-mono">{formatSTX(fee)} STX</span>
+                    <span className="font-mono">{formatAmount(fee, tokenType)} {token}</span>
                   </div>
                   <div className="flex justify-between p-3 font-medium">
                     <span>Total</span>
-                    <span className="font-mono">{formatSTX(total)} STX</span>
+                    <span className="font-mono">{formatAmount(total, tokenType)} {token}</span>
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Duration</span>
