@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { EscrowStatus } from "./types";
+import { EscrowStatus, TokenType } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,11 +13,38 @@ export function microToSTX(micro: number): number {
   return micro / 1_000_000;
 }
 
+export function satsToBTC(sats: number): number {
+  return sats / 100_000_000;
+}
+
 export function formatSTX(micro: number): string {
   return microToSTX(micro).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   });
+}
+
+export function formatSBTC(sats: number): string {
+  return satsToBTC(sats).toLocaleString(undefined, {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 8,
+  });
+}
+
+export function formatAmount(value: number, tokenType: TokenType): string {
+  return tokenType === TokenType.SBTC ? formatSBTC(value) : formatSTX(value);
+}
+
+export function tokenLabel(tokenType: TokenType): string {
+  return tokenType === TokenType.SBTC ? 'sBTC' : 'STX';
+}
+
+export function tokenDecimals(tokenType: TokenType): number {
+  return tokenType === TokenType.SBTC ? 8 : 6;
+}
+
+export function toSmallestUnit(human: number, tokenType: TokenType): number {
+  return Math.floor(human * (10 ** tokenDecimals(tokenType)));
 }
 
 export function formatUSD(micro: number, price = 0.85): string {
