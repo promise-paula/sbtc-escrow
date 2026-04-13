@@ -106,7 +106,7 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
     for (const event of sorted) {
       if (y > 270) break; // prevent overflow
       doc.setFont('helvetica', 'bold');
-      doc.text(event.eventType.toUpperCase(), margin, y);
+      doc.text(event.eventType.replace(/^escrow-/, '').toUpperCase(), margin, y);
       doc.setFont('helvetica', 'normal');
       doc.text(`Block ${event.blockHeight.toLocaleString()}`, margin + 40, y);
       y += 5;
