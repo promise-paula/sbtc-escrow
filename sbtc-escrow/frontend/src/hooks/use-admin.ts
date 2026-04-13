@@ -83,6 +83,19 @@ export function useDisputedEscrows() {
         .eq('status', EscrowStatus.Disputed)
         .order('disputed_at_block', { ascending: true });
       if (error || !data?.length) return [];
+
+      // Fetch dispute events to get "disputed-by" for each escrow
+      const escrowIds = data.map(r => r.id);
+      const { data: events } = await supabase
+        .from('escrow_events')
+        .select('escrow_id, data')
+        .in('escrow_id', escrowIds)
+        .eq('event_type', 'escrow-disputed');
+      const disputeByMap: Record<number, string> = {};
+      (events || []).forEach((evt) => {
+        disputeByMap[evt.escrow_id] = evt.data?.['disputed-by'] ?? '';
+      });
+
       return data.map((row) => ({
         id: row.id,
         buyer: row.buyer,
@@ -97,6 +110,8 @@ export function useDisputedEscrows() {
         completedAt: row.completed_at_block ?? null,
         disputedAt: row.disputed_at_block ?? null,
         txHash: row.tx_id,
+        indexedAt: row.indexed_at,
+        disputedBy: disputeByMap[row.id] || undefined,
       }));
     },
   });
@@ -128,6 +143,7 @@ export function useResolvedDisputes() {
         completedAt: row.completed_at_block ?? null,
         disputedAt: row.disputed_at_block ?? null,
         txHash: row.tx_id,
+        indexedAt: row.indexed_at,
       }));
     },
   });
