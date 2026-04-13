@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { useBlockHeight } from '@/hooks/use-block-height';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrowEvents } from '@/hooks/use-escrow';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -10,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
-import { blocksToTime } from '@/lib/utils';
+import { relativeTime } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants } from '@/lib/motion';
 import {
@@ -19,23 +18,31 @@ import {
 } from 'lucide-react';
 
 const eventConfig: Record<string, { icon: typeof PlusCircle; color: string; label: string }> = {
-  created: { icon: PlusCircle, color: 'text-primary', label: 'Escrow Created' },
-  released: { icon: CheckCircle2, color: 'text-success', label: 'Payment Released' },
-  refunded: { icon: XCircle, color: 'text-status-refunded', label: 'Escrow Refunded' },
-  disputed: { icon: AlertTriangle, color: 'text-destructive', label: 'Dispute Filed' },
-  'dispute-resolved': { icon: Shield, color: 'text-success', label: 'Dispute Resolved' },
-  'dispute-timeout-resolved': { icon: Clock, color: 'text-warning', label: 'Dispute Timeout Resolved' },
-  extended: { icon: Clock, color: 'text-primary', label: 'Escrow Extended' },
-  expired: { icon: XCircle, color: 'text-muted-foreground', label: 'Escrow Expired' },
+  'escrow-created': { icon: PlusCircle, color: 'text-primary', label: 'Escrow Created' },
+  'escrow-released': { icon: CheckCircle2, color: 'text-success', label: 'Payment Released' },
+  'escrow-refunded': { icon: XCircle, color: 'text-status-refunded', label: 'Escrow Refunded' },
+  'escrow-disputed': { icon: AlertTriangle, color: 'text-destructive', label: 'Dispute Filed' },
+  'dispute-resolved-for-buyer': { icon: Shield, color: 'text-success', label: 'Dispute Resolved (Buyer)' },
+  'dispute-resolved-for-seller': { icon: Shield, color: 'text-success', label: 'Dispute Resolved (Seller)' },
+  'dispute-expired-resolved': { icon: Clock, color: 'text-warning', label: 'Dispute Timeout Resolved' },
+  'escrow-extended': { icon: Clock, color: 'text-primary', label: 'Escrow Extended' },
 };
 
-const filterTypes = ['all', 'created', 'released', 'refunded', 'disputed', 'extended'] as const;
+const filterTypes = ['all', 'escrow-created', 'escrow-released', 'escrow-refunded', 'escrow-disputed', 'escrow-extended'] as const;
+
+const filterLabels: Record<string, string> = {
+  all: 'All',
+  'escrow-created': 'Created',
+  'escrow-released': 'Released',
+  'escrow-refunded': 'Refunded',
+  'escrow-disputed': 'Disputed',
+  'escrow-extended': 'Extended',
+};
 
 export default function ActivityPage() {
   const navigate = useNavigate();
   const { address } = useWallet();
   const { data: allEvents, isLoading, isError } = useEscrowEvents();
-  const { data: currentBlock = 0 } = useBlockHeight();
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const sortedAll = useMemo(
@@ -51,14 +58,14 @@ export default function ActivityPage() {
   // Summary stats
   const totalEvents = sortedAll.length;
   const recentEvents = sortedAll.filter(
-    e => currentBlock - e.blockHeight <= 144, // ~1 day
+    e => (Date.now() - new Date(e.timestamp).getTime()) <= 24 * 60 * 60_000, // last 24h
   ).length;
   const mostActiveType = useMemo(() => {
     const counts: Record<string, number> = {};
     sortedAll.forEach(e => { counts[e.eventType] = (counts[e.eventType] || 0) + 1; });
     let max = ''; let maxC = 0;
     Object.entries(counts).forEach(([k, v]) => { if (v > maxC) { max = k; maxC = v; } });
-    return max || 'created';
+    return max || 'escrow-created';
   }, [sortedAll]);
 
   // Count per filter type
@@ -108,9 +115,9 @@ export default function ActivityPage() {
             <TabsTrigger
               key={t}
               value={t}
-              className="text-xs capitalize data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-2.5 py-1"
+              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-2.5 py-1"
             >
-              {t}
+              {filterLabels[t] ?? t}
               {counts[t] > 0 && (
                 <span className="ml-1 text-[10px] opacity-70">{counts[t]}</span>
               )}
@@ -143,9 +150,8 @@ export default function ActivityPage() {
                 <div className="absolute left-7 top-0 bottom-0 w-px bg-border" />
                 <div className="divide-y divide-border">
                   {events.map((evt, i) => {
-                    const cfg = eventConfig[evt.eventType] || eventConfig.created;
+                    const cfg = eventConfig[evt.eventType] || eventConfig['escrow-created'];
                     const Icon = cfg.icon;
-                    const blockAge = currentBlock - evt.blockHeight;
 
                     return (
                       <motion.div
@@ -169,7 +175,7 @@ export default function ActivityPage() {
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <AddressDisplay address={evt.actor} showCopy={false} truncateChars={3} />
-                            <span className="text-xs text-muted-foreground">· {blocksToTime(blockAge)} ago</span>
+                            <span className="text-xs text-muted-foreground">· {relativeTime(evt.timestamp)}</span>
                           </div>
                         </div>
                       </motion.div>
