@@ -1,14 +1,11 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { EscrowStatus, TokenType } from "./types";
-import { STACKS_NETWORK } from "./stacks-config";
+import { STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from "./stacks-config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-// ~10 minutes per block on Stacks
-const MINUTES_PER_BLOCK = 10;
 
 export function microToSTX(micro: number): number {
   return micro / 1_000_000;
@@ -70,8 +67,8 @@ export function truncateAddress(address: string, chars = 4): string {
   return `${address.slice(0, chars + 2)}…${address.slice(-chars)}`;
 }
 
-export function blocksToTime(blocks: number): string {
-  const minutes = blocks * MINUTES_PER_BLOCK;
+export function blocksToTime(blocks: number, minutesPerBlock = DEFAULT_MINUTES_PER_BLOCK): string {
+  const minutes = Math.round(blocks * minutesPerBlock);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ${minutes % 60}m`;
@@ -80,9 +77,9 @@ export function blocksToTime(blocks: number): string {
   return `${days}d`;
 }
 
-export function blockToEstimatedDate(blockHeight: number, currentBlock: number): Date {
+export function blockToEstimatedDate(blockHeight: number, currentBlock: number, minutesPerBlock = DEFAULT_MINUTES_PER_BLOCK): Date {
   const blockDiff = blockHeight - currentBlock;
-  return new Date(Date.now() + blockDiff * MINUTES_PER_BLOCK * 60 * 1000);
+  return new Date(Date.now() + blockDiff * minutesPerBlock * 60 * 1000);
 }
 
 export function calculateFee(amount: number, feeBps: number): number {
