@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime } from '@/lib/utils';
+import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
@@ -112,7 +112,7 @@ export default function CreateEscrow() {
           <div className="flex gap-2 mt-4">
             <Button size="sm" onClick={() => navigate('/escrows')}>View Escrows</Button>
             <Button size="sm" variant="outline" asChild>
-              <a href={`https://explorer.stacks.co/txid/${txHash}?chain=testnet`} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+              <a href={getExplorerUrl('tx', txHash)} target="_blank" rel="noopener noreferrer" className="gap-1.5">
                 <ExternalLink className="h-3.5 w-3.5" /> Explorer
               </a>
             </Button>
