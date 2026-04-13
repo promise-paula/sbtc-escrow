@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBlockHeight } from '@/hooks/use-block-height';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows } from '@/hooks/use-escrow';
 import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
@@ -16,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Inbox } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
-import { blocksToTime } from '@/lib/utils';
+import { relativeTime } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { listItemVariants } from '@/lib/motion';
 
@@ -34,7 +33,6 @@ export default function MyEscrows() {
   const navigate = useNavigate();
   const { address } = useWallet();
   const { data: allEscrows, isLoading, isError } = useEscrows(address);
-  const { data: currentBlock } = useBlockHeight();
   const [roleFilter, setRoleFilter] = useState<'all' | 'buyer' | 'seller'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -159,7 +157,6 @@ export default function MyEscrows() {
           {filtered.map((e, i) => {
             const isBuyer = e.buyer === address;
             const counterparty = isBuyer ? e.seller : e.buyer;
-            const blockAge = (currentBlock ?? 0) - e.createdAt;
             return (
               <motion.div
                 key={e.id}
@@ -185,7 +182,7 @@ export default function MyEscrows() {
                     <Badge variant="outline" className="text-[10px] font-normal">
                       {isBuyer ? 'Buyer' : 'Seller'}
                     </Badge>
-                    <span>{blocksToTime(blockAge)} ago</span>
+                    <span>{e.indexedAt ? relativeTime(e.indexedAt) : ''}</span>
                   </div>
                 </Card>
               </motion.div>
