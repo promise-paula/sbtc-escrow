@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveDisputeForBuyer, resolveDisputeForSeller } from '@/lib/admin-service';
 import { blocksToTime } from '@/lib/utils';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { cardVariants, listItemVariants } from '@/lib/motion';
 import { CheckCircle2, Shield, Clock, AlertTriangle, Timer } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
@@ -22,6 +23,8 @@ export default function DisputeQueue() {
   const { data: config } = usePlatformConfig();
   const { data: resolvedDisputes = [] } = useResolvedDisputes();
   const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
   const [confirmAction, setConfirmAction] = useState<{ escrowId: number; type: 'buyer' | 'seller'; amount: number; feeAmount: number; tokenType: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -53,7 +56,7 @@ export default function DisputeQueue() {
 
   const summaryStats = [
     { label: 'Active Disputes', value: active.length.toString(), icon: Shield, warn: active.length > 0 },
-    { label: 'Avg Time Open', value: blocksToTime(avgTimeOpen), icon: Clock, warn: false },
+    { label: 'Avg Time Open', value: blocksToTime(avgTimeOpen, minutesPerBlock), icon: Clock, warn: false },
     { label: 'Near Timeout', value: nearTimeoutCount.toString(), icon: Timer, warn: nearTimeoutCount > 0 },
   ];
 
@@ -129,7 +132,7 @@ export default function DisputeQueue() {
                               </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                              Disputed {blocksToTime(elapsed)} ago · Block {e.disputedAt?.toLocaleString()}
+                              Disputed {blocksToTime(elapsed, minutesPerBlock)} ago · Block {e.disputedAt?.toLocaleString()}
                             </p>
                           </div>
                         </div>
