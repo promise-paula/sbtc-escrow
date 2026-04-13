@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, BLOCKS_PER_DAY, BLOCKS_PER_WEEK, STACKS_NETWORK } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, STACKS_NETWORK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
+import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,15 +15,17 @@ import { cardVariants } from '@/lib/motion';
 import { AlertTriangle, DollarSign, Clock, UserCheck, Info } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 
-const timeoutPresets = [
-  { label: '5 blocks (testing)', blocks: 5 },
-  { label: '1 day', blocks: BLOCKS_PER_DAY },
-  { label: '1 week', blocks: BLOCKS_PER_WEEK },
-  { label: '30 days', blocks: BLOCKS_PER_DAY * 30 },
+const timeoutPresetsDef = [
+  { label: '5 blocks (testing)', minutes: null, blocks: 5 },
+  { label: '1 day', minutes: 60 * 24, blocks: null },
+  { label: '1 week', minutes: 60 * 24 * 7, blocks: null },
+  { label: '30 days', minutes: 60 * 24 * 30, blocks: null },
 ];
 
 export default function ContractControls() {
   const { data: config, isLoading, isError } = usePlatformConfig();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
   const [isPaused, setIsPaused] = useState(false);
   const [feeBps, setFeeBps] = useState('');
   const [feeRecip, setFeeRecip] = useState('');
@@ -44,6 +47,11 @@ export default function ContractControls() {
   const feeValue = parseInt(feeBps) || 0;
   const timeoutValue = parseInt(timeout) || 0;
   const feeOnHundred = (100 * feeValue / 10000).toFixed(2);
+
+  const timeoutPresets = timeoutPresetsDef.map(p => ({
+    label: p.label,
+    blocks: p.blocks ?? timeToBlocks(p.minutes!, minutesPerBlock),
+  }));
 
   const handleTogglePause = async () => {
     setLoading('pause');
@@ -131,7 +139,7 @@ export default function ContractControls() {
             </div>
             <div className="flex items-center gap-2">
               <Input type="number" value={timeout} onChange={e => setTimeoutVal(e.target.value)} className="font-mono text-sm w-40" min={MIN_DISPUTE_TIMEOUT} max={MAX_DISPUTE_TIMEOUT} />
-              <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue)})</span>
+              <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue, minutesPerBlock)})</span>
             </div>
             <Button size="sm" disabled={timeoutValue < MIN_DISPUTE_TIMEOUT || timeoutValue > MAX_DISPUTE_TIMEOUT || loading === 'timeout'} onClick={async () => { setLoading('timeout'); await setDisputeTimeout(timeoutValue); setLoading(null); }}>
               Update Timeout
@@ -175,7 +183,7 @@ export default function ContractControls() {
               { label: 'Max Amount (STX)', value: `${formatSTX(cfg.maxAmount)} STX`, mono: true },
               { label: 'Min Amount (sBTC)', value: `${formatSBTC(cfg.minAmountSbtc)} sBTC`, mono: true },
               { label: 'Max Amount (sBTC)', value: `${formatSBTC(cfg.maxAmountSbtc)} sBTC`, mono: true },
-              { label: 'Max Duration', value: `${cfg.maxDuration.toLocaleString()} blocks (~${blocksToTime(cfg.maxDuration)})` },
+              { label: 'Max Duration', value: `${cfg.maxDuration.toLocaleString()} blocks (~${blocksToTime(cfg.maxDuration, minutesPerBlock)})` },
             ].map((row, idx) => (
               <div key={row.label} className={`flex justify-between items-center p-3 text-sm ${idx % 2 === 1 ? 'bg-muted/30' : ''}`}>
                 <span className="text-muted-foreground">{row.label}</span>
