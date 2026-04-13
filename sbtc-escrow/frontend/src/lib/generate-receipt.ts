@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { Escrow, EscrowEvent, STATUS_LABELS } from '@/lib/types';
+import { STACKS_NETWORK } from '@/lib/stacks-config';
 
 export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -118,7 +119,7 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(150, 150, 150);
-  doc.text(`Generated on ${new Date().toLocaleDateString()} — Testnet`, margin, 285);
+  doc.text(`Generated on ${new Date().toLocaleDateString()} — ${STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}`, margin, 285);
 
   doc.save(`escrow-${escrow.id}-receipt.pdf`);
 }
