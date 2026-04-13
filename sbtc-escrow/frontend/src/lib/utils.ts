@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { EscrowStatus, TokenType } from "./types";
+import { STACKS_NETWORK } from "./stacks-config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -90,7 +91,7 @@ export function getStatusColor(status: EscrowStatus): string {
 }
 
 export function getExplorerUrl(type: 'tx' | 'address' | 'block', value: string): string {
-  return `https://explorer.stacks.co/${type}/${value}?chain=testnet`;
+  return `https://explorer.stacks.co/${type}/${value}?chain=${STACKS_NETWORK}`;
 }
 
 export const CONTRACT_ERRORS: Record<number, string> = {
