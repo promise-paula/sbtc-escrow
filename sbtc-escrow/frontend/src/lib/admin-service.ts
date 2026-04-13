@@ -1,21 +1,31 @@
 import { toast } from 'sonner';
 import { request } from '@stacks/connect';
-import { Cl, type ClarityValue } from '@stacks/transactions';
-import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
+import { Cl, Pc, type ClarityValue } from '@stacks/transactions';
+import { CONTRACT_PRINCIPAL, STACKS_NETWORK, SBTC_CONTRACT } from './stacks-config';
+import { TokenType } from './types';
 
 async function adminCall(
   functionName: string,
   functionArgs: ClarityValue[],
   successMsg: string,
+  postConditions?: any[],
 ): Promise<string> {
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
     functionName,
     functionArgs,
+    ...(postConditions ? { postConditions } : {}),
     network: STACKS_NETWORK,
   });
   toast.success(successMsg, { description: 'Transaction submitted.' });
   return response.txid;
+}
+
+function contractSendPc(amount: number, tokenType: TokenType) {
+  if (tokenType === TokenType.SBTC) {
+    return Pc.principal(CONTRACT_PRINCIPAL).willSendEq(amount).ft(SBTC_CONTRACT, 'sbtc-token');
+  }
+  return Pc.principal(CONTRACT_PRINCIPAL).willSendEq(amount).ustx();
 }
 
 export function pauseContract(): Promise<string> {
@@ -46,10 +56,22 @@ export function acceptOwnership(): Promise<string> {
   return adminCall('accept-ownership', [], 'Ownership transfer accepted');
 }
 
-export function resolveDisputeForBuyer(escrowId: number): Promise<string> {
-  return adminCall('resolve-dispute-for-buyer', [Cl.uint(escrowId)], 'Dispute resolved — funds returned to buyer');
+export function resolveDisputeForBuyer(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+  const totalRefund = amount + feeAmount;
+  return adminCall(
+    'resolve-dispute-for-buyer',
+    [Cl.uint(escrowId)],
+    'Dispute resolved — funds returned to buyer',
+    [contractSendPc(totalRefund, tokenType)],
+  );
 }
 
-export function resolveDisputeForSeller(escrowId: number): Promise<string> {
-  return adminCall('resolve-dispute-for-seller', [Cl.uint(escrowId)], 'Dispute resolved — funds released to seller');
+export function resolveDisputeForSeller(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+  const totalOutflow = amount + feeAmount;
+  return adminCall(
+    'resolve-dispute-for-seller',
+    [Cl.uint(escrowId)],
+    'Dispute resolved — funds released to seller',
+    [contractSendPc(totalOutflow, tokenType)],
+  );
 }
