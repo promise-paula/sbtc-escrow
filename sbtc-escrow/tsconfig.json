@@ -17,10 +17,12 @@
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "types": ["node"]
   },
   "include": [
     "node_modules/@stacks/clarinet-sdk/vitest-helpers/src",
-    "tests"
+    "tests",
+    "scripts"
   ]
 }
