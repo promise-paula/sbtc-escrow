@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { Separator } from '@/components/ui/separator';
 import { Wallet, Settings2, Info, ExternalLink, LogOut, RotateCcw } from 'lucide-react';
-import { blocksToTime } from '@/lib/utils';
+import { blocksToTime, getExplorerUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
@@ -155,7 +155,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild>
-                <a href={`https://explorer.stacks.co/txid/${CONTRACT_ADDRESS}.${CONTRACT_NAME}?chain=testnet`} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+                <a href={getExplorerUrl('tx', `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`)} target="_blank" rel="noopener noreferrer" className="gap-1.5">
                   <ExternalLink className="h-3.5 w-3.5" /> View Contract
                 </a>
               </Button>
