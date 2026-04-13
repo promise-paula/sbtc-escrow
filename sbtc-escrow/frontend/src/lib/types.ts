@@ -24,6 +24,8 @@ export interface Escrow {
   completedAt: number | null;
   disputedAt: number | null;
   txHash?: string;
+  indexedAt?: string; // ISO timestamp from DB
+  disputedBy?: string; // address that triggered the dispute
 }
 
 export interface EscrowEvent {
