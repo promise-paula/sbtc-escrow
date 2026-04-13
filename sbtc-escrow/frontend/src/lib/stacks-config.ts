@@ -12,6 +12,7 @@ export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
     ? 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-sbtc'  // mainnet sBTC
     : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
 
+export const DEFAULT_MINUTES_PER_BLOCK = 10;
 export const BLOCKS_PER_DAY = 144;
 export const BLOCKS_PER_WEEK = 1_008;
 export const DEFAULT_DISPUTE_TIMEOUT = 4_320; // ~30 days
