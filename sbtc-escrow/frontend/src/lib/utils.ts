@@ -91,7 +91,8 @@ export function getStatusColor(status: EscrowStatus): string {
 }
 
 export function getExplorerUrl(type: 'tx' | 'address' | 'block', value: string): string {
-  return `https://explorer.stacks.co/${type}/${value}?chain=${STACKS_NETWORK}`;
+  const pathSegment = type === 'tx' ? 'txid' : type;
+  return `https://explorer.hiro.so/${pathSegment}/${value}?chain=${STACKS_NETWORK}`;
 }
 
 export const CONTRACT_ERRORS: Record<number, string> = {
