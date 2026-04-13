@@ -20,7 +20,9 @@ async function fetchBlockRate(): Promise<BlockRateResult> {
   if (!res.ok) throw new Error('Failed to fetch recent blocks');
   const data = await res.json();
 
-  const blocks: { burn_block_time: number }[] = data.results ?? [];
+  // Use block_time (Stacks block timestamp), NOT burn_block_time (Bitcoin)
+  // since stacks-block-height in Clarity tracks Stacks blocks
+  const blocks: { block_time: number }[] = data.results ?? [];
   if (blocks.length < 2) {
     return fallback();
   }
@@ -29,7 +31,7 @@ async function fetchBlockRate(): Promise<BlockRateResult> {
   let totalDeltaSec = 0;
   let count = 0;
   for (let i = 0; i < blocks.length - 1; i++) {
-    const delta = blocks[i].burn_block_time - blocks[i + 1].burn_block_time;
+    const delta = blocks[i].block_time - blocks[i + 1].block_time;
     if (delta > 0) {
       totalDeltaSec += delta;
       count++;
@@ -39,7 +41,7 @@ async function fetchBlockRate(): Promise<BlockRateResult> {
   if (count === 0) return fallback();
 
   const avgSeconds = totalDeltaSec / count;
-  const minutesPerBlock = Math.max(avgSeconds / 60, 1); // at least 1 min
+  const minutesPerBlock = Math.max(avgSeconds / 60, 0.01); // floor at 0.6s
 
   return {
     minutesPerBlock,
