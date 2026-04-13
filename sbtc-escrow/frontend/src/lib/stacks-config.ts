@@ -12,14 +12,14 @@ export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
     ? 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-sbtc'  // mainnet sBTC
     : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
 
-export const DEFAULT_MINUTES_PER_BLOCK = 10;
-export const BLOCKS_PER_DAY = 144;
-export const BLOCKS_PER_WEEK = 1_008;
-export const DEFAULT_DISPUTE_TIMEOUT = 4_320; // ~30 days
-export const MAX_DISPUTE_TIMEOUT = 8_640; // ~60 days
+// Post-Nakamoto: Stacks blocks are fast (~seconds); use useBlockRate() for live rate.
+// This fallback is used when the API is unavailable.
+export const DEFAULT_MINUTES_PER_BLOCK = 1.5;
+export const DEFAULT_DISPUTE_TIMEOUT = 4_320; // on-chain constant (stacks-block-height based)
+export const MAX_DISPUTE_TIMEOUT = 8_640; // on-chain constant
 export const MIN_DISPUTE_TIMEOUT = 1;
 export const MAX_FEE_BPS = 500; // 5%
-export const MAX_DURATION_BLOCKS = 52_560; // ~365 days
+export const MAX_DURATION_BLOCKS = 52_560; // on-chain MAX_DURATION constant
 
 // Per-token amount bounds (from V4 contract constants)
 export const MIN_AMOUNT_STX = 1_000; // 0.001 STX
