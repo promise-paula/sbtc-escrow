@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { usePlatformStats, usePlatformConfig } from '@/hooks/use-admin';
 import { formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { cardVariants } from '@/lib/motion';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { ContractStatusIndicator } from '@/components/shared/ContractStatusIndicator';
@@ -15,6 +16,8 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const { data: platformStats, isLoading: statsLoading, isError: statsError } = usePlatformStats();
   const { data: config, isLoading: configLoading, isError: configError } = usePlatformConfig();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
 
   if (statsLoading || configLoading) return <DashboardSkeleton />;
 
@@ -61,7 +64,7 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Dispute Timeout</p>
                 <span className="text-sm font-medium">{cfg.disputeTimeout.toLocaleString()} blocks</span>
-                <span className="text-xs text-muted-foreground ml-1">(~{blocksToTime(cfg.disputeTimeout)})</span>
+                <span className="text-xs text-muted-foreground ml-1">(~{blocksToTime(cfg.disputeTimeout, minutesPerBlock)})</span>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Owner</p>
