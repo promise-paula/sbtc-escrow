@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
+import { MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
 import { useBlockHeight } from '@/hooks/use-block-height';
+import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { blockToEstimatedDate, blocksToTime } from '@/lib/utils';
 import { extendEscrow } from '@/lib/escrow-service';
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
@@ -13,19 +14,23 @@ interface ExtendEscrowPanelProps {
 }
 
 const presets = [
-  { label: '+1 Day', blocks: BLOCKS_PER_DAY },
-  { label: '+1 Week', blocks: BLOCKS_PER_WEEK },
-  { label: '+2 Weeks', blocks: BLOCKS_PER_WEEK * 2 },
+  { label: '+1 Day', minutes: 60 * 24 },
+  { label: '+1 Week', minutes: 60 * 24 * 7 },
+  { label: '+2 Weeks', minutes: 60 * 24 * 14 },
 ];
 
 export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPanelProps) {
   const [open, setOpen] = useState(false);
   const [customBlocks, setCustomBlocks] = useState('');
-  const [selectedBlocks, setSelectedBlocks] = useState<number | null>(null);
+  const [selectedMinutes, setSelectedMinutes] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
 
-  const blocks = selectedBlocks || (customBlocks ? parseInt(customBlocks) : 0);
+  const blocks = selectedMinutes
+    ? timeToBlocks(selectedMinutes, minutesPerBlock)
+    : (customBlocks ? parseInt(customBlocks) : 0);
   const newExpiry = currentExpiresAt + blocks;
   const maxAdditional = currentBlock + MAX_DURATION_BLOCKS - currentExpiresAt;
   const valid = blocks > 0 && blocks <= maxAdditional;
@@ -62,9 +67,9 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
         {presets.map(p => (
           <Button
             key={p.label}
-            variant={selectedBlocks === p.blocks ? 'default' : 'outline'}
+            variant={selectedMinutes === p.minutes ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setSelectedBlocks(p.blocks); setCustomBlocks(''); }}
+            onClick={() => { setSelectedMinutes(p.minutes); setCustomBlocks(''); }}
           >
             {p.label}
           </Button>
@@ -76,7 +81,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
           type="number"
           placeholder="Custom blocks"
           value={customBlocks}
-          onChange={(e) => { setCustomBlocks(e.target.value); setSelectedBlocks(null); }}
+          onChange={(e) => { setCustomBlocks(e.target.value); setSelectedMinutes(null); }}
           className="font-mono text-sm"
           min={1}
           max={maxAdditional}
@@ -86,8 +91,8 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
 
       {valid && (
         <p className="text-xs text-muted-foreground">
-          New expiry: block {newExpiry.toLocaleString()} (~{blockToEstimatedDate(newExpiry, currentBlock).toLocaleDateString()})
-          · +{blocksToTime(blocks)}
+          New expiry: block {newExpiry.toLocaleString()} (~{blockToEstimatedDate(newExpiry, currentBlock, minutesPerBlock).toLocaleDateString()})
+          · +{blocksToTime(blocks, minutesPerBlock)}
         </p>
       )}
 
