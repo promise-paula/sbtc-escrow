@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
+import { STACKS_NETWORK } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -116,7 +117,7 @@ function DashboardPreview() {
       {/* Floating badge */}
       <div className="absolute -top-3 -right-2 z-10">
         <Badge variant="outline" className="bg-background text-xs font-medium shadow-sm border-accent-warm/40 text-accent-warm">
-          Live on Testnet
+          Live on {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
         </Badge>
       </div>
 
@@ -225,7 +226,7 @@ export default function Landing() {
             {/* Pill badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground mb-5">
               <span className="h-1.5 w-1.5 rounded-full bg-accent-warm" />
-              Built on Stacks · Testnet Live
+              Built on Stacks · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'} Live
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-[1.15]">
@@ -370,7 +371,7 @@ export default function Landing() {
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="text-center sm:text-left">sBTC Escrow v4.0.0 · Testnet</span>
+          <span className="text-center sm:text-left">sBTC Escrow v4.0.0 · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
           <div className="flex flex-wrap justify-center sm:justify-end gap-4">
             <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Explorer</a>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
