@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { STACKS_NETWORK } from '@/lib/stacks-config';
 
 const DISMISSED_KEY = 'testnet-banner-dismissed';
 
 export function TestnetBanner() {
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISSED_KEY) === 'true');
 
-  if (dismissed) return null;
+  // Don't show the testnet warning on mainnet
+  if (STACKS_NETWORK === 'mainnet' || dismissed) return null;
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSED_KEY, 'true');
