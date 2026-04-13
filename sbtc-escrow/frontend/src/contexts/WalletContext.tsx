@@ -6,6 +6,7 @@ import {
   getLocalStorage,
 } from '@stacks/connect';
 import { CONTRACT_ADDRESS } from '@/lib/stacks-config';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface WalletContextType {
   address: string | null;
@@ -33,11 +34,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (stacksIsConnected()) return getPersistedAddress();
     return null;
   });
+  const [contractOwner, setContractOwner] = useState<string>(CONTRACT_ADDRESS);
 
   useEffect(() => {
     if (stacksIsConnected()) {
       setAddress(getPersistedAddress());
     }
+  }, []);
+
+  // Fetch the actual contract owner from Supabase (survives ownership transfers)
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    supabase
+      .from('platform_config')
+      .select('contract_owner')
+      .eq('id', 1)
+      .single()
+      .then(({ data }) => {
+        if (data?.contract_owner) setContractOwner(data.contract_owner);
+      });
   }, []);
 
   const connect = useCallback(async () => {
@@ -54,7 +69,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isConnected = !!address;
-  const isAdmin = address === CONTRACT_ADDRESS;
+  const isAdmin = !!address && address === contractOwner;
 
   return (
     <WalletContext.Provider value={{ address, isConnected, isAdmin, connect, disconnect }}>
