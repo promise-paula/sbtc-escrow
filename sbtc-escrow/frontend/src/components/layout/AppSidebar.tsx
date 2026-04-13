@@ -29,6 +29,7 @@ import {
 import { Logo } from '@/components/shared/Logo';
 import { Badge } from '@/components/ui/badge';
 import { useDisputeCount } from '@/hooks/use-dispute-count';
+import { STACKS_NETWORK } from '@/lib/stacks-config';
 
 const userItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
@@ -137,7 +138,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-3">
         {!collapsed && (
           <p className="text-[10px] text-muted-foreground">
-            v4.0.0 · Testnet
+            v4.0.0 · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
           </p>
         )}
       </SidebarFooter>
