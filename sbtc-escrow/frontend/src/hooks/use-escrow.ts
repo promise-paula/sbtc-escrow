@@ -71,8 +71,8 @@ export function useUserStats(address: string | null) {
       const escrows = data.map(mapEscrowRow);
       const active = escrows.filter(e => e.status === EscrowStatus.Pending || e.status === EscrowStatus.Disputed);
       return {
-        totalLockedStx: active.filter(e => e.tokenType === TokenType.STX).reduce((sum, e) => sum + e.amount, 0),
-        totalLockedSbtc: active.filter(e => e.tokenType === TokenType.SBTC).reduce((sum, e) => sum + e.amount, 0),
+        totalLockedStx: active.filter(e => e.tokenType === TokenType.STX).reduce((sum, e) => sum + e.amount + e.feeAmount, 0),
+        totalLockedSbtc: active.filter(e => e.tokenType === TokenType.SBTC).reduce((sum, e) => sum + e.amount + e.feeAmount, 0),
         activeEscrows: active.length,
         completedEscrows: escrows.filter(e => e.status === EscrowStatus.Released || e.status === EscrowStatus.Refunded).length,
         asBuyer: escrows.filter(e => e.buyer === address).length,
@@ -99,6 +99,7 @@ function mapEscrowRow(row: any): Escrow {
     completedAt: row.completed_at_block ?? row.completedAt ?? null,
     disputedAt: row.disputed_at_block ?? row.disputedAt ?? null,
     txHash: row.tx_id ?? row.txHash,
+    indexedAt: row.indexed_at,
   };
 }
 
