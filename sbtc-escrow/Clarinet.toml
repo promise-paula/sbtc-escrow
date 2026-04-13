@@ -5,8 +5,16 @@ authors = []
 telemetry = true
 cache_dir = './.cache'
 
-[contracts.escrow-v3]
-path = 'contracts/escrow.clar'
+[[project.requirements]]
+contract_id = 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'
+
+[contracts.escrow]
+#path = 'contracts/escrow.clar'
+#clarity_version = 4
+#epoch = 'latest'
+
+[contracts.escrow-v4]
+path = 'contracts/escrow-v4.clar'
 clarity_version = 4
 epoch = 'latest'
 [repl.analysis]
@@ -21,5 +29,5 @@ trusted_caller = false
 callee_filter = false
 
 [repl.remote_data]
-enabled = true
+enabled = false
 api_url = 'https://api.hiro.so'
