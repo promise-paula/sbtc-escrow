@@ -22,7 +22,7 @@ export default function DisputeQueue() {
   const { data: config } = usePlatformConfig();
   const { data: resolvedDisputes = [] } = useResolvedDisputes();
   const { data: currentBlock = 0 } = useBlockHeight();
-  const [confirmAction, setConfirmAction] = useState<{ escrowId: number; type: 'buyer' | 'seller' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ escrowId: number; type: 'buyer' | 'seller'; amount: number; feeAmount: number; tokenType: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (isLoading) return <EscrowListSkeleton />;
@@ -40,11 +40,11 @@ export default function DisputeQueue() {
     ? Math.round(active.reduce((sum, e) => sum + (currentBlock - (e.disputedAt || 0)), 0) / active.length)
     : 0;
 
-  const handleResolve = async (escrowId: number, type: 'buyer' | 'seller') => {
+  const handleResolve = async (escrowId: number, type: 'buyer' | 'seller', amount: number, feeAmount: number, tokenType: number) => {
     setLoading(true);
     try {
-      if (type === 'buyer') await resolveDisputeForBuyer(escrowId);
-      else await resolveDisputeForSeller(escrowId);
+      if (type === 'buyer') await resolveDisputeForBuyer(escrowId, amount, feeAmount, tokenType);
+      else await resolveDisputeForSeller(escrowId, amount, feeAmount, tokenType);
     } finally {
       setLoading(false);
       setConfirmAction(null);
@@ -120,6 +120,14 @@ export default function DisputeQueue() {
                               <span>Buyer: <AddressDisplay address={e.buyer} showCopy={false} truncateChars={3} /></span>
                               <span>Seller: <AddressDisplay address={e.seller} showCopy={false} truncateChars={3} /></span>
                             </div>
+                            {e.disputedBy && (
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <span className={`font-medium ${e.disputedBy === e.buyer ? 'text-accent-warm' : 'text-primary'}`}>
+                                  Disputed by {e.disputedBy === e.buyer ? 'Buyer' : 'Seller'}:
+                                </span>
+                                <AddressDisplay address={e.disputedBy} showCopy={false} truncateChars={3} />
+                              </div>
+                            )}
                             <p className="text-xs text-muted-foreground">
                               Disputed {blocksToTime(elapsed)} ago · Block {e.disputedAt?.toLocaleString()}
                             </p>
@@ -137,7 +145,7 @@ export default function DisputeQueue() {
                               </div>
                               <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setConfirmAction(null)} disabled={loading}>Cancel</Button>
-                                <Button size="sm" onClick={() => handleResolve(e.id, confirmAction.type)} disabled={loading}>
+                                <Button size="sm" onClick={() => handleResolve(e.id, confirmAction.type, e.amount, e.feeAmount, e.tokenType)} disabled={loading}>
                                   {loading ? 'Processing…' : 'Confirm'}
                                 </Button>
                               </div>
@@ -145,10 +153,10 @@ export default function DisputeQueue() {
                           </Card>
                         ) : (
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ escrowId: e.id, type: 'buyer' })} className="gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ escrowId: e.id, type: 'buyer', amount: e.amount, feeAmount: e.feeAmount, tokenType: e.tokenType })} className="gap-1.5">
                               <Shield className="h-3.5 w-3.5" /> Resolve for Buyer
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ escrowId: e.id, type: 'seller' })} className="gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ escrowId: e.id, type: 'seller', amount: e.amount, feeAmount: e.feeAmount, tokenType: e.tokenType })} className="gap-1.5">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Resolve for Seller
                             </Button>
                           </div>
