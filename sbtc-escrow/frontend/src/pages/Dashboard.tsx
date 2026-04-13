@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows, useUserStats } from '@/hooks/use-escrow';
-import { useBlockHeight } from '@/hooks/use-block-height';
 import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
@@ -12,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PlusCircle, ArrowRight, Inbox, Lock, Clock, CheckCircle, ShoppingCart, Store, List, Activity } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
-import { formatSTX, blocksToTime, truncateAddress } from '@/lib/utils';
+import { formatSTX, relativeTime, truncateAddress } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants } from '@/lib/motion';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -42,7 +41,6 @@ export default function Dashboard() {
   const { address } = useWallet();
   const { data: escrows, isLoading: escrowsLoading, isError: escrowsError } = useEscrows(address);
   const { data: stats, isLoading: statsLoading } = useUserStats(address);
-  const { data: currentBlock = 0 } = useBlockHeight();
 
   if (escrowsLoading || statsLoading) return <DashboardSkeleton />;
 
@@ -80,11 +78,24 @@ export default function Dashboard() {
                 <Lock className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Total Locked</span>
               </div>
-              <p className="text-2xl font-mono font-semibold text-accent-warm">
-                {stats ? formatSTX(stats.totalLockedStx) : '0'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                STX{stats && stats.totalLockedSbtc > 0 ? ` + ${(stats.totalLockedSbtc / 1e8).toFixed(4)} sBTC` : ''}
+              {stats && (stats.totalLockedStx > 0 || stats.totalLockedSbtc > 0) ? (
+                <div className="space-y-1">
+                  {stats.totalLockedStx > 0 && (
+                    <p className="text-2xl font-mono font-semibold text-accent-warm">
+                      {formatSTX(stats.totalLockedStx)} <span className="text-sm font-normal text-muted-foreground">STX</span>
+                    </p>
+                  )}
+                  {stats.totalLockedSbtc > 0 && (
+                    <p className={`font-mono font-semibold text-accent-warm ${stats.totalLockedStx > 0 ? 'text-base' : 'text-2xl'}`}>
+                      {(stats.totalLockedSbtc / 1e8).toFixed(4)} <span className="text-sm font-normal text-muted-foreground">sBTC</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-2xl font-mono font-semibold text-muted-foreground">—</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats?.activeEscrows ?? 0} active escrow{(stats?.activeEscrows ?? 0) !== 1 ? 's' : ''}
               </p>
             </CardContent>
           </Card>
@@ -216,7 +227,6 @@ export default function Dashboard() {
             <CardContent className="p-0 divide-y divide-border">
               {recentEscrows.map((e, i) => {
                 const counterparty = e.buyer === address ? e.seller : e.buyer;
-                const blockAge = currentBlock - e.createdAt;
                 const role = e.buyer === address ? 'to' : 'from';
                 return (
                   <motion.div
@@ -234,7 +244,7 @@ export default function Dashboard() {
                         Escrow <span className="font-mono">#{e.id}</span> {role}{' '}
                         <span className="font-mono text-muted-foreground">{truncateAddress(counterparty)}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground">{blocksToTime(blockAge)} ago</p>
+                      <p className="text-xs text-muted-foreground">{e.indexedAt ? relativeTime(e.indexedAt) : ''}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
