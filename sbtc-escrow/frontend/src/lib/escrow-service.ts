@@ -56,13 +56,13 @@ export async function createEscrow(params: {
 }
 
 export async function releaseEscrow(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+  const totalOutflow = amount + feeAmount;
   const response = await request('stx_callContract', {
     contract: CONTRACT_PRINCIPAL,
     functionName: 'release',
     functionArgs: [Cl.uint(escrowId)],
     postConditions: [
-      contractSendPc(amount, tokenType),
-      ...(feeAmount > 0 ? [contractSendPc(feeAmount, tokenType)] : []),
+      contractSendPc(totalOutflow, tokenType),
     ],
     network: STACKS_NETWORK,
   });
