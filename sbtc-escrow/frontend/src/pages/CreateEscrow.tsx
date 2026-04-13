@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
-import { BLOCKS_PER_DAY, BLOCKS_PER_WEEK, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC } from '@/lib/stacks-config';
+import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
+import { MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -19,11 +20,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, dur } from '@/lib/motion';
 import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } from 'lucide-react';
 
+/** Time-based duration presets (in minutes) */
 const durationPresets = [
-  { label: '1 Day', blocks: BLOCKS_PER_DAY },
-  { label: '1 Week', blocks: BLOCKS_PER_WEEK },
-  { label: '2 Weeks', blocks: BLOCKS_PER_WEEK * 2 },
-  { label: '30 Days', blocks: BLOCKS_PER_DAY * 30 },
+  { label: '1 Day', minutes: 60 * 24 },
+  { label: '1 Week', minutes: 60 * 24 * 7 },
+  { label: '2 Weeks', minutes: 60 * 24 * 14 },
+  { label: '30 Days', minutes: 60 * 24 * 30 },
 ];
 
 const steps = [
@@ -43,12 +45,14 @@ export default function CreateEscrow() {
   const { address } = useWallet();
   const { data: config } = usePlatformConfig();
   const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
   const [step, setStep] = useState(1);
 
   const [recipient, setRecipient] = useState('');
   const [amountStr, setAmountStr] = useState('');
   const [description, setDescription] = useState('');
-  const [durationBlocks, setDurationBlocks] = useState(BLOCKS_PER_WEEK);
+  const [durationMinutes, setDurationMinutes] = useState(60 * 24 * 7); // default 1 week
   const [customDuration, setCustomDuration] = useState('');
   const [consent, setConsent] = useState(false);
   const [tokenType, setTokenType] = useState<TokenType>(TokenType.STX);
@@ -64,7 +68,9 @@ export default function CreateEscrow() {
   const maxAmt = tokenType === TokenType.SBTC ? (cfg.maxAmountSbtc ?? MAX_AMOUNT_SBTC) : cfg.maxAmount;
   const fee = calculateFee(smallestUnit, cfg.platformFeeBps);
   const total = smallestUnit + fee;
-  const duration = customDuration ? parseInt(customDuration) : durationBlocks;
+  const duration = customDuration
+    ? parseInt(customDuration)
+    : timeToBlocks(durationMinutes, minutesPerBlock);
   const token = tokenLabel(tokenType);
 
   const recipientValid = isValidStacksAddress(recipient);
@@ -281,9 +287,9 @@ export default function CreateEscrow() {
                       <Button
                         key={p.label}
                         type="button"
-                        variant={!customDuration && durationBlocks === p.blocks ? 'default' : 'outline'}
+                        variant={!customDuration && durationMinutes === p.minutes ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setDurationBlocks(p.blocks); setCustomDuration(''); }}
+                        onClick={() => { setDurationMinutes(p.minutes); setCustomDuration(''); }}
                       >
                         {p.label}
                       </Button>
@@ -303,7 +309,7 @@ export default function CreateEscrow() {
                   </div>
                   {durationValid && (
                     <p className="text-xs text-muted-foreground">
-                      Expires: ~{blockToEstimatedDate(currentBlock + duration, currentBlock).toLocaleDateString()} ({blocksToTime(duration)})
+                      Expires: ~{blockToEstimatedDate(currentBlock + duration, currentBlock, minutesPerBlock).toLocaleDateString()} ({blocksToTime(duration, minutesPerBlock)})
                     </p>
                   )}
                 </div>
@@ -353,7 +359,7 @@ export default function CreateEscrow() {
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Duration</span>
-                    <span>{blocksToTime(duration)} ({duration.toLocaleString()} blocks)</span>
+                    <span>{blocksToTime(duration, minutesPerBlock)} ({duration.toLocaleString()} blocks)</span>
                   </div>
                   <div className="p-3">
                     <span className="text-muted-foreground text-xs">Description</span>
