@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } from '@/lib/escrow-service';
 import { blocksToTime, relativeTime, getExplorerUrl } from '@/lib/utils';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants, pageVariants } from '@/lib/motion';
 import {
@@ -46,6 +47,8 @@ export default function EscrowDetail() {
   const { data: config, isError: configError } = usePlatformConfig();
   const { data: escrowEvents = [] } = useEscrowEvents(parseInt(id || '0'));
   const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -146,7 +149,7 @@ export default function EscrowDetail() {
                   {isPending && !isExpired && blocksToExpiry > 0 && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {blocksToTime(blocksToExpiry)} remaining
+                      {blocksToTime(blocksToExpiry, minutesPerBlock)} remaining
                     </span>
                   )}
                 </div>
@@ -229,7 +232,7 @@ export default function EscrowDetail() {
                 <span className="text-xs text-muted-foreground">Expires</span>
                 <span className="font-mono text-xs text-foreground">
                   Block {escrow.expiresAt.toLocaleString()}
-                  {blocksToExpiry > 0 && ` (${blocksToTime(blocksToExpiry)})`}
+                  {blocksToExpiry > 0 && ` (${blocksToTime(blocksToExpiry, minutesPerBlock)})`}
                   {blocksToExpiry <= 0 && ' (Expired)'}
                 </span>
               </div>
