@@ -15,12 +15,15 @@ import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { Separator } from '@/components/ui/separator';
 import { Wallet, Settings2, Info, ExternalLink, LogOut, RotateCcw } from 'lucide-react';
 import { blocksToTime, getExplorerUrl } from '@/lib/utils';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const { address, isConnected, connect, disconnect } = useWallet();
   const { theme, setTheme } = useTheme();
   const { data: config } = usePlatformConfig();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
   const { settings, update, reset } = useSettings();
 
   const handleReset = () => {
@@ -151,7 +154,7 @@ export default function SettingsPage() {
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Contract</span><span className="font-mono text-xs">{CONTRACT_ADDRESS}.{CONTRACT_NAME}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Network</span><span className="capitalize">{STACKS_NETWORK}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Platform Fee</span><span>{config ? config.platformFeeBps / 100 : '—'}%</span></div>
-              <div className="flex justify-between p-3"><span className="text-muted-foreground">Dispute Timeout</span><span>{config ? `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(config.disputeTimeout)})` : '—'}</span></div>
+              <div className="flex justify-between p-3"><span className="text-muted-foreground">Dispute Timeout</span><span>{config ? `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(config.disputeTimeout, minutesPerBlock)})` : '—'}</span></div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild>
