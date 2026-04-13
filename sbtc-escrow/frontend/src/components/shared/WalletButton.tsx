@@ -1,6 +1,6 @@
 import React from 'react';
 import { useWallet } from '@/contexts/WalletContext';
-import { truncateAddress } from '@/lib/utils';
+import { truncateAddress, getExplorerUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -44,7 +44,7 @@ export function WalletButton() {
           <Copy className="h-3.5 w-3.5" /> Copy Address
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="gap-2">
-          <a href={`https://explorer.stacks.co/address/${address}?chain=testnet`} target="_blank" rel="noopener noreferrer">
+          <a href={getExplorerUrl('address', address)} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-3.5 w-3.5" /> View in Explorer
           </a>
         </DropdownMenuItem>
