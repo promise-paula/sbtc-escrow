@@ -1,12 +1,16 @@
-export const STACKS_NETWORK = 'testnet' as const;
-export const STACKS_API_URL = 'https://api.testnet.hiro.so';
+// Network & contract configuration — all environment-driven for mainnet safety
+export const STACKS_NETWORK = (import.meta.env.VITE_STACKS_NETWORK || 'testnet') as 'mainnet' | 'testnet';
+export const STACKS_API_URL = import.meta.env.VITE_STACKS_API_URL ||
+  (STACKS_NETWORK === 'mainnet' ? 'https://api.mainnet.hiro.so' : 'https://api.testnet.hiro.so');
 
-export const CONTRACT_ADDRESS = 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
-export const CONTRACT_NAME = 'escrow-v4';
-export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`;
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
+export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v4';
+export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${string}.${string}`;
 
-// sBTC token contract (remapped to testnet deployer for requirement-publish)
-export const SBTC_CONTRACT = 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token';
+export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
+  (STACKS_NETWORK === 'mainnet'
+    ? 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-sbtc'  // mainnet sBTC
+    : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
 
 export const BLOCKS_PER_DAY = 144;
 export const BLOCKS_PER_WEEK = 1_008;
