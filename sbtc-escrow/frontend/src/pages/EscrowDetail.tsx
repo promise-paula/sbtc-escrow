@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } from '@/lib/escrow-service';
-import { blocksToTime, getExplorerUrl } from '@/lib/utils';
+import { blocksToTime, relativeTime, getExplorerUrl } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants, pageVariants } from '@/lib/motion';
 import {
@@ -28,22 +28,15 @@ import { generateEscrowReceipt } from '@/lib/generate-receipt';
 import { toast } from 'sonner';
 
 const EVENT_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  created: { label: 'Created', color: 'bg-primary', icon: PlusCircle },
-  released: { label: 'Released', color: 'bg-status-released', icon: CheckCircle2 },
-  refunded: { label: 'Refunded', color: 'bg-status-refunded', icon: XCircle },
-  disputed: { label: 'Disputed', color: 'bg-status-disputed', icon: AlertTriangle },
-  extended: { label: 'Extended', color: 'bg-primary', icon: Timer },
+  'escrow-created': { label: 'Created', color: 'bg-primary', icon: PlusCircle },
+  'escrow-released': { label: 'Released', color: 'bg-status-released', icon: CheckCircle2 },
+  'escrow-refunded': { label: 'Refunded', color: 'bg-status-refunded', icon: XCircle },
+  'escrow-disputed': { label: 'Disputed', color: 'bg-status-disputed', icon: AlertTriangle },
+  'escrow-extended': { label: 'Extended', color: 'bg-primary', icon: Timer },
+  'dispute-resolved-for-buyer': { label: 'Dispute Resolved (Buyer)', color: 'bg-status-refunded', icon: Shield },
+  'dispute-resolved-for-seller': { label: 'Dispute Resolved (Seller)', color: 'bg-status-released', icon: Shield },
+  'dispute-expired-resolved': { label: 'Dispute Timeout Resolved', color: 'bg-status-refunded', icon: Clock },
 };
-
-function relativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
 
 export default function EscrowDetail() {
   const { id } = useParams();
@@ -86,7 +79,8 @@ export default function EscrowDetail() {
     (isPending && !isExpired) ||
     (isSeller && isPending) ||
     (isBuyer && isPending && isExpired) ||
-    (isBuyer && disputeTimedOut)
+    (isBuyer && disputeTimedOut) ||
+    (isSeller && isPending && isExpired)
   );
 
   const sortedEvents = [...escrowEvents].sort((a, b) => b.blockHeight - a.blockHeight);
@@ -366,6 +360,11 @@ export default function EscrowDetail() {
                     <ExtendEscrowPanel escrowId={escrow.id} currentExpiresAt={escrow.expiresAt} />
                   )}
                   {isPending && !isExpired && (
+                    <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Dispute
+                    </Button>
+                  )}
+                  {isSeller && isPending && isExpired && (
                     <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
                       <AlertTriangle className="h-3.5 w-3.5" /> Dispute
                     </Button>
