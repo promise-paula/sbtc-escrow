@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } from '@/lib/escrow-service';
-import { blocksToTime } from '@/lib/utils';
+import { blocksToTime, getExplorerUrl } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants, pageVariants } from '@/lib/motion';
 import {
@@ -253,7 +253,7 @@ export default function EscrowDetail() {
                 <div className="flex items-center justify-between py-2.5 last:pb-0">
                   <span className="text-xs text-muted-foreground">TX Hash</span>
                   <a
-                    href={`https://explorer.stacks.co/txid/${escrow.txHash}?chain=testnet`}
+                    href={getExplorerUrl('tx', escrow.txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-mono text-xs text-primary hover:underline"
