@@ -45,7 +45,7 @@ export function Logo({ size = 'md', className = '' }: LogoProps) {
       {/* Lock shackle — thick, bold arc */}
       <path
         d="M12.5 15v-2.5a3.5 3.5 0 1 1 7 0V15"
-        stroke="hsl(var(--background))"
+        stroke="oklch(var(--background))"
         strokeWidth="2"
         strokeLinecap="round"
         fill="none"
@@ -57,7 +57,7 @@ export function Logo({ size = 'md', className = '' }: LogoProps) {
         width="12"
         height="9"
         rx="2"
-        fill="hsl(var(--background))"
+        fill="oklch(var(--background))"
       />
       {/* Keyhole — Bitcoin-orange accent circle + drop */}
       <circle cx="16" cy="18" r="1.5" fill="currentColor" />
