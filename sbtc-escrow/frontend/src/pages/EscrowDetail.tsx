@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrow, useEscrowEvents } from '@/hooks/use-escrow';
@@ -53,6 +53,37 @@ export default function EscrowDetail() {
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Live countdown: convert blocks-remaining to seconds, tick every second
+  const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+
+  const calcSeconds = useCallback(() => {
+    return Math.max(0, Math.round(blocksToExpiry * minutesPerBlock * 60));
+  }, [blocksToExpiry, minutesPerBlock]);
+
+  useEffect(() => {
+    setRemainingSeconds(calcSeconds());
+  }, [calcSeconds]);
+
+  useEffect(() => {
+    if (remainingSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setRemainingSeconds((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [remainingSeconds > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formatCountdown = (totalSec: number): string => {
+    if (totalSec <= 0) return 'Expired';
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    return `${m}m ${s}s`;
+  };
+
   if (isLoading) return <EscrowDetailSkeleton />;
 
   if (!escrow) {
@@ -72,7 +103,6 @@ export default function EscrowDetail() {
   const isPending = escrow.status === EscrowStatus.Pending;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
   const isExpired = escrow.expiresAt <= currentBlock;
-  const blocksToExpiry = escrow.expiresAt - currentBlock;
   const disputeTimedOut = isDisputed && escrow.disputedAt
     ? (currentBlock - escrow.disputedAt) >= disputeTimeout
     : false;
@@ -176,7 +206,7 @@ export default function EscrowDetail() {
               {isPending && !isExpired && blocksToExpiry > 0 && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {blocksToTime(blocksToExpiry, minutesPerBlock)} remaining
+                  {formatCountdown(remainingSeconds)} remaining
                 </span>
               )}
             </div>
