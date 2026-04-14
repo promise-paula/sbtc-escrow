@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
-import { STACKS_NETWORK } from '@/lib/stacks-config';
+import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatSTX, formatSBTC, formatAmount } from '@/lib/utils';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { EscrowStatus, TokenType, STATUS_LABELS } from '@/lib/types';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -178,6 +179,8 @@ export default function Landing() {
   const navigate = useNavigate();
   const { data: ps } = usePlatformStats();
   const { data: cfg } = usePlatformConfig();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? 1.5;
 
   const handleGetStarted = () => {
     if (isConnected) {
@@ -336,7 +339,7 @@ export default function Landing() {
             { value: (ps?.totalEscrows ?? 0).toLocaleString(), value2: null, label: 'Escrows Created' },
             { value: formatSTX(ps?.totalVolumeStx ?? 0) + ' STX', value2: (ps?.totalVolumeSbtc ?? 0) > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, label: 'Total Volume' },
             { value: `${((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%`, value2: null, label: 'Platform Fee' },
-            { value: `${Math.round((cfg?.disputeTimeout ?? 4320) / 144)} days`, value2: null, label: 'Dispute Window' },
+            { value: `${Math.round((cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) * minutesPerBlock / 1440)} days`, value2: null, label: 'Dispute Window' },
           ].map((s) => (
             <motion.div key={s.label} variants={revealVariants} className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-4 sm:p-5 text-center overflow-hidden">
               <p className="text-lg sm:text-2xl font-bold font-mono text-foreground tracking-tight truncate">{s.value}</p>
