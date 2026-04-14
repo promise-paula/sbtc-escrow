@@ -21,7 +21,7 @@ export const MIN_DISPUTE_TIMEOUT = 1;
 export const MAX_FEE_BPS = 500; // 5%
 export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day (post-Nakamoto)
 
-// Per-token amount bounds (from V4 contract constants)
+// Per-token amount bounds (from V5 contract constants)
 export const MIN_AMOUNT_STX = 1_000; // 0.001 STX
 export const MAX_AMOUNT_STX = 100_000_000_000_000; // 100M STX
 export const MIN_AMOUNT_SBTC = 10_000; // 0.0001 BTC

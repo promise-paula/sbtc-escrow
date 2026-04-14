@@ -150,7 +150,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-border divide-y divide-border text-sm">
-              <div className="flex justify-between p-3"><span className="text-muted-foreground">Version</span><span className="font-mono">v4.0.0</span></div>
+              <div className="flex justify-between p-3"><span className="text-muted-foreground">Version</span><span className="font-mono">v5.0.0</span></div>
               <div className="flex justify-between gap-3 p-3"><span className="text-muted-foreground shrink-0">Contract</span><span className="font-mono text-xs truncate">{CONTRACT_ADDRESS}.{CONTRACT_NAME}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Network</span><span className="capitalize">{STACKS_NETWORK}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Platform Fee</span><span>{config ? config.platformFeeBps / 100 : '—'}%</span></div>

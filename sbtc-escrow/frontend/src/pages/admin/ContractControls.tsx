@@ -176,7 +176,7 @@ export default function ContractControls() {
           <CardContent className="p-0">
             {[
               { label: 'Address', value: `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`, mono: true },
-              { label: 'Version', value: 'v4.0.0', mono: true },
+              { label: 'Version', value: 'v5.0.0', mono: true },
               { label: 'Network', value: STACKS_NETWORK, capitalize: true },
               { label: 'Dispute Timeout', value: `${cfg.disputeTimeout.toLocaleString()} blocks` },
               { label: 'Min Amount (STX)', value: `${formatSTX(cfg.minAmount)} STX`, mono: true },
