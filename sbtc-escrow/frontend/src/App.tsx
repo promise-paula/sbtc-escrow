@@ -8,8 +8,8 @@ import { WalletProvider } from "@/contexts/WalletContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AdminGuard } from "@/components/shared/AdminGuard";
+import Landing from "@/pages/Landing";
 
-const Landing = lazy(() => import("@/pages/Landing"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const CreateEscrow = lazy(() => import("@/pages/CreateEscrow"));
 const MyEscrows = lazy(() => import("@/pages/MyEscrows"));
