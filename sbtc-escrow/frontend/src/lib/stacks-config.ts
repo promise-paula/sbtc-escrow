@@ -9,7 +9,7 @@ export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${s
 
 export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
   (STACKS_NETWORK === 'mainnet'
-    ? 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-sbtc'  // mainnet sBTC
+    ? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'  // mainnet sBTC
     : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
 
 // Post-Nakamoto: Stacks blocks are fast (~seconds); use useBlockRate() for live rate.
