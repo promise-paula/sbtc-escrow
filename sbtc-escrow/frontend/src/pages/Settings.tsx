@@ -33,13 +33,13 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-      <h1 className="text-lg font-semibold text-foreground">Settings</h1>
+      <h1 className="text-xl font-bold text-foreground tracking-tight">Settings</h1>
 
       {/* Wallet Management */}
       <motion.div custom={0} initial="hidden" animate="visible" variants={cardVariants}>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Wallet className="h-4 w-4 text-muted-foreground" /> Wallet
             </CardTitle>
           </CardHeader>
@@ -74,7 +74,7 @@ export default function SettingsPage() {
       <motion.div custom={1} initial="hidden" animate="visible" variants={cardVariants}>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Settings2 className="h-4 w-4 text-muted-foreground" /> Preferences
             </CardTitle>
           </CardHeader>
@@ -144,14 +144,14 @@ export default function SettingsPage() {
       <motion.div custom={2} initial="hidden" animate="visible" variants={cardVariants}>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Info className="h-4 w-4 text-muted-foreground" /> About
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-border divide-y divide-border text-sm">
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Version</span><span className="font-mono">v4.0.0</span></div>
-              <div className="flex justify-between p-3"><span className="text-muted-foreground">Contract</span><span className="font-mono text-xs">{CONTRACT_ADDRESS}.{CONTRACT_NAME}</span></div>
+              <div className="flex justify-between gap-3 p-3"><span className="text-muted-foreground shrink-0">Contract</span><span className="font-mono text-xs truncate">{CONTRACT_ADDRESS}.{CONTRACT_NAME}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Network</span><span className="capitalize">{STACKS_NETWORK}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Platform Fee</span><span>{config ? config.platformFeeBps / 100 : '—'}%</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Dispute Timeout</span><span>{config ? `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(config.disputeTimeout, minutesPerBlock)})` : '—'}</span></div>
