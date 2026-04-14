@@ -8,8 +8,8 @@ export function DashboardSkeleton() {
         <Skeleton className="h-6 w-28" />
         <Skeleton className="h-9 w-36" />
       </div>
-      <div className="flex gap-6 pb-4 border-b border-border">
-        {Array.from({ length: 5 }).map((_, i) => (
+      <div className="flex gap-6 pb-4 border-b border-border overflow-hidden">
+        {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="space-y-1.5">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-5 w-20" />
