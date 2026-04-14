@@ -4,6 +4,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useEscrow, useEscrowEvents } from '@/hooks/use-escrow';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { usePlatformConfig } from '@/hooks/use-admin';
+import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -48,7 +49,7 @@ export default function EscrowDetail() {
   const { data: escrowEvents = [] } = useEscrowEvents(parseInt(id || '0'));
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -64,7 +65,7 @@ export default function EscrowDetail() {
   }
 
   const isPaused = config?.isPaused ?? false;
-  const disputeTimeout = config?.disputeTimeout ?? 4320;
+  const disputeTimeout = config?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT;
   const isBuyer = escrow.buyer === address;
   const isSeller = escrow.seller === address;
   const isParty = isBuyer || isSeller;
