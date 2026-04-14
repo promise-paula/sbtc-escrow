@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
-import { MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC } from '@/lib/stacks-config';
+import { MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -46,7 +46,7 @@ export default function CreateEscrow() {
   const { data: config } = usePlatformConfig();
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [step, setStep] = useState(1);
 
   const [recipient, setRecipient] = useState('');
