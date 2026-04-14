@@ -12,7 +12,7 @@ import { EscrowStatus, TokenType, STATUS_LABELS } from '@/lib/types';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { dur } from '@/lib/motion';
+import { dur, revealVariants, staggerContainer } from '@/lib/motion';
 import { Logo } from '@/components/shared/Logo';
 import {
   Wallet, ArrowRight, Shield, Clock,
@@ -51,6 +51,8 @@ const security = [
   { icon: Server, title: 'Non-Custodial Architecture', desc: 'Your keys never leave your wallet. The platform cannot move, freeze, or access your funds at any time.' },
   { icon: Timer, title: 'Dispute Timeout Hardened', desc: 'V4 contract enforces a configurable dispute window with buyer self-recovery after timeout.' },
 ];
+
+
 
 /* ------------------------------------------------------------------ */
 /*  Animation variants                                                */
@@ -106,7 +108,6 @@ function DashboardPreview() {
   const { data: ps } = usePlatformStats();
   const { data: rows } = useRecentEscrows();
 
-  const locked = ps ? formatSTX(ps.totalVolumeStx) : '0.00';
   const pending = ps?.totalEscrows
     ? ps.totalEscrows - ps.totalReleased - ps.totalRefunded - ps.activeDisputes
     : 0;
@@ -123,24 +124,25 @@ function DashboardPreview() {
 
       <div
         aria-hidden="true"
-        className="rounded-xl border border-border bg-card shadow-lg overflow-hidden select-none pointer-events-none"
+        className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg shadow-glow-sm overflow-hidden select-none pointer-events-none"
       >
         {/* Mini stat bar */}
         <div className="grid grid-cols-3 gap-px bg-border">
           {[
-            { v: ps ? `${formatSTX(ps.totalVolumeStx)} STX${ps.totalVolumeSbtc > 0 ? ` + ${formatSBTC(ps.totalVolumeSbtc)} sBTC` : ''}` : '—', l: 'Volume' },
-            { v: `${pending + (ps?.activeDisputes ?? 0)}`, l: 'Active' },
-            { v: `${completed}`, l: 'Completed' },
+            { v: ps ? formatSTX(ps.totalVolumeStx) + ' STX' : '—', v2: ps && ps.totalVolumeSbtc > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, l: 'Volume' },
+            { v: `${pending + (ps?.activeDisputes ?? 0)}`, v2: null, l: 'Active' },
+            { v: `${completed}`, v2: null, l: 'Completed' },
           ].map((s) => (
-            <div key={s.l} className="bg-card px-4 py-3 text-center">
-              <p className="font-mono text-sm font-semibold text-foreground">{s.v}</p>
-              <p className="text-[11px] text-muted-foreground">{s.l}</p>
+            <div key={s.l} className="bg-card px-4 py-3 text-center overflow-hidden">
+              <p className="font-mono text-sm font-medium text-foreground truncate">{s.v}</p>
+              {s.v2 && <p className="font-mono text-xs font-medium text-foreground truncate">{s.v2}</p>}
+              <p className="text-xs text-muted-foreground">{s.l}</p>
             </div>
           ))}
         </div>
 
         {/* Table header */}
-        <div className="grid grid-cols-3 px-4 py-2 text-[11px] font-medium text-muted-foreground border-t border-border bg-muted/40">
+        <div className="grid grid-cols-3 px-4 py-2 text-xs font-medium text-muted-foreground border-t border-border bg-muted/40">
           <span>Escrow</span>
           <span>Amount</span>
           <span>Status</span>
@@ -150,7 +152,7 @@ function DashboardPreview() {
         {(rows ?? []).map((r) => (
           <div key={r.id} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
             <span className="font-mono text-xs text-foreground">#{r.id}</span>
-            <span className="font-mono text-xs text-foreground">
+            <span className="font-mono text-xs text-foreground truncate">
               {formatAmount(r.amount, (r.token_type ?? 0) as TokenType)} {(r.token_type ?? 0) === 1 ? 'sBTC' : 'STX'}
             </span>
             <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
@@ -196,13 +198,13 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-2">
             <Logo size="sm" className="text-accent-warm" />
-            <span className="font-semibold">sBTC Escrow</span>
+            <span className="font-bold tracking-tight">sBTC Escrow</span>
           </div>
 
-          <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
-            <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">Features</button>
-            <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
-            <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">How it Works</button>
+          <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
+            <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Features</button>
+            <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Security</button>
+            <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">How it Works</button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -219,8 +221,8 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 py-20 lg:py-28">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+      <section className="max-w-6xl mx-auto px-4 py-14 lg:py-20" style={{ background: 'var(--gradient-hero)' }}>
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left — copy */}
           <motion.div variants={heroLeftVariants} initial="hidden" animate="visible">
             {/* Pill badge */}
@@ -229,11 +231,11 @@ export default function Landing() {
               Built on Stacks · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'} Live
             </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-[1.15]">
+            <h1 className="font-bold tracking-tight text-foreground leading-[1.1]" style={{ fontSize: 'clamp(1.875rem, 1.2rem + 2.5vw, 3.75rem)' }}>
               Institutional-Grade Escrow&nbsp;for&nbsp;Bitcoin
             </h1>
             <p className="mt-4 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
-              Purpose-built smart contract infrastructure for secure, non-custodial escrow on Stacks. Trusted by teams managing digital asset transactions.
+              Non-custodial smart contract escrow on Stacks. Lock, release, or dispute — all on-chain.
             </p>
 
             {/* Inline social proof */}
@@ -241,9 +243,9 @@ export default function Landing() {
               {ps?.totalEscrows ?? 0} escrows created · {formatSTX(ps?.totalVolumeStx ?? 0)} STX{(ps?.totalVolumeSbtc ?? 0) > 0 ? ` + ${formatSBTC(ps.totalVolumeSbtc)} sBTC` : ''} secured
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={{ duration: dur(100) }}>
-                <Button size="lg" onClick={handleGetStarted} className="gap-2">
+            <div className="mt-6 flex flex-wrap gap-3">
+              <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: dur(100) }}>
+                <Button size="lg" onClick={handleGetStarted} className="gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
                   Get Started <ArrowRight className="h-4 w-4" />
                 </Button>
               </motion.div>
@@ -261,7 +263,7 @@ export default function Landing() {
       </section>
 
       {/* ── Trust Bar ──────────────────────────────────────────── */}
-      <section className="border-y border-border bg-muted/30">
+      <section className="border-y border-border bg-surface-2">
         <div className="max-w-6xl mx-auto px-4 py-5 flex flex-wrap justify-center gap-x-10 gap-y-3">
           {trustSignals.map((t, i) => (
             <motion.div
@@ -280,92 +282,100 @@ export default function Landing() {
       </section>
 
       {/* ── Features ───────────────────────────────────────────── */}
-      <section id="features" className="max-w-6xl mx-auto px-4 py-20">
-        <h2 className="text-2xl font-bold text-foreground">Platform Features</h2>
-        <p className="mt-2 text-muted-foreground max-w-lg">Everything you need to manage escrow transactions with confidence.</p>
+      <section id="features" className="max-w-6xl mx-auto px-4 pt-16 pb-24">
+        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }}>
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">Platform Features</h2>
+          <p className="mt-3 text-muted-foreground max-w-lg">Everything you need to manage escrow transactions with confidence.</p>
+        </motion.div>
 
-        <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.1 }} className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f) => (
-            <div
+            <motion.div
               key={f.title}
-              className="rounded-lg border border-border bg-card p-5 transition-shadow hover:shadow-md"
+              variants={revealVariants}
+              className="rounded-lg border border-border/60 bg-surface-1 p-6 transition-all hover:shadow-glow-sm hover:border-primary/20"
             >
-              <div className="inline-flex items-center justify-center rounded-md bg-muted p-2.5 mb-4">
+              <div className="inline-flex items-center justify-center rounded-md bg-muted p-2.5 mb-5">
                 <f.icon className="h-5 w-5 text-primary" />
               </div>
-              <h3 className="text-sm font-semibold text-foreground">{f.title}</h3>
-              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-            </div>
+              <h3 className="text-base font-bold text-foreground">{f.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ── How it Works ───────────────────────────────────────── */}
-      <section id="how-it-works" className="border-t border-border bg-card">
-        <div className="max-w-6xl mx-auto px-4 py-20">
-          <h2 className="text-2xl font-bold text-foreground">How it Works</h2>
-          <p className="mt-2 text-muted-foreground">Three steps from wallet to settlement.</p>
+      <section id="how-it-works" className="border-t border-border bg-surface-2">
+        <div className="max-w-6xl mx-auto px-4 py-16 sm:py-24">
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">How it Works</h2>
+            <p className="mt-3 text-muted-foreground">Three steps from wallet to settlement.</p>
+          </motion.div>
 
-          <div className="mt-12 grid sm:grid-cols-3 gap-8 relative">
+          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="mt-14 grid sm:grid-cols-3 gap-10 relative">
             <div className="hidden sm:block absolute top-6 left-[16.67%] right-[16.67%] h-px bg-border" aria-hidden="true" />
 
             {steps.map((s) => (
-              <div key={s.num} className="relative text-center">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full border-2 border-primary bg-background text-primary font-bold text-lg relative z-10">
+              <motion.div key={s.num} variants={revealVariants} className="relative text-center">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full border-2 border-primary bg-background text-primary font-bold font-mono text-lg relative z-10 shadow-glow-sm">
                   {s.num}
                 </div>
-                <h3 className="mt-4 text-sm font-semibold text-foreground">{s.title}</h3>
+                <h3 className="mt-5 text-base font-bold text-foreground">{s.title}</h3>
                 <p className="mt-1.5 text-sm text-muted-foreground max-w-[260px] mx-auto leading-relaxed">{s.desc}</p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ── Stats ──────────────────────────────────────────────── */}
       <section className="border-t border-border">
-        <div className="max-w-6xl mx-auto px-4 py-14 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="max-w-6xl mx-auto px-4 py-20 grid grid-cols-2 sm:grid-cols-4 gap-5">
           {[
-            { value: (ps?.totalEscrows ?? 0).toLocaleString(), label: 'Escrows Created' },
-            { value: `${formatSTX(ps?.totalVolumeStx ?? 0)} STX${(ps?.totalVolumeSbtc ?? 0) > 0 ? ` + ${formatSBTC(ps.totalVolumeSbtc)} sBTC` : ''}`, label: 'Total Volume' },
-            { value: `${((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%`, label: 'Platform Fee' },
-            { value: `${Math.round((cfg?.disputeTimeout ?? 4320) / 144)} days`, label: 'Dispute Window' },
+            { value: (ps?.totalEscrows ?? 0).toLocaleString(), value2: null, label: 'Escrows Created' },
+            { value: formatSTX(ps?.totalVolumeStx ?? 0) + ' STX', value2: (ps?.totalVolumeSbtc ?? 0) > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, label: 'Total Volume' },
+            { value: `${((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%`, value2: null, label: 'Platform Fee' },
+            { value: `${Math.round((cfg?.disputeTimeout ?? 4320) / 144)} days`, value2: null, label: 'Dispute Window' },
           ].map((s) => (
-            <div key={s.label} className="rounded-lg border border-border bg-card p-5 text-center">
-              <p className="text-xl font-bold font-mono text-foreground">{s.value}</p>
-              <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
-            </div>
+            <motion.div key={s.label} variants={revealVariants} className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-4 sm:p-5 text-center overflow-hidden">
+              <p className="text-lg sm:text-2xl font-bold font-mono text-foreground tracking-tight truncate">{s.value}</p>
+              {s.value2 && <p className="text-sm font-mono font-medium text-foreground truncate">{s.value2}</p>}
+              <p className="text-sm text-muted-foreground mt-1">{s.label}</p>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ── Security ───────────────────────────────────────────── */}
-      <section id="security" className="border-t border-border bg-card">
-        <div className="max-w-6xl mx-auto px-4 py-20">
-          <h2 className="text-2xl font-bold text-foreground">Built for Security</h2>
-          <p className="mt-2 text-muted-foreground max-w-lg">Enterprise-grade protections at every layer of the stack.</p>
+      <section id="security" className="border-t border-border bg-surface-2">
+        <div className="max-w-6xl mx-auto px-4 py-16 sm:py-24">
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">Built for Security</h2>
+            <p className="mt-3 text-muted-foreground max-w-lg">Enterprise-grade protections at every layer of the stack.</p>
+          </motion.div>
 
-          <div className="mt-10 grid sm:grid-cols-3 gap-5">
+          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.1 }} className="mt-14 grid sm:grid-cols-3 gap-6">
             {security.map((s) => (
-              <div key={s.title} className="rounded-lg border border-border bg-background p-6">
-                <s.icon className="h-6 w-6 text-primary mb-4" />
-                <h3 className="text-sm font-semibold text-foreground">{s.title}</h3>
+              <motion.div key={s.title} variants={revealVariants} className="rounded-lg border border-border/60 bg-surface-1 p-5 sm:p-7 transition-all hover:shadow-glow-sm hover:border-primary/20">
+                <s.icon className="h-6 w-6 text-primary mb-5" />
+                <h3 className="text-base font-bold text-foreground">{s.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ── CTA ────────────────────────────────────────────────── */}
-      <section className="border-t border-border bg-muted/40">
-        <div className="max-w-6xl mx-auto px-4 py-20 text-center">
-          <h2 className="text-2xl font-bold text-foreground">Ready to get started?</h2>
-          <p className="mt-2 text-muted-foreground">Create your first escrow in under a minute.</p>
-          <Button size="lg" onClick={handleGetStarted} className="mt-6 gap-2">
+      <section className="border-t border-border bg-surface-2">
+        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-6xl mx-auto px-4 py-16 sm:py-24 text-center">
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">Ready to get started?</h2>
+          <p className="mt-3 text-muted-foreground">Create your first escrow in under a minute.</p>
+          <Button size="lg" onClick={handleGetStarted} className="mt-8 gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
             Launch App <ArrowRight className="h-4 w-4" />
           </Button>
-        </div>
+        </motion.div>
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
@@ -375,9 +385,8 @@ export default function Landing() {
           <div className="flex flex-wrap justify-center sm:justify-end gap-4">
             <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Explorer</a>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
-            <a href="#" className="hover:text-foreground transition-colors">Docs</a>
-            <a href="#" className="hover:text-foreground transition-colors">GitHub</a>
-            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
+            <a href="https://github.com/promise-paula/sbtc-escrow#readme" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Docs</a>
+            <a href="https://github.com/promise-paula/sbtc-escrow" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
           </div>
         </div>
       </footer>
