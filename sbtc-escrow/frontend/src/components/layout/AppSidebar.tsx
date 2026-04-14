@@ -70,7 +70,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">Navigation</SidebarGroupLabel>}
+          {!collapsed && <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground">Navigation</SidebarGroupLabel>}
           <SidebarGroupContent>
             <SidebarMenu>
               {userItems.map((item) => (
@@ -94,7 +94,7 @@ export function AppSidebar() {
 
         {isAdmin && (
           <SidebarGroup>
-            {!collapsed && <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">Admin</SidebarGroupLabel>}
+            {!collapsed && <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground">Admin</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminItems.map((item) => {
@@ -118,7 +118,7 @@ export function AppSidebar() {
                             <>
                               <span className="flex-1">{item.title}</span>
                               {showBadge && (
-                                <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] justify-center px-1.5 text-[10px]">
+                                <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] justify-center px-1.5 text-xs">
                                   {disputeCount}
                                 </Badge>
                               )}
@@ -135,9 +135,9 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3">
+      <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
         {!collapsed && (
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             v4.0.0 · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
           </p>
         )}
