@@ -22,11 +22,11 @@ import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } fr
 
 /** Time-based duration presets (in minutes) */
 const durationPresets = [
+  { label: '10 Min', minutes: 10 },
   { label: '1 Hour', minutes: 60 },
   { label: '6 Hours', minutes: 60 * 6 },
   { label: '1 Day', minutes: 60 * 24 },
   { label: '1 Week', minutes: 60 * 24 * 7 },
-  { label: '2 Weeks', minutes: 60 * 24 * 14 },
   { label: '30 Days', minutes: 60 * 24 * 30 },
 ];
 
