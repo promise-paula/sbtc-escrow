@@ -41,6 +41,7 @@ export function useEscrow(id: number) {
       if (error || !data) return null;
       return mapEscrowRow(data);
     },
+    enabled: !!id,
   });
 }
 
@@ -83,35 +84,59 @@ export function useUserStats(address: string | null) {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapEscrowRow(row: any): Escrow {
+interface SupabaseEscrowRow {
+  id: number;
+  buyer: string;
+  seller: string;
+  amount: number;
+  fee_amount: number;
+  token_type: number;
+  description: string;
+  status: string;
+  created_at_block: number;
+  expires_at_block: number;
+  completed_at_block: number | null;
+  disputed_at_block: number | null;
+  tx_id: string;
+  indexed_at: string;
+}
+
+function mapEscrowRow(row: SupabaseEscrowRow): Escrow {
   return {
     id: row.id,
     buyer: row.buyer,
     seller: row.seller,
     amount: row.amount,
-    feeAmount: row.fee_amount ?? row.feeAmount ?? 0,
-    tokenType: (row.token_type ?? row.tokenType ?? 0) as TokenType,
+    feeAmount: row.fee_amount ?? 0,
+    tokenType: (row.token_type ?? 0) as TokenType,
     description: row.description ?? '',
-    status: row.status as EscrowStatus,
-    createdAt: row.created_at_block ?? row.createdAt ?? 0,
-    expiresAt: row.expires_at_block ?? row.expiresAt ?? 0,
-    completedAt: row.completed_at_block ?? row.completedAt ?? null,
-    disputedAt: row.disputed_at_block ?? row.disputedAt ?? null,
-    txHash: row.tx_id ?? row.txHash,
+    status: row.status as unknown as EscrowStatus,
+    createdAt: row.created_at_block ?? 0,
+    expiresAt: row.expires_at_block ?? 0,
+    completedAt: row.completed_at_block ?? null,
+    disputedAt: row.disputed_at_block ?? null,
+    txHash: row.tx_id,
     indexedAt: row.indexed_at,
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapEventRow(row: any): EscrowEvent {
+interface SupabaseEventRow {
+  id: string | number;
+  escrow_id: number;
+  event_type: string;
+  block_height: number;
+  indexed_at: string;
+  data: Record<string, string> | null;
+}
+
+function mapEventRow(row: SupabaseEventRow): EscrowEvent {
   const eventData = row.data ?? {};
   return {
-    id: row.id,
-    escrowId: row.escrow_id ?? row.escrowId,
-    eventType: row.event_type ?? row.eventType,
+    id: String(row.id),
+    escrowId: row.escrow_id,
+    eventType: row.event_type as EscrowEvent['eventType'],
     actor: eventData.buyer ?? eventData.seller ?? eventData['disputed-by'] ?? eventData['resolved-by'] ?? '',
-    blockHeight: row.block_height ?? row.blockHeight,
+    blockHeight: row.block_height,
     timestamp: row.indexed_at ?? new Date().toISOString(),
     metadata: eventData,
   };
