@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { truncateAddress, getExplorerUrl } from '@/lib/utils';
 import { Copy, Check, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
+import { dur } from '@/lib/motion';
 
 interface AddressDisplayProps {
   address: string;
@@ -23,8 +25,30 @@ export function AddressDisplay({ address, truncateChars = 4, showCopy = true, sh
     <span className="inline-flex items-center gap-1">
       <span className="font-mono text-sm">{truncateAddress(address, truncateChars)}</span>
       {showCopy && (
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy} aria-label="Copy address">
-          {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+        <Button variant="ghost" size="icon" className="h-7 w-7 min-h-[44px] min-w-[44px]" onClick={handleCopy} aria-label="Copy address">
+          <AnimatePresence mode="wait">
+            {copied ? (
+              <motion.span
+                key="check"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: dur(150) }}
+              >
+                <Check className="h-3 w-3 text-success" />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="copy"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: dur(150) }}
+              >
+                <Copy className="h-3 w-3 text-muted-foreground" />
+              </motion.span>
+            )}
+          </AnimatePresence>
         </Button>
       )}
       {showExplorer && (
