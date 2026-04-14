@@ -15,11 +15,11 @@ export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
 // Post-Nakamoto: Stacks blocks are fast (~seconds); use useBlockRate() for live rate.
 // This fallback is used when the API is unavailable.
 export const DEFAULT_MINUTES_PER_BLOCK = 1.5;
-export const DEFAULT_DISPUTE_TIMEOUT = 4_320; // on-chain constant (stacks-block-height based)
-export const MAX_DISPUTE_TIMEOUT = 8_640; // on-chain constant
+export const DEFAULT_DISPUTE_TIMEOUT = 28_800; // ~30 days at 960 blocks/day (post-Nakamoto)
+export const MAX_DISPUTE_TIMEOUT = 57_600; // ~60 days at 960 blocks/day (post-Nakamoto)
 export const MIN_DISPUTE_TIMEOUT = 1;
 export const MAX_FEE_BPS = 500; // 5%
-export const MAX_DURATION_BLOCKS = 52_560; // on-chain MAX_DURATION constant
+export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day (post-Nakamoto)
 
 // Per-token amount bounds (from V4 contract constants)
 export const MIN_AMOUNT_STX = 1_000; // 0.001 STX
