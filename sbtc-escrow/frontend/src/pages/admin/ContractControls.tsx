@@ -162,7 +162,7 @@ export default function ContractControls() {
             <Button size="sm" variant="outline" disabled={!isValidStacksAddress(newOwner) || loading === 'transfer'} onClick={async () => { setLoading('transfer'); await transferOwnership(newOwner); setLoading(null); }}>
               Initiate Transfer
             </Button>
-            <p className="text-[10px] text-muted-foreground">2-step process: initiate, then the new owner must accept.</p>
+            <p className="text-xs text-muted-foreground">2-step process: initiate, then the new owner must accept.</p>
           </CardContent>
         </Card>
       ),
@@ -185,9 +185,9 @@ export default function ContractControls() {
               { label: 'Max Amount (sBTC)', value: `${formatSBTC(cfg.maxAmountSbtc)} sBTC`, mono: true },
               { label: 'Max Duration', value: `${cfg.maxDuration.toLocaleString()} blocks (~${blocksToTime(cfg.maxDuration, minutesPerBlock)})` },
             ].map((row, idx) => (
-              <div key={row.label} className={`flex justify-between items-center p-3 text-sm ${idx % 2 === 1 ? 'bg-muted/30' : ''}`}>
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className={`${row.mono ? 'font-mono text-xs' : ''} ${row.capitalize ? 'capitalize' : ''}`}>{row.value}</span>
+              <div key={row.label} className={`flex justify-between items-center gap-3 p-3 text-sm ${idx % 2 === 1 ? 'bg-muted/30' : ''}`}>
+                <span className="text-muted-foreground shrink-0">{row.label}</span>
+                <span className={`truncate ${row.mono ? 'font-mono text-xs' : ''} ${row.capitalize ? 'capitalize' : ''}`}>{row.value}</span>
               </div>
             ))}
           </CardContent>
@@ -198,7 +198,7 @@ export default function ContractControls() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-      <h1 className="text-lg font-semibold text-foreground">Contract Controls</h1>
+      <h1 className="text-xl font-bold text-foreground tracking-tight">Contract Controls</h1>
 
       {isError && <ErrorBanner message="Failed to load configuration. Showing cached data." />}
 
