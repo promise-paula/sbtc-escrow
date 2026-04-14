@@ -39,7 +39,7 @@ export function DisputeTimeoutProgress({ disputedAt, timeoutBlocks = DEFAULT_DIS
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">Dispute Timeout</span>
         {timedOut && (
-          <Badge variant="destructive" className="text-[10px] h-5">Timed Out</Badge>
+          <Badge variant="destructive" className="text-xs h-5">Timed Out</Badge>
         )}
       </div>
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} aria-label="Dispute timeout progress">
@@ -48,7 +48,7 @@ export function DisputeTimeoutProgress({ disputedAt, timeoutBlocks = DEFAULT_DIS
           style={{ width: `${progress}%` }}
         />
       </div>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }
