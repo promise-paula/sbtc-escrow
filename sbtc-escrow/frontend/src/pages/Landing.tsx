@@ -17,7 +17,7 @@ import { dur, revealVariants, staggerContainer } from '@/lib/motion';
 import { Logo } from '@/components/shared/Logo';
 import {
   Wallet, ArrowRight, Shield, Clock,
-  Lock, Code, Activity, Scale, CalendarPlus, Users,
+  Lock, Activity, Scale, CalendarPlus, Users,
   FileCheck, Server, Timer,
 } from 'lucide-react';
 
@@ -26,10 +26,8 @@ import {
 /* ------------------------------------------------------------------ */
 
 const trustSignals = [
-  { icon: Shield, label: 'Smart Contract Audited' },
   { icon: Lock, label: 'Non-Custodial' },
-  { icon: Code, label: 'Open Source' },
-  { icon: Activity, label: '99.9% Uptime' },
+  { icon: Activity, label: 'Built on Stacks' },
 ];
 
 const features = [
