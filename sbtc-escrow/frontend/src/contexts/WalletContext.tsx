@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import {
   connect as stacksConnect,
   disconnect as stacksDisconnect,
@@ -7,6 +7,7 @@ import {
 } from '@stacks/connect';
 import { CONTRACT_ADDRESS } from '@/lib/stacks-config';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 interface WalletContextType {
   address: string | null;
@@ -35,37 +36,72 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
   const [contractOwner, setContractOwner] = useState<string>(CONTRACT_ADDRESS);
-
-  useEffect(() => {
-    if (stacksIsConnected()) {
-      setAddress(getPersistedAddress());
-    }
-  }, []);
+  const ownerFetched = useRef(false);
 
   // Fetch the actual contract owner from Supabase (survives ownership transfers)
-  useEffect(() => {
+  const fetchContractOwner = useCallback(() => {
     if (!isSupabaseConfigured) return;
     supabase
       .from('platform_config')
       .select('contract_owner')
       .eq('id', 1)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn('Failed to fetch contract owner:', error.message);
+          return;
+        }
         if (data?.contract_owner) setContractOwner(data.contract_owner);
+        ownerFetched.current = true;
       });
   }, []);
 
+  useEffect(() => {
+    fetchContractOwner();
+  }, [fetchContractOwner]);
+
+  // Re-fetch contract owner when address changes (e.g. reconnecting with a different wallet)
+  useEffect(() => {
+    if (address && ownerFetched.current) {
+      fetchContractOwner();
+    }
+  }, [address, fetchContractOwner]);
+
+  // Listen for platform_config changes via realtime
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const channel = supabase
+      .channel('wallet-owner-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'platform_config' }, () => {
+        fetchContractOwner();
+      })
+      .subscribe();
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [fetchContractOwner]);
+
   const connect = useCallback(async () => {
-    const response = await stacksConnect();
-    const stxAddr = response.addresses.find(
-      (a) => a.symbol === 'STX',
-    )?.address ?? null;
-    setAddress(stxAddr);
+    try {
+      const response = await stacksConnect();
+      const stxAddr = response.addresses.find(
+        (a) => a.symbol === 'STX',
+      )?.address ?? null;
+      setAddress(stxAddr);
+    } catch (err) {
+      console.error('Wallet connection failed:', err);
+      toast.error('Wallet connection failed', {
+        description: err instanceof Error ? err.message : 'Please try again.',
+      });
+    }
   }, []);
 
   const disconnect = useCallback(() => {
     stacksDisconnect();
     setAddress(null);
+    setContractOwner(CONTRACT_ADDRESS);
+    ownerFetched.current = false;
   }, []);
 
   const isConnected = !!address;
