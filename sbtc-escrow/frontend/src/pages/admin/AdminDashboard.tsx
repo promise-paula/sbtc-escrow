@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { usePlatformStats, usePlatformConfig } from '@/hooks/use-admin';
 import { formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
+import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { cardVariants } from '@/lib/motion';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { ContractStatusIndicator } from '@/components/shared/ContractStatusIndicator';
@@ -17,7 +18,7 @@ export default function AdminDashboard() {
   const { data: platformStats, isLoading: statsLoading, isError: statsError } = usePlatformStats();
   const { data: config, isLoading: configLoading, isError: configError } = usePlatformConfig();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
 
   if (statsLoading || configLoading) return <DashboardSkeleton />;
 
