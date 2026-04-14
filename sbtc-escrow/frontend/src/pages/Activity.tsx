@@ -74,7 +74,7 @@ export default function ActivityPage() {
       typeCounts[e.eventType] = (typeCounts[e.eventType] || 0) + 1;
     }
     const top = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
-    return top ? (eventConfig[top[0]]?.label ?? top[0]) : '—';
+    return top ? (eventConfig[top[0]]?.label ?? '—') : '—';
   }, [sortedAll]);
 
   const summaryCards = [
@@ -154,7 +154,7 @@ export default function ActivityPage() {
                 <div className="absolute left-7 top-0 bottom-0 w-px bg-border" />
                 <div className="divide-y divide-border">
                   {events.map((evt, i) => {
-                    const cfg = eventConfig[evt.eventType] || eventConfig['escrow-created'];
+                    const cfg = eventConfig[evt.eventType] || { icon: Activity, color: 'text-muted-foreground', label: evt.eventType };
                     const Icon = cfg.icon;
 
                     return (

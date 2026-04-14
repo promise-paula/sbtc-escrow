@@ -51,7 +51,12 @@ export function useEscrowEvents(escrowId?: number) {
     queryFn: async (): Promise<EscrowEvent[]> => {
       if (!isSupabaseConfigured) return [];
       let query = supabase.from('escrow_events').select('*').order('block_height', { ascending: false });
-      if (escrowId) query = query.eq('escrow_id', escrowId);
+      if (escrowId) {
+        query = query.eq('escrow_id', escrowId);
+      } else {
+        // Exclude config events (null escrow_id) from the global feed
+        query = query.not('escrow_id', 'is', null);
+      }
       const { data, error } = await query;
       if (error || !data?.length) return [];
       return data.map(mapEventRow);
