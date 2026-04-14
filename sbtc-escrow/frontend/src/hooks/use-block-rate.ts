@@ -12,7 +12,7 @@ interface BlockRateResult {
 
 /**
  * Fetches the last N blocks and computes the average block time.
- * Falls back to DEFAULT_MINUTES_PER_BLOCK (10) on error.
+ * Falls back to DEFAULT_MINUTES_PER_BLOCK (1.5) on error.
  */
 async function fetchBlockRate(): Promise<BlockRateResult> {
   const limit = 30;
