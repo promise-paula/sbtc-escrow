@@ -27,4 +27,4 @@ export const MAX_AMOUNT_STX = 100_000_000_000_000; // 100M STX
 export const MIN_AMOUNT_SBTC = 10_000; // 0.0001 BTC
 export const MAX_AMOUNT_SBTC = 10_000_000_000; // 100 BTC
 
-export const EXPLORER_BASE = 'https://explorer.stacks.co';
+export const EXPLORER_BASE = 'https://explorer.hiro.so';
