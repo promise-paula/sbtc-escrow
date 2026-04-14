@@ -237,6 +237,10 @@ async function fetchEscrowDescription(
     const hex = escrowId.toString(16).padStart(32, "0");
     const clarityArg = `0x01${hex}`;
 
+    // 5-second timeout to prevent hanging the webhook
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
     const res = await fetch(
       `${STACKS_API_BASE}/v2/contracts/call-read/${deployer}/${contractName}/get-escrow`,
       {
@@ -246,8 +250,10 @@ async function fetchEscrowDescription(
           sender: deployer,
           arguments: [clarityArg],
         }),
+        signal: controller.signal,
       },
     );
+    clearTimeout(timeout);
     if (!res.ok) return "";
     const body = await res.json();
     if (!body.okay || !body.result) return "";
@@ -301,7 +307,13 @@ async function routeEvent(
   switch (event) {
     // ----- Escrow lifecycle events -----
     case "escrow-created": {
-      const description = await fetchEscrowDescription(contractId, escrowId!);
+      // Fetch description best-effort — never let it block escrow indexing
+      let description = "";
+      try {
+        description = await fetchEscrowDescription(contractId, escrowId!);
+      } catch (descErr) {
+        console.warn(`[escrow-created] Description fetch failed for #${escrowId}, proceeding without:`, descErr);
+      }
       await upsertEscrow(escrowId!, {
         buyer: data.buyer,
         seller: data.seller,
