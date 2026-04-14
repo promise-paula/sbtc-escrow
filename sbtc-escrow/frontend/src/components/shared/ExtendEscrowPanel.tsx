@@ -32,7 +32,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
     ? timeToBlocks(selectedMinutes, minutesPerBlock)
     : (customBlocks ? parseInt(customBlocks) : 0);
   const newExpiry = currentExpiresAt + blocks;
-  const maxAdditional = currentBlock + MAX_DURATION_BLOCKS - currentExpiresAt;
+  const maxAdditional = Math.max(0, currentBlock + MAX_DURATION_BLOCKS - currentExpiresAt);
   const valid = blocks > 0 && blocks <= maxAdditional;
 
   const handleExtend = async () => {
@@ -63,7 +63,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
         </Button>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {presets.map(p => (
           <Button
             key={p.label}
