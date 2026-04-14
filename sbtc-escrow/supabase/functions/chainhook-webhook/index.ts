@@ -15,7 +15,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Environment-driven contract IDs — no hardcoded values for mainnet
 const CONTRACT_IDS = new Set(
   (Deno.env.get("ESCROW_CONTRACT_IDS") ||
-    "ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v4"
+    "ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v5"
   ).split(",").map((s) => s.trim()),
 );
 
