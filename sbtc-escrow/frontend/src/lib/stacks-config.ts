@@ -4,7 +4,7 @@ export const STACKS_API_URL = import.meta.env.VITE_STACKS_API_URL ||
   (STACKS_NETWORK === 'mainnet' ? 'https://api.mainnet.hiro.so' : 'https://api.testnet.hiro.so');
 
 export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
-export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v4';
+export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v5';
 export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${string}.${string}`;
 
 export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
