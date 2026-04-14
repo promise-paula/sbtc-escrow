@@ -4,7 +4,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { useSettings } from '@/hooks/use-settings';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, STACKS_NETWORK } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { cardVariants } from '@/lib/motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { data: config } = usePlatformConfig();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const { settings, update, reset } = useSettings();
 
   const handleReset = () => {
