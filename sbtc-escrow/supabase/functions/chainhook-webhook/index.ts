@@ -216,6 +216,76 @@ async function updateConfig(
 }
 
 // ============================================================================
+// On-chain read helpers
+// ============================================================================
+
+const STACKS_API_BASE = Deno.env.get("STACKS_NETWORK") === "mainnet"
+  ? "https://api.mainnet.hiro.so"
+  : "https://api.testnet.hiro.so";
+
+/**
+ * Fetch the description for an escrow by reading on-chain state.
+ * Falls back to empty string if the call fails.
+ */
+async function fetchEscrowDescription(
+  contractId: string,
+  escrowId: number,
+): Promise<string> {
+  try {
+    const [deployer, contractName] = contractId.split(".");
+    // Encode escrow ID as Clarity uint: 0x01 + 16-byte big-endian
+    const hex = escrowId.toString(16).padStart(32, "0");
+    const clarityArg = `0x01${hex}`;
+
+    const res = await fetch(
+      `${STACKS_API_BASE}/v2/contracts/call-read/${deployer}/${contractName}/get-escrow`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: deployer,
+          arguments: [clarityArg],
+        }),
+      },
+    );
+    if (!res.ok) return "";
+    const body = await res.json();
+    if (!body.okay || !body.result) return "";
+
+    // body.result is hex-encoded Clarity value (e.g. "0x0a0c000000...")
+    const hexStr = (body.result as string).startsWith("0x")
+      ? (body.result as string).slice(2)
+      : (body.result as string);
+
+    // Find "description" field in the serialized tuple.
+    // Clarity tuple fields: 1-byte name length + name bytes + serialized value
+    // "description" = 11 chars → 0x0b + hex("description") = 0b6465736372697074696f6e
+    // Followed by string-utf8 type byte 0e + 4-byte big-endian length + UTF-8 bytes
+    const descFieldMarker = "0b6465736372697074696f6e";
+    const idx = hexStr.indexOf(descFieldMarker);
+    if (idx === -1) return "";
+
+    const valueStart = idx + descFieldMarker.length;
+    const typeByte = hexStr.slice(valueStart, valueStart + 2);
+    if (typeByte !== "0e") return ""; // not string-utf8
+
+    const lenHex = hexStr.slice(valueStart + 2, valueStart + 10);
+    const strLen = parseInt(lenHex, 16);
+    if (strLen === 0 || strLen > 512) return "";
+
+    const strHex = hexStr.slice(valueStart + 10, valueStart + 10 + strLen * 2);
+    const bytes = new Uint8Array(strLen);
+    for (let i = 0; i < strLen; i++) {
+      bytes[i] = parseInt(strHex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch (err) {
+    console.warn(`[fetchDescription] Failed for escrow ${escrowId}:`, err);
+    return "";
+  }
+}
+
+// ============================================================================
 // Event routing
 // ============================================================================
 
@@ -223,20 +293,22 @@ async function routeEvent(
   data: Record<string, unknown>,
   blockHeight: number,
   txId: string,
+  contractId: string,
 ): Promise<void> {
   const event = data.event as string;
   const escrowId = (data["escrow-id"] as number) ?? null;
 
   switch (event) {
     // ----- Escrow lifecycle events -----
-    case "escrow-created":
+    case "escrow-created": {
+      const description = await fetchEscrowDescription(contractId, escrowId!);
       await upsertEscrow(escrowId!, {
         buyer: data.buyer,
         seller: data.seller,
         amount: data.amount,
         fee_amount: data.fee,
         token_type: (data["token-type"] as number) ?? 0,
-        description: "", // not in print event
+        description,
         status: 0,
         created_at_block: blockHeight,
         expires_at_block: data["expires-at"],
@@ -244,6 +316,7 @@ async function routeEvent(
       });
       await insertEvent(escrowId, event, blockHeight, txId, data);
       break;
+    }
 
     case "escrow-released":
       await updateEscrow(escrowId!, {
@@ -473,7 +546,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
 
           try {
-            await routeEvent(data, blockHeight, txId);
+            await routeEvent(data, blockHeight, txId, op.metadata.contract_identifier);
             processedCount++;
           } catch (err) {
             const msg = `Event ${data.event} at block ${blockHeight}: ${err}`;
