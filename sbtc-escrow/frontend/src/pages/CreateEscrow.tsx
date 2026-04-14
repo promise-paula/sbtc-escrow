@@ -17,7 +17,7 @@ import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cardVariants, dur } from '@/lib/motion';
+import { cardVariants, dur, scaleIn, shake } from '@/lib/motion';
 import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } from 'lucide-react';
 
 /** Time-based duration presets (in minutes) */
@@ -99,7 +99,7 @@ export default function CreateEscrow() {
   if (txStatus === 'pending') {
     return (
       <div className="p-4 sm:p-6 max-w-lg">
-        <h1 className="text-lg font-semibold text-foreground mb-6">Create Escrow</h1>
+        <h1 className="text-xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
           <TransactionPending txHash={txHash || undefined} message="Creating escrow…" />
         </motion.div>
@@ -110,9 +110,9 @@ export default function CreateEscrow() {
   if (txStatus === 'success') {
     return (
       <div className="p-4 sm:p-6 max-w-lg">
-        <h1 className="text-lg font-semibold text-foreground mb-6">Create Escrow</h1>
+        <h1 className="text-xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible" className="flex flex-col items-center py-12 text-center">
-          <div className="rounded-full bg-success/10 p-3 mb-4"><Check className="h-6 w-6 text-success" /></div>
+          <motion.div variants={scaleIn} initial="initial" animate="animate" className="rounded-full bg-success/10 p-3 mb-4"><Check className="h-6 w-6 text-success" /></motion.div>
           <h3 className="text-sm font-medium">Escrow Created Successfully</h3>
           <p className="text-xs text-muted-foreground mt-1">Your escrow has been created and funds are locked.</p>
           <div className="flex gap-2 mt-4">
@@ -131,8 +131,8 @@ export default function CreateEscrow() {
   if (txStatus === 'error') {
     return (
       <div className="p-4 sm:p-6 max-w-lg">
-        <h1 className="text-lg font-semibold text-foreground mb-6">Create Escrow</h1>
-        <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible" className="flex flex-col items-center py-12 text-center">
+        <h1 className="text-xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
+        <motion.div variants={shake} initial="initial" animate="animate" className="flex flex-col items-center py-12 text-center">
           <h3 className="text-sm font-medium text-destructive">Transaction Failed</h3>
           <p className="text-xs text-muted-foreground mt-1">Something went wrong. Please try again.</p>
           <Button size="sm" onClick={() => setTxStatus('idle')} className="mt-4">Retry</Button>
@@ -143,7 +143,7 @@ export default function CreateEscrow() {
 
   return (
     <div className="p-4 sm:p-6 max-w-lg space-y-6">
-      <h1 className="text-lg font-semibold text-foreground">Create Escrow</h1>
+      <h1 className="text-xl font-bold text-foreground tracking-tight">Create Escrow</h1>
 
       {/* Step indicator */}
       <div className="space-y-3">
@@ -154,14 +154,14 @@ export default function CreateEscrow() {
             return (
               <React.Fragment key={num}>
                 <div className="flex flex-col items-center gap-1.5 min-w-0">
-                  <div className={`flex items-center justify-center h-8 w-8 rounded-full text-xs font-medium transition-colors ${
+                  <div className={`flex items-center justify-center h-8 w-8 rounded-full text-xs font-medium transition-all ${
                     num < step ? 'bg-primary text-primary-foreground' :
-                    num === step ? 'bg-primary text-primary-foreground' :
+                    num === step ? 'bg-primary text-primary-foreground shadow-glow-sm' :
                     'bg-muted text-muted-foreground'
                   }`}>
                     {num < step ? <Check className="h-3.5 w-3.5" /> : <StepIcon className="h-3.5 w-3.5" />}
                   </div>
-                  <span className={`text-[11px] font-medium truncate ${
+                  <span className={`text-xs font-medium truncate ${
                     num <= step ? 'text-foreground' : 'text-muted-foreground'
                   }`}>{s.label}</span>
                 </div>
@@ -180,7 +180,7 @@ export default function CreateEscrow() {
         {step === 1 && (
           <motion.div key="step1" {...stepTransition}>
             <Card>
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <User className="h-4 w-4 text-primary" /> Counterparty
                 </CardTitle>
@@ -212,7 +212,7 @@ export default function CreateEscrow() {
         {step === 2 && (
           <motion.div key="step2" {...stepTransition}>
             <Card>
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <Coins className="h-4 w-4 text-primary" /> Asset Details
                 </CardTitle>
@@ -330,16 +330,16 @@ export default function CreateEscrow() {
         {step === 3 && (
           <motion.div key="step3" {...stepTransition}>
             <Card>
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <FileCheck className="h-4 w-4 text-primary" /> Review & Confirm
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-lg border border-border divide-y divide-border text-sm">
-                  <div className="flex justify-between p-3">
-                    <span className="text-muted-foreground">Recipient</span>
-                    <span className="font-mono text-xs">{recipient}</span>
+                  <div className="flex justify-between gap-3 p-3">
+                    <span className="text-muted-foreground shrink-0">Recipient</span>
+                    <span className="font-mono text-xs truncate">{recipient}</span>
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Token</span>
@@ -378,7 +378,7 @@ export default function CreateEscrow() {
                   <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
-                  <Button onClick={handleSubmit} disabled={!consent} className="flex-1">
+                  <Button onClick={handleSubmit} disabled={!consent} className="flex-1 shadow-glow-md hover:shadow-glow-lg transition-shadow">
                     Confirm & Deposit
                   </Button>
                 </div>
