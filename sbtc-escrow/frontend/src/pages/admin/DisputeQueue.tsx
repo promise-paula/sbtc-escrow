@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDisputedEscrows, usePlatformConfig, useResolvedDisputes } from '@/hooks/use-admin';
+import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
@@ -24,13 +25,13 @@ export default function DisputeQueue() {
   const { data: resolvedDisputes = [] } = useResolvedDisputes();
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [confirmAction, setConfirmAction] = useState<{ escrowId: number; type: 'buyer' | 'seller'; amount: number; feeAmount: number; tokenType: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (isLoading) return <EscrowListSkeleton />;
 
-  const disputeTimeout = config?.disputeTimeout || 4320;
+  const disputeTimeout = config?.disputeTimeout || DEFAULT_DISPUTE_TIMEOUT;
   const active = (disputed || []).sort((a, b) => (a.disputedAt || 0) - (b.disputedAt || 0));
   const resolved = resolvedDisputes;
 
