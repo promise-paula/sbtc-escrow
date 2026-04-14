@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,109 +6,154 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 222 84% 5%;
+    /* Surface — clean neutral whites with visible depth */
+    --background: 98.5% 0.002 250;
+    --foreground: 15% 0.005 250;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 84% 5%;
+    --card: 99.5% 0.001 250;
+    --card-foreground: 15% 0.005 250;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 84% 5%;
+    --popover: 99.5% 0.001 250;
+    --popover-foreground: 15% 0.005 250;
 
-    --primary: 222 47% 31%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary — bold Bitcoin orange */
+    --primary: 58% 0.19 48;
+    --primary-foreground: 99% 0 0;
 
-    --accent-warm: 25 95% 53%;
+    /* Accent pair — warm orange + Stacks violet */
+    --accent-warm: 68% 0.19 48;
+    --accent-violet: 55% 0.2 285;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 94% 0.003 250;
+    --secondary-foreground: 20% 0.005 250;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 94% 0.003 250;
+    --muted-foreground: 42% 0.008 250;
 
-    --accent: 220 14% 96%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 94% 0.003 250;
+    --accent-foreground: 20% 0.005 250;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    /* Semantic */
+    --destructive: 55% 0.22 27;
+    --destructive-foreground: 99% 0 0;
 
-    --success: 160 84% 39%;
-    --success-foreground: 0 0% 100%;
+    --success: 62% 0.17 155;
+    --success-foreground: 99% 0 0;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 78% 0.16 75;
+    --warning-foreground: 30% 0.05 75;
 
-    --status-pending: 38 92% 50%;
-    --status-released: 160 84% 39%;
-    --status-refunded: 239 84% 67%;
-    --status-disputed: 0 84% 60%;
+    --status-pending: 78% 0.16 75;
+    --status-released: 62% 0.17 155;
+    --status-refunded: 55% 0.2 285;
+    --status-disputed: 55% 0.22 27;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 222 47% 31%;
+    /* Chrome — visible borders */
+    --border: 86% 0.004 250;
+    --input: 86% 0.004 250;
+    --ring: 58% 0.19 48;
+    --overlay: 10% 0.005 250;
+
+    /* Surface depth layers — progressive darkening */
+    --surface-1: 97% 0.002 250;
+    --surface-2: 94.5% 0.003 250;
+    --surface-3: 91.5% 0.004 250;
+    --surface-4: 88% 0.005 250;
+
+    /* Glow system — visible on light */
+    --glow-orange: 68% 0.19 48;
+    --glow-sm: 0 0 8px oklch(68% 0.19 48 / 0.18);
+    --glow-md: 0 0 20px oklch(68% 0.19 48 / 0.22);
+    --glow-lg: 0 0 40px oklch(68% 0.19 48 / 0.25), 0 0 80px oklch(68% 0.19 48 / 0.08);
+
+    /* Gradient tokens */
+    --gradient-bitcoin: linear-gradient(135deg, oklch(62% 0.19 48), oklch(70% 0.16 65));
+    --gradient-hero: linear-gradient(180deg, oklch(98.5% 0.002 250), oklch(94% 0.008 48));
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 9% 46%;
-    --sidebar-primary: 222 47% 31%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 96%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 222 47% 31%;
+    --sidebar-background: 98% 0.001 250;
+    --sidebar-foreground: 42% 0.008 250;
+    --sidebar-primary: 58% 0.19 48;
+    --sidebar-primary-foreground: 99% 0 0;
+    --sidebar-accent: 94% 0.003 250;
+    --sidebar-accent-foreground: 20% 0.005 250;
+    --sidebar-border: 86% 0.004 250;
+    --sidebar-ring: 58% 0.19 48;
   }
 
   .dark {
-    --background: 225 25% 5%;
-    --foreground: 210 40% 98%;
+    /* Surface — near-black, neutral. Warmth comes ONLY from orange accents */
+    --background: 8% 0.002 250;
+    --foreground: 95% 0.005 250;
 
-    --card: 225 20% 8%;
-    --card-foreground: 210 40% 98%;
+    --card: 13% 0.003 250;
+    --card-foreground: 95% 0.005 250;
 
-    --popover: 225 20% 8%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 15% 0.003 250;
+    --popover-foreground: 95% 0.005 250;
 
-    --primary: 217 60% 55%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary — vivid Bitcoin orange, the ONLY warm color */
+    --primary: 72% 0.19 48;
+    --primary-foreground: 8% 0.002 250;
 
-    --accent-warm: 25 90% 55%;
+    /* Accent pair — orange + violet */
+    --accent-warm: 72% 0.19 48;
+    --accent-violet: 65% 0.2 285;
 
-    --secondary: 220 20% 14%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 18% 0.003 250;
+    --secondary-foreground: 95% 0.005 250;
 
-    --muted: 220 20% 14%;
-    --muted-foreground: 220 13% 55%;
+    --muted: 18% 0.003 250;
+    --muted-foreground: 55% 0.008 250;
 
-    --accent: 220 20% 14%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 18% 0.003 250;
+    --accent-foreground: 95% 0.005 250;
 
-    --destructive: 0 62% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 50% 0.18 27;
+    --destructive-foreground: 95% 0.005 250;
 
-    --success: 160 60% 32%;
-    --success-foreground: 210 40% 98%;
+    --success: 55% 0.14 155;
+    --success-foreground: 95% 0.005 250;
 
-    --warning: 38 70% 42%;
-    --warning-foreground: 210 40% 98%;
+    --warning: 68% 0.14 75;
+    --warning-foreground: 16% 0.02 75;
 
-    --status-pending: 38 70% 42%;
-    --status-released: 160 60% 32%;
-    --status-refunded: 239 60% 55%;
-    --status-disputed: 0 62% 31%;
+    --status-pending: 68% 0.14 75;
+    --status-released: 55% 0.14 155;
+    --status-refunded: 65% 0.18 285;
+    --status-disputed: 50% 0.18 27;
 
-    --border: 220 20% 17%;
-    --input: 220 20% 17%;
-    --ring: 217 60% 55%;
+    /* Chrome — subtle cool borders, crisp edges */
+    --border: 22% 0.005 250;
+    --input: 22% 0.005 250;
+    --ring: 72% 0.19 48;
+    --overlay: 4% 0.002 250;
 
-    --sidebar-background: 225 25% 7%;
-    --sidebar-foreground: 220 13% 55%;
-    --sidebar-primary: 217 60% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 14%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 220 20% 17%;
-    --sidebar-ring: 217 60% 55%;
+    /* Surface depth layers — neutral 4-tier system */
+    --surface-1: 13% 0.003 250;
+    --surface-2: 16% 0.004 250;
+    --surface-3: 20% 0.004 250;
+    --surface-4: 24% 0.005 250;
+
+    /* Glow system — orange pops against neutral dark */
+    --glow-orange: 72% 0.19 48;
+    --glow-sm: 0 0 8px oklch(72% 0.19 48 / 0.2);
+    --glow-md: 0 0 20px oklch(72% 0.19 48 / 0.3), 0 0 40px oklch(72% 0.19 48 / 0.1);
+    --glow-lg: 0 0 40px oklch(72% 0.19 48 / 0.35), 0 0 80px oklch(72% 0.19 48 / 0.15), 0 0 120px oklch(72% 0.19 48 / 0.05);
+
+    /* Gradient tokens */
+    --gradient-bitcoin: linear-gradient(135deg, oklch(72% 0.19 48), oklch(62% 0.16 65));
+    --gradient-hero: linear-gradient(180deg, oklch(8% 0.002 250), oklch(12% 0.006 45));
+
+    --sidebar-background: 10% 0.003 250;
+    --sidebar-foreground: 55% 0.008 250;
+    --sidebar-primary: 72% 0.19 48;
+    --sidebar-primary-foreground: 8% 0.002 250;
+    --sidebar-accent: 18% 0.003 250;
+    --sidebar-accent-foreground: 95% 0.005 250;
+    --sidebar-border: 22% 0.005 250;
+    --sidebar-ring: 72% 0.19 48;
   }
 }
 
@@ -119,10 +164,43 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-kerning: normal;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  }
+
+  /* Tabular numbers for financial data and data tables */
+  .font-mono,
+  [class*="tabular"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Tighten letter-spacing on headings for crispness */
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.01em;
+    font-kerning: normal;
+  }
+
+  /* Cap body text measure for readability */
+  .prose, [data-prose] {
+    max-width: 65ch;
   }
 
   /* Focus indicators for accessibility */
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-ring rounded-sm;
   }
+}
+
+/* ── Decorative utilities ── */
+@layer components {
+  /* Glow effects — Bitcoin orange radiance */
+  .glow-sm { box-shadow: var(--glow-sm); }
+  .glow-md { box-shadow: var(--glow-md); }
+  .glow-lg { box-shadow: var(--glow-lg); }
+
+  /* Surface depth layers */
+  .surface-1 { background: oklch(var(--surface-1)); }
+  .surface-2 { background: oklch(var(--surface-2)); }
+  .surface-3 { background: oklch(var(--surface-3)); }
+  .surface-4 { background: oklch(var(--surface-4)); }
 }
