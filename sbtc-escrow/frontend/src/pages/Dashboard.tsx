@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows, useUserStats } from '@/hooks/use-escrow';
-import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
+import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -15,12 +15,13 @@ import { formatSTX, relativeTime, truncateAddress } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants } from '@/lib/motion';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { STATUS_LABELS } from '@/lib/types';
 
 const STATUS_COLORS: Record<EscrowStatus, string> = {
-  [EscrowStatus.Pending]: 'hsl(38, 92%, 50%)',
-  [EscrowStatus.Released]: 'hsl(160, 84%, 39%)',
-  [EscrowStatus.Refunded]: 'hsl(239, 84%, 67%)',
-  [EscrowStatus.Disputed]: 'hsl(0, 84%, 60%)',
+  [EscrowStatus.Pending]: 'oklch(75% 0.15 85)',
+  [EscrowStatus.Released]: 'oklch(62% 0.17 155)',
+  [EscrowStatus.Refunded]: 'oklch(55% 0.2 285)',
+  [EscrowStatus.Disputed]: 'oklch(55% 0.22 27)',
 };
 
 const STATUS_DOT_CLASSES: Record<EscrowStatus, string> = {
@@ -29,12 +30,6 @@ const STATUS_DOT_CLASSES: Record<EscrowStatus, string> = {
   [EscrowStatus.Refunded]: 'bg-status-refunded',
   [EscrowStatus.Disputed]: 'bg-status-disputed',
 };
-
-const QUICK_ACTIONS = [
-  { label: 'Create Escrow', icon: PlusCircle, route: '/create' },
-  { label: 'My Escrows', icon: List, route: '/escrows' },
-  { label: 'Activity Feed', icon: Activity, route: '/activity' },
-];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -54,16 +49,22 @@ export default function Dashboard() {
   }, {} as Record<number, number>);
 
   const pieData = Object.entries(statusCounts).map(([status, count]) => ({
-    name: STATUS_LABELS[Number(status) as EscrowStatus],
+    name: STATUS_LABELS[Number(status) as EscrowStatus] ?? 'Unknown',
     value: count,
-    status: Number(status) as EscrowStatus,
+    fill: STATUS_COLORS[Number(status) as EscrowStatus] ?? 'oklch(50% 0 0)',
   }));
+
+  const QUICK_ACTIONS = [
+    { label: 'Create Escrow', icon: PlusCircle, path: '/create' },
+    { label: 'My Escrows', icon: List, path: '/escrows' },
+    { label: 'Activity', icon: Activity, path: '/activity' },
+  ];
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
+        <h1 className="text-xl font-bold text-foreground tracking-tight">Dashboard</h1>
         <Button size="sm" onClick={() => navigate('/create')} className="gap-1.5">
           <PlusCircle className="h-3.5 w-3.5" /> Create Escrow
         </Button>
@@ -72,7 +73,7 @@ export default function Dashboard() {
       {/* Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-2 border-l-accent-warm">
+          <Card className="border-l-2 border-l-accent-warm shadow-glow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Lock className="h-4 w-4 text-muted-foreground" />
@@ -81,18 +82,18 @@ export default function Dashboard() {
               {stats && (stats.totalLockedStx > 0 || stats.totalLockedSbtc > 0) ? (
                 <div className="space-y-1">
                   {stats.totalLockedStx > 0 && (
-                    <p className="text-2xl font-mono font-semibold text-accent-warm">
+                    <p className="text-2xl font-mono font-bold text-accent-warm">
                       {formatSTX(stats.totalLockedStx)} <span className="text-sm font-normal text-muted-foreground">STX</span>
                     </p>
                   )}
                   {stats.totalLockedSbtc > 0 && (
-                    <p className={`font-mono font-semibold text-accent-warm ${stats.totalLockedStx > 0 ? 'text-base' : 'text-2xl'}`}>
+                    <p className={`font-mono font-bold text-accent-warm ${stats.totalLockedStx > 0 ? 'text-base' : 'text-2xl'}`}>
                       {(stats.totalLockedSbtc / 1e8).toFixed(4)} <span className="text-sm font-normal text-muted-foreground">sBTC</span>
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="text-2xl font-mono font-semibold text-muted-foreground">—</p>
+                <p className="text-2xl font-mono font-bold text-muted-foreground">—</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
                 {stats?.activeEscrows ?? 0} active escrow{(stats?.activeEscrows ?? 0) !== 1 ? 's' : ''}
@@ -108,7 +109,7 @@ export default function Dashboard() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Active Escrows</span>
               </div>
-              <p className="text-2xl font-mono font-semibold text-foreground">
+              <p className="text-2xl font-mono font-bold text-foreground">
                 {stats?.activeEscrows ?? 0}
               </p>
               <div className="flex gap-3 mt-1.5">
@@ -130,7 +131,7 @@ export default function Dashboard() {
                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Completed</span>
               </div>
-              <p className="text-2xl font-mono font-semibold text-foreground">
+              <p className="text-2xl font-mono font-bold text-foreground">
                 {stats?.completedEscrows ?? 0}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">released + refunded</p>
@@ -139,74 +140,69 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* Status Distribution - full width */}
-      <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium text-foreground mb-3">Status Distribution</p>
-            {pieData.length > 0 ? (
-              <div className="flex items-center gap-6">
-                <div className="h-[120px] w-[120px] shrink-0">
+      {/* Error state */}
+      {escrowsError && <ErrorBanner message="Failed to load escrows. Showing cached data." />}
+
+      {/* Status Distribution + Quick Actions */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Status Distribution */}
+        {pieData.length > 0 && (
+          <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+            <Card>
+              <CardContent className="p-4">
+                <h2 className="text-sm font-semibold text-foreground mb-3">Status Distribution</h2>
+                <div className="h-40">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={32}
-                        outerRadius={52}
-                        paddingAngle={2}
-                        dataKey="value"
-                        stroke="none"
-                      >
-                        {pieData.map((entry) => (
-                          <Cell key={entry.name} fill={STATUS_COLORS[entry.status]} />
-                        ))}
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value">
+                        {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                  {pieData.map((entry) => (
-                    <span key={entry.name} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASSES[entry.status]}`} />
-                      {entry.name} <span className="font-mono text-foreground">{entry.value}</span>
+                <div className="flex flex-wrap gap-3 mt-2 justify-center">
+                  {pieData.map((d) => (
+                    <span key={d.name} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="h-2 w-2 rounded-full" style={{ background: d.fill }} />
+                      {d.name} ({d.value})
                     </span>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground text-center py-6">No data yet</p>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Quick Actions */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        {QUICK_ACTIONS.map((action, i) => (
-          <motion.div key={action.route} custom={i} variants={cardVariants} initial="hidden" animate="visible">
-            <Card
-              className="cursor-pointer border-border hover:bg-muted/50 transition-colors"
-              onClick={() => navigate(action.route)}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <action.icon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">{action.label}</span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
               </CardContent>
             </Card>
           </motion.div>
-        ))}
-      </div>
+        )}
 
-      {/* Error state */}
-      {escrowsError && <ErrorBanner message="Failed to load escrows. Showing cached data." />}
+        {/* Quick Actions */}
+        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <h2 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h2>
+              {QUICK_ACTIONS.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <div
+                    key={a.label}
+                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm hover:border-primary/20 transition-all"
+                    onClick={() => navigate(a.path)}
+                  >
+                    <div className="rounded-md bg-muted p-2">
+                      <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">{a.label}</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
 
       {/* Recent Activity */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-foreground">Recent Activity</h2>
+          <h2 className="text-sm font-bold text-foreground">Recent Activity</h2>
           {recentEscrows.length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => navigate('/escrows')} className="gap-1 text-xs text-muted-foreground">
               View All <ArrowRight className="h-3 w-3" />
@@ -235,7 +231,7 @@ export default function Dashboard() {
                     variants={listItemVariants}
                     initial="hidden"
                     animate="visible"
-                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm transition-all"
                     onClick={() => navigate(`/escrow/${e.id}`)}
                   >
                     <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_CLASSES[e.status]}`} />
