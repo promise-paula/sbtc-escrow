@@ -1,8 +1,9 @@
 import { toast } from 'sonner';
 import { request } from '@stacks/connect';
-import { Cl, Pc, type ClarityValue } from '@stacks/transactions';
-import { CONTRACT_PRINCIPAL, STACKS_NETWORK, SBTC_CONTRACT } from './stacks-config';
+import { Cl, type ClarityValue } from '@stacks/transactions';
+import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
 import { TokenType } from './types';
+import { contractSendPc } from './post-conditions';
 
 async function adminCall(
   functionName: string,
@@ -10,22 +11,20 @@ async function adminCall(
   successMsg: string,
   postConditions?: any[],
 ): Promise<string> {
-  const response = await request('stx_callContract', {
-    contract: CONTRACT_PRINCIPAL,
-    functionName,
-    functionArgs,
-    ...(postConditions ? { postConditions } : {}),
-    network: STACKS_NETWORK,
-  });
-  toast.success(successMsg, { description: 'Transaction submitted.' });
-  return response.txid;
-}
-
-function contractSendPc(amount: number, tokenType: TokenType) {
-  if (tokenType === TokenType.SBTC) {
-    return Pc.principal(CONTRACT_PRINCIPAL).willSendEq(amount).ft(SBTC_CONTRACT, 'sbtc-token');
+  try {
+    const response = await request('stx_callContract', {
+      contract: CONTRACT_PRINCIPAL,
+      functionName,
+      functionArgs,
+      ...(postConditions ? { postConditions } : {}),
+      network: STACKS_NETWORK,
+    });
+    toast.success(successMsg, { description: 'Transaction submitted.' });
+    return response.txid;
+  } catch (err) {
+    toast.error(`${successMsg} failed`, { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    throw err;
   }
-  return Pc.principal(CONTRACT_PRINCIPAL).willSendEq(amount).ustx();
 }
 
 export function pauseContract(): Promise<string> {
