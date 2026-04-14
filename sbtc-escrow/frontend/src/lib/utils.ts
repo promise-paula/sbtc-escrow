@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { EscrowStatus, TokenType } from "./types";
-import { STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from "./stacks-config";
+import { STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE } from "./stacks-config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -101,7 +101,7 @@ export function getStatusColor(status: EscrowStatus): string {
 
 export function getExplorerUrl(type: 'tx' | 'address' | 'block', value: string): string {
   const pathSegment = type === 'tx' ? 'txid' : type;
-  return `https://explorer.hiro.so/${pathSegment}/${value}?chain=${STACKS_NETWORK}`;
+  return `${EXPLORER_BASE}/${pathSegment}/${value}?chain=${STACKS_NETWORK}`;
 }
 
 export const CONTRACT_ERRORS: Record<number, string> = {
