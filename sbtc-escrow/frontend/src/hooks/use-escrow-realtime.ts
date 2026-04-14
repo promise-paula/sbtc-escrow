@@ -29,6 +29,7 @@ export function useEscrowRealtime() {
       .subscribe();
 
     return () => {
+      channel.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
