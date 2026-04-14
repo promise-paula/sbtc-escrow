@@ -64,10 +64,10 @@
 (define-constant PLATFORM_FEE_BPS u50)        ;; 0.5% default platform fee
 (define-constant MAX_FEE_BPS u500)            ;; 5% absolute ceiling
 (define-constant BPS_DENOMINATOR u10000)
-(define-constant MAX_DURATION u52560)         ;; ~365 days at 144 blocks/day
+(define-constant MAX_DURATION u350400)        ;; ~365 days at 960 blocks/day (post-Nakamoto ~1.5 min/block)
 (define-constant MIN_DISPUTE_TIMEOUT u1)       ;; 1 block minimum (for testing)
-(define-constant MAX_DISPUTE_TIMEOUT u8640)    ;; ~60 days maximum
-(define-constant DEFAULT_DISPUTE_TIMEOUT u4320) ;; ~30 days default
+(define-constant MAX_DISPUTE_TIMEOUT u57600)   ;; ~60 days at 960 blocks/day (post-Nakamoto)
+(define-constant DEFAULT_DISPUTE_TIMEOUT u28800) ;; ~30 days at 960 blocks/day (post-Nakamoto)
 
 ;; Per-token amount bounds
 (define-constant MIN_AMOUNT_STX u1000)              ;; 0.001 STX minimum
