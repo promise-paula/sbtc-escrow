@@ -8,7 +8,7 @@ const seller = accounts.get("wallet_2")!;
 const randomUser = accounts.get("wallet_3")!;
 const newOwner = accounts.get("wallet_4")!;
 
-const CONTRACT = "escrow-v4";
+const CONTRACT = "escrow-v5";
 const SBTC_CONTRACT = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 const sbtcDeployer = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4";
 
