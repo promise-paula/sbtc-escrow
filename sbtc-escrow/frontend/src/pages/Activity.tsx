@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { relativeTime } from '@/lib/utils';
-import { motion } from 'framer-motion';
-import { cardVariants, listItemVariants } from '@/lib/motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cardVariants, listItemVariants, fadeInOut } from '@/lib/motion';
 import {
   PlusCircle, CheckCircle2, XCircle, AlertTriangle, Shield, Clock, Inbox, ArrowUpRight,
   Activity, TrendingUp, Zap,
@@ -55,19 +55,6 @@ export default function ActivityPage() {
     [sortedAll, typeFilter],
   );
 
-  // Summary stats
-  const totalEvents = sortedAll.length;
-  const recentEvents = sortedAll.filter(
-    e => (Date.now() - new Date(e.timestamp).getTime()) <= 24 * 60 * 60_000, // last 24h
-  ).length;
-  const mostActiveType = useMemo(() => {
-    const counts: Record<string, number> = {};
-    sortedAll.forEach(e => { counts[e.eventType] = (counts[e.eventType] || 0) + 1; });
-    let max = ''; let maxC = 0;
-    Object.entries(counts).forEach(([k, v]) => { if (v > maxC) { max = k; maxC = v; } });
-    return max || 'escrow-created';
-  }, [sortedAll]);
-
   // Count per filter type
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: sortedAll.length };
@@ -75,37 +62,51 @@ export default function ActivityPage() {
     return c;
   }, [sortedAll]);
 
-  if (isLoading) return <ActivitySkeleton />;
+  // Summary stats
+  const totalEvents = sortedAll.length;
+  const recentEvents = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return sortedAll.filter(e => new Date(e.timestamp).getTime() > cutoff).length;
+  }, [sortedAll]);
+  const mostActiveType = useMemo(() => {
+    const typeCounts: Record<string, number> = {};
+    for (const e of sortedAll) {
+      typeCounts[e.eventType] = (typeCounts[e.eventType] || 0) + 1;
+    }
+    const top = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
+    return top ? (eventConfig[top[0]]?.label ?? top[0]) : '—';
+  }, [sortedAll]);
 
   const summaryCards = [
-    { icon: Activity, label: 'Total Events', value: totalEvents.toString() },
-    { icon: Zap, label: 'Last 24h', value: recentEvents.toString() },
-    { icon: TrendingUp, label: 'Most Active', value: (eventConfig[mostActiveType]?.label || 'Created').replace('Escrow ', '') },
+    { label: 'Total Events', value: totalEvents.toLocaleString(), icon: Activity },
+    { label: 'Last 24h', value: recentEvents.toLocaleString(), icon: TrendingUp },
+    { label: 'Most Active', value: mostActiveType, icon: Zap },
   ];
 
+  if (isLoading) return <ActivitySkeleton />;
+
   return (
-    <div className="p-4 sm:p-6 max-w-3xl space-y-5">
-      <h1 className="text-lg font-semibold text-foreground">Activity</h1>
+    <div className="p-4 sm:p-6 max-w-3xl space-y-6">
+      <h1 className="text-xl font-bold text-foreground tracking-tight">Activity</h1>
 
       {isError && <ErrorBanner message="Failed to load activity. Showing cached data." />}
 
-      {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-3">
-        {summaryCards.map((s, i) => (
-          <motion.div key={s.label} custom={i} variants={cardVariants} initial="hidden" animate="visible">
-            <Card>
-              <CardContent className="p-3 flex items-center gap-2.5">
-                <div className="rounded-md bg-muted p-1.5">
-                  <s.icon className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground font-mono truncate">{s.value}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {summaryCards.map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <motion.div key={card.label} custom={i} variants={cardVariants} initial="hidden" animate="visible">
+              <Card>
+                <CardContent className="p-3 text-center">
+                  <Icon className="h-4 w-4 text-primary mx-auto mb-1.5" />
+                  <p className="text-lg font-mono font-bold text-foreground">{card.value}</p>
+                  <p className="text-xs text-muted-foreground">{card.label}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Filter tabs */}
@@ -119,7 +120,7 @@ export default function ActivityPage() {
             >
               {filterLabels[t] ?? t}
               {counts[t] > 0 && (
-                <span className="ml-1 text-[10px] opacity-70">{counts[t]}</span>
+                <span className="ml-1 text-xs opacity-70">{counts[t]}</span>
               )}
             </TabsTrigger>
           ))}
@@ -127,7 +128,9 @@ export default function ActivityPage() {
       </Tabs>
 
       {/* Timeline */}
+      <AnimatePresence mode="wait">
       {events.length === 0 ? (
+        <motion.div key="empty" variants={fadeInOut} initial="initial" animate="animate" exit="exit">
         <EmptyState
           icon={Inbox}
           title="No activity"
@@ -135,10 +138,11 @@ export default function ActivityPage() {
           actionLabel="Create Escrow"
           onAction={() => navigate('/create')}
         />
+        </motion.div>
       ) : (
         <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
                 Timeline
@@ -174,7 +178,11 @@ export default function ActivityPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <AddressDisplay address={evt.actor} showCopy={false} truncateChars={3} />
+                            {evt.actor ? (
+                              <AddressDisplay address={evt.actor} showCopy={false} truncateChars={3} />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">System</span>
+                            )}
                             <span className="text-xs text-muted-foreground">· {relativeTime(evt.timestamp)}</span>
                           </div>
                         </div>
@@ -187,6 +195,7 @@ export default function ActivityPage() {
           </Card>
         </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
