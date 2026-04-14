@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
-import { MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -22,6 +22,8 @@ import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } fr
 
 /** Time-based duration presets (in minutes) */
 const durationPresets = [
+  { label: '1 Hour', minutes: 60 },
+  { label: '6 Hours', minutes: 60 * 6 },
   { label: '1 Day', minutes: 60 * 24 },
   { label: '1 Week', minutes: 60 * 24 * 7 },
   { label: '2 Weeks', minutes: 60 * 24 * 14 },
@@ -77,7 +79,7 @@ export default function CreateEscrow() {
   const selfEscrow = recipient === address;
   const amountValid = smallestUnit >= minAmt && smallestUnit <= maxAmt;
   const descValid = description.trim().length > 0 && description.length <= 256;
-  const durationValid = duration >= 1 && duration <= MAX_DURATION_BLOCKS;
+  const durationValid = duration >= MIN_DURATION_BLOCKS && duration <= MAX_DURATION_BLOCKS;
 
   const step1Valid = recipientValid && !selfEscrow;
   const step2Valid = amountValid && descValid && durationValid;
@@ -298,15 +300,20 @@ export default function CreateEscrow() {
                   <div className="flex items-center gap-2 mt-2">
                     <Input
                       type="number"
-                      placeholder="Custom blocks"
+                      placeholder={`Min ${MIN_DURATION_BLOCKS} blocks`}
                       value={customDuration}
                       onChange={e => setCustomDuration(e.target.value)}
                       className="font-mono text-sm w-40"
-                      min={1}
+                      min={MIN_DURATION_BLOCKS}
                       max={MAX_DURATION_BLOCKS}
                     />
                     <span className="text-xs text-muted-foreground">blocks</span>
                   </div>
+                  {customDuration && !durationValid && (
+                    <p className="text-xs text-destructive">
+                      Minimum {MIN_DURATION_BLOCKS} blocks (~{blocksToTime(MIN_DURATION_BLOCKS, minutesPerBlock)}). Short durations may expire before the seller can act.
+                    </p>
+                  )}
                   {durationValid && (
                     <p className="text-xs text-muted-foreground">
                       Expires: ~{blockToEstimatedDate(currentBlock + duration, currentBlock, minutesPerBlock).toLocaleDateString()} ({blocksToTime(duration, minutesPerBlock)})

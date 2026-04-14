@@ -19,6 +19,7 @@ export const DEFAULT_DISPUTE_TIMEOUT = 28_800; // ~30 days at 960 blocks/day (po
 export const MAX_DISPUTE_TIMEOUT = 57_600; // ~60 days at 960 blocks/day (post-Nakamoto)
 export const MIN_DISPUTE_TIMEOUT = 1;
 export const MAX_FEE_BPS = 500; // 5%
+export const MIN_DURATION_BLOCKS = 40; // ~1 hour at 960 blocks/day (post-Nakamoto)
 export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day (post-Nakamoto)
 
 // Per-token amount bounds (from V5 contract constants)
