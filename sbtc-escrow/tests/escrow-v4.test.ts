@@ -38,7 +38,7 @@ const STATUS_REFUNDED = 2;
 const STATUS_DISPUTED = 3;
 
 // Platform configuration
-const DISPUTE_TIMEOUT = 4320;
+const DISPUTE_TIMEOUT = 28800;
 
 // Helper: create an STX escrow and return escrow-id
 function createStxEscrow(amount = 100000, duration = 100) {
@@ -182,9 +182,9 @@ describe("sBTC Escrow V4 — Dual Token Contract Tests", () => {
         expect(result).toBeErr(Cl.uint(2011));
       });
 
-      it("rejects timeout above maximum (8640)", () => {
+      it("rejects timeout above maximum (57600)", () => {
         const { result } = simnet.callPublicFn(
-          CONTRACT, "set-dispute-timeout", [Cl.uint(8641)], deployer
+          CONTRACT, "set-dispute-timeout", [Cl.uint(57601)], deployer
         );
         expect(result).toBeErr(Cl.uint(2011));
       });
