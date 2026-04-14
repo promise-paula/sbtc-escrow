@@ -21,7 +21,7 @@ export function TestnetBanner() {
       <button
         onClick={handleDismiss}
         className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-primary-foreground/20 transition-colors"
-        aria-label="Dismiss banner"
+        aria-label="Close banner"
       >
         <X className="h-3 w-3" />
       </button>
