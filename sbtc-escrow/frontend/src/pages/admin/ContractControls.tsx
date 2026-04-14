@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, STACKS_NETWORK } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
@@ -25,7 +25,7 @@ const timeoutPresetsDef = [
 export default function ContractControls() {
   const { data: config, isLoading, isError } = usePlatformConfig();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [isPaused, setIsPaused] = useState(false);
   const [feeBps, setFeeBps] = useState('');
   const [feeRecip, setFeeRecip] = useState('');
