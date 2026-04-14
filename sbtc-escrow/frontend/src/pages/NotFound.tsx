@@ -12,7 +12,7 @@ export default function NotFound() {
       <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible" className="text-center space-y-4">
         <Logo size="xl" className="text-accent-warm mx-auto" />
         <p className="text-6xl font-bold text-muted-foreground/20 font-mono">404</p>
-        <h1 className="text-lg font-semibold text-foreground">Page Not Found</h1>
+        <h1 className="text-xl font-bold text-foreground tracking-tight">Page Not Found</h1>
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">The page you're looking for doesn't exist or has been moved.</p>
         <Button onClick={() => navigate('/dashboard')} size="sm">Go to Dashboard</Button>
       </motion.div>
