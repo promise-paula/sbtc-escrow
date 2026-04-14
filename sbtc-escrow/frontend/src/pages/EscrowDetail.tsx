@@ -18,8 +18,8 @@ import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } from '@/lib/escrow-service';
 import { blocksToTime, relativeTime, getExplorerUrl } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
-import { motion } from 'framer-motion';
-import { cardVariants, listItemVariants, pageVariants } from '@/lib/motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cardVariants, listItemVariants, pageVariants, slideDown } from '@/lib/motion';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Shield,
   Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download
@@ -123,37 +123,11 @@ export default function EscrowDetail() {
 
       {/* Hero Summary Card */}
       <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
-        <Card>
-          <CardContent className="p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl font-semibold font-mono text-foreground">#{escrow.id}</span>
-                  <StatusBadge status={escrow.status} />
-                  {isExpired && isPending && (
-                    <Badge variant="destructive" className="text-xs">Expired</Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">{escrow.description}</p>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {isBuyer && (
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <Shield className="h-3 w-3" /> You are the Buyer
-                    </Badge>
-                  )}
-                  {isSeller && (
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <Shield className="h-3 w-3" /> You are the Seller
-                    </Badge>
-                  )}
-                  {isPending && !isExpired && blocksToExpiry > 0 && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {blocksToTime(blocksToExpiry, minutesPerBlock)} remaining
-                    </span>
-                  )}
-                </div>
-              </div>
+        <Card className="shadow-glow-sm">
+          <CardContent className="p-5 sm:p-6 space-y-4">
+            {/* Row 1: ID + Amount (primary info) */}
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-2xl font-bold font-mono text-foreground tracking-tight">#{escrow.id}</span>
               <div className="flex items-start gap-2">
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground mb-0.5">Amount</p>
@@ -181,6 +155,35 @@ export default function EscrowDetail() {
                 </DropdownMenu>
               </div>
             </div>
+
+            {/* Row 2: Status + badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={escrow.status} />
+              {isExpired && isPending && (
+                <Badge variant="destructive" className="text-xs">Expired</Badge>
+              )}
+              {isBuyer && (
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Shield className="h-3 w-3" /> You: Buyer
+                </Badge>
+              )}
+              {isSeller && (
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Shield className="h-3 w-3" /> You: Seller
+                </Badge>
+              )}
+              {isPending && !isExpired && blocksToExpiry > 0 && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {blocksToTime(blocksToExpiry, minutesPerBlock)} remaining
+                </span>
+              )}
+            </div>
+
+            {/* Row 3: Description */}
+            {escrow.description && (
+              <p className="text-sm text-muted-foreground">{escrow.description}</p>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -189,7 +192,7 @@ export default function EscrowDetail() {
       <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
               Parties
             </CardTitle>
@@ -217,7 +220,7 @@ export default function EscrowDetail() {
       <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Info className="h-4 w-4 text-muted-foreground" />
               Details
             </CardTitle>
@@ -228,9 +231,9 @@ export default function EscrowDetail() {
                 <span className="text-xs text-muted-foreground">Created</span>
                 <span className="font-mono text-xs text-foreground">Block {escrow.createdAt.toLocaleString()}</span>
               </div>
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-xs text-muted-foreground">Expires</span>
-                <span className="font-mono text-xs text-foreground">
+              <div className="flex items-center justify-between gap-3 py-2.5">
+                <span className="text-xs text-muted-foreground shrink-0">Expires</span>
+                <span className="font-mono text-xs text-foreground truncate text-right">
                   Block {escrow.expiresAt.toLocaleString()}
                   {blocksToExpiry > 0 && ` (${blocksToTime(blocksToExpiry, minutesPerBlock)})`}
                   {blocksToExpiry <= 0 && ' (Expired)'}
@@ -268,7 +271,7 @@ export default function EscrowDetail() {
       <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               Timeline
             </CardTitle>
@@ -329,8 +332,9 @@ export default function EscrowDetail() {
                 <DisputeTimeoutProgress disputedAt={escrow.disputedAt} />
               )}
 
+              <AnimatePresence>
               {confirmAction && (
-                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
+                <motion.div variants={slideDown} initial="initial" animate="animate" exit="exit" className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                     <div>
@@ -349,8 +353,9 @@ export default function EscrowDetail() {
                       {loading ? 'Processing…' : 'Confirm'}
                     </Button>
                   </div>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
 
               {!confirmAction && (
                 <div className="flex flex-wrap gap-2">
