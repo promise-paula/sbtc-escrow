@@ -16,8 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Inbox } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 import { relativeTime } from '@/lib/utils';
-import { motion } from 'framer-motion';
-import { listItemVariants } from '@/lib/motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { listItemVariants, fadeInOut } from '@/lib/motion';
 
 type SortOption = 'newest' | 'oldest' | 'amount-high' | 'amount-low';
 
@@ -82,10 +82,10 @@ export default function MyEscrows() {
   if (isLoading) return <EscrowListSkeleton />;
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-5xl">
+    <div className="p-4 sm:p-6 space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold text-foreground">
+        <h1 className="text-xl font-bold text-foreground tracking-tight">
           My Escrows{' '}
           <span className="text-muted-foreground font-normal">({allEscrows?.length ?? 0})</span>
         </h1>
@@ -117,12 +117,12 @@ export default function MyEscrows() {
 
       {/* Status Tabs */}
       <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-        <TabsList className="h-9">
+        <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
           {STATUS_TABS.map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value} className="text-xs gap-1.5 px-3">
+            <TabsTrigger key={tab.value} value={tab.value} className="text-xs gap-1.5 px-2.5 py-1 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               {tab.label}
               {(statusCounts[tab.value] ?? 0) > 0 && (
-                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] font-normal rounded-full">
+                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-xs font-normal rounded-full">
                   {statusCounts[tab.value]}
                 </Badge>
               )}
@@ -135,16 +135,18 @@ export default function MyEscrows() {
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Role:</span>
         <Tabs value={roleFilter} onValueChange={(v) => setRoleFilter(v as typeof roleFilter)}>
-          <TabsList className="h-7">
-            <TabsTrigger value="all" className="text-[11px] px-2.5 h-5">All</TabsTrigger>
-            <TabsTrigger value="buyer" className="text-[11px] px-2.5 h-5">Buyer</TabsTrigger>
-            <TabsTrigger value="seller" className="text-[11px] px-2.5 h-5">Seller</TabsTrigger>
+          <TabsList className="h-8">
+            <TabsTrigger value="all" className="text-xs px-3">All</TabsTrigger>
+            <TabsTrigger value="buyer" className="text-xs px-3">Buyer</TabsTrigger>
+            <TabsTrigger value="seller" className="text-xs px-3">Seller</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
       {/* Card Grid */}
+      <AnimatePresence mode="wait">
       {filtered.length === 0 ? (
+        <motion.div key="empty" variants={fadeInOut} initial="initial" animate="animate" exit="exit">
         <EmptyState
           icon={Inbox}
           title="No escrows found"
@@ -152,6 +154,7 @@ export default function MyEscrows() {
           actionLabel={!search && statusFilter === 'all' ? 'Create Escrow' : undefined}
           onAction={!search && statusFilter === 'all' ? () => navigate('/create') : undefined}
         />
+        </motion.div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filtered.map((e, i) => {
@@ -166,20 +169,20 @@ export default function MyEscrows() {
                 animate="visible"
               >
                 <Card
-                  className="p-4 cursor-pointer transition-colors hover:bg-muted/50 space-y-3"
+                  className="p-4 cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3"
                   onClick={() => navigate(`/escrow/${e.id}`)}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs text-muted-foreground">#{e.id}</span>
                     <StatusBadge status={e.status} />
                   </div>
-                  <p className="text-sm font-medium text-foreground truncate">{e.description}</p>
+                  <p className="text-sm font-medium text-foreground line-clamp-2">{e.description}</p>
                   <div className="flex items-center justify-between">
                     <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
                     <AddressDisplay address={counterparty} showCopy={false} />
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px] font-normal">
+                    <Badge variant="outline" className="text-xs font-normal">
                       {isBuyer ? 'Buyer' : 'Seller'}
                     </Badge>
                     <span>{e.indexedAt ? relativeTime(e.indexedAt) : ''}</span>
@@ -190,6 +193,7 @@ export default function MyEscrows() {
           })}
         </div>
       )}
+      </AnimatePresence>
 
       {filtered.length > 0 && (
         <p className="text-xs text-muted-foreground">
