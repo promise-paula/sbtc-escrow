@@ -2,15 +2,15 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { EscrowStatus } from '@/lib/types';
-import { usePlatformStats } from '@/hooks/use-admin';
 import { TrendingUp, Hash, Coins, Calculator } from 'lucide-react';
 import { cardVariants } from '@/lib/motion';
+import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, PieChart, Pie, Cell, Legend, LineChart, Line,
+  PieChart, Pie, Cell, Legend,
+  LineChart, Line, AreaChart, Area,
 } from 'recharts';
 
 interface MonthlyBucket {
@@ -69,30 +69,29 @@ function useMonthlyAnalytics() {
 }
 
 const STATUS_COLORS = {
-  released: 'hsl(142 71% 45%)',
-  refunded: 'hsl(220 9% 46%)',
-  disputed: 'hsl(0 84% 60%)',
+  released: 'oklch(62% 0.17 155)',
+  refunded: 'oklch(55% 0.2 285)',
+  disputed: 'oklch(55% 0.22 27)',
 };
 
 const tooltipStyle = {
-  backgroundColor: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
+  backgroundColor: 'oklch(var(--card))',
+  border: '1px solid oklch(var(--border))',
   borderRadius: 8,
   fontSize: 12,
 };
 
 export default function Analytics() {
-  const { data: stats } = usePlatformStats();
   const { data: monthlyData = [] } = useMonthlyAnalytics();
 
   const volumeData = useMemo(() =>
     monthlyData.map(m => ({ month: m.month, stx: Number(m.volumeStx.toFixed(2)), sbtc: Number(m.volumeSbtc.toFixed(6)) })), [monthlyData]);
 
-  const feeData = useMemo(() =>
-    monthlyData.map(m => ({ month: m.month, stx: Number(m.feesStx.toFixed(4)), sbtc: Number(m.feesSbtc.toFixed(8)) })), [monthlyData]);
-
   const countData = useMemo(() =>
     monthlyData.map(m => ({ month: m.month, count: m.escrowCount })), [monthlyData]);
+
+  const feeData = useMemo(() =>
+    monthlyData.map(m => ({ month: m.month, stx: Number(m.feesStx.toFixed(4)), sbtc: Number(m.feesSbtc.toFixed(8)) })), [monthlyData]);
 
   const statusTotals = useMemo(() => {
     const totals = monthlyData.reduce(
@@ -111,32 +110,32 @@ export default function Analytics() {
   const totalEscrows = monthlyData.reduce((s, m) => s + m.escrowCount, 0);
   const totalFeesStx = monthlyData.reduce((s, m) => s + m.feesStx, 0);
   const totalFeesSbtc = monthlyData.reduce((s, m) => s + m.feesSbtc, 0);
-  const avgSizeStx = totalEscrows > 0 ? totalVolumeStx / totalEscrows : 0;
+  const avgEscrowStx = totalEscrows > 0 ? totalVolumeStx / totalEscrows : 0;
 
   const summaryCards = [
     { title: 'Volume (STX)', value: `${totalVolumeStx.toFixed(2)} STX`, icon: TrendingUp },
     ...(totalVolumeSbtc > 0 ? [{ title: 'Volume (sBTC)', value: `${totalVolumeSbtc.toFixed(6)} sBTC`, icon: TrendingUp }] : []),
     { title: 'Total Escrows', value: totalEscrows.toLocaleString(), icon: Hash },
-    { title: 'Fees (STX)', value: `${totalFeesStx.toFixed(4)} STX`, icon: Coins },
+    { title: 'Avg Escrow Size', value: `${avgEscrowStx.toFixed(2)} STX`, icon: Calculator },
+    { title: 'Platform Fees', value: `${totalFeesStx.toFixed(4)} STX`, icon: Coins },
     ...(totalFeesSbtc > 0 ? [{ title: 'Fees (sBTC)', value: `${totalFeesSbtc.toFixed(8)} sBTC`, icon: Coins }] : []),
-    { title: 'Avg Escrow Size', value: `${avgSizeStx.toFixed(2)} STX`, icon: Calculator },
   ];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+    <div className="p-4 sm:p-6 max-w-5xl space-y-6">
+      <h1 className="text-xl font-bold text-foreground tracking-tight">Analytics</h1>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card, i) => (
           <motion.div key={card.title} custom={i} variants={cardVariants} initial="hidden" animate="visible">
-            <Card>
+            <Card className="hover:shadow-glow-sm transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
                   <card.icon className="h-4 w-4" />
                   <span className="text-xs font-medium">{card.title}</span>
                 </div>
-                <p className="text-xl font-mono font-semibold">
+                <p className="text-2xl font-mono font-bold">
                   {card.value}
                 </p>
               </CardContent>
@@ -148,19 +147,19 @@ export default function Analytics() {
       {/* Volume Bar Chart */}
       <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Volume Over Time</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Volume Over Time</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={volumeData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="stx" name="STX" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="sbtc" name="sBTC" fill="hsl(var(--accent-warm))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="stx" name="STX" fill="oklch(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="sbtc" name="sBTC" fill="oklch(var(--accent-warm))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -168,56 +167,33 @@ export default function Analytics() {
         </Card>
       </motion.div>
 
-      {/* Escrow Count Trend */}
-      <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Escrow Count Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={countData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
-                  <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [value, 'Escrows']} />
-                  <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3, fill: 'hsl(var(--primary))' }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Fee Revenue + Status Breakdown */}
+      {/* Escrow Count Trend + Status Breakdown */}
       <div className="grid gap-4 md:grid-cols-2">
-        <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Fee Revenue</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Escrow Count Trend</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={feeData}>
+                  <LineChart data={countData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Area type="monotone" dataKey="stx" name="STX" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} strokeWidth={2} />
-                    <Area type="monotone" dataKey="sbtc" name="sBTC" stroke="hsl(var(--accent-warm))" fill="hsl(var(--accent-warm))" fillOpacity={0.15} strokeWidth={2} />
-                  </AreaChart>
+                    <Line type="monotone" dataKey="count" name="Escrows" stroke="oklch(var(--primary))" strokeWidth={2} dot={{ fill: 'oklch(var(--primary))' }} />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        <motion.div custom={7} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Status Breakdown</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Status Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-56 flex items-center justify-center">
@@ -235,6 +211,29 @@ export default function Analytics() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Fee Revenue */}
+      <motion.div custom={7} variants={cardVariants} initial="hidden" animate="visible">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Fee Revenue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={feeData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Area type="monotone" dataKey="stx" name="STX Fees" stroke="oklch(var(--primary))" fill="oklch(var(--primary) / 0.15)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="sbtc" name="sBTC Fees" stroke="oklch(var(--accent-warm))" fill="oklch(var(--accent-warm) / 0.15)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
