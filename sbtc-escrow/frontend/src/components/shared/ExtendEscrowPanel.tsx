@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
+import { MAX_DURATION_BLOCKS, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { blockToEstimatedDate, blocksToTime } from '@/lib/utils';
@@ -26,7 +26,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
   const [loading, setLoading] = useState(false);
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
 
   const blocks = selectedMinutes
     ? timeToBlocks(selectedMinutes, minutesPerBlock)
