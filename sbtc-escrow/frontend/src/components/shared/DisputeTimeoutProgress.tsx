@@ -1,7 +1,7 @@
 import React from 'react';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate } from '@/hooks/use-block-rate';
-import { DEFAULT_DISPUTE_TIMEOUT } from '@/lib/stacks-config';
+import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { Progress } from '@/components/ui/progress';
 import { blocksToTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ interface DisputeTimeoutProgressProps {
 export function DisputeTimeoutProgress({ disputedAt, timeoutBlocks = DEFAULT_DISPUTE_TIMEOUT }: DisputeTimeoutProgressProps) {
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? 10;
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const elapsed = currentBlock - disputedAt;
   const progress = Math.min((elapsed / timeoutBlocks) * 100, 100);
   const remaining = Math.max(timeoutBlocks - elapsed, 0);
