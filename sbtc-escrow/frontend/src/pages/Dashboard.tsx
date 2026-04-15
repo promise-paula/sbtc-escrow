@@ -243,7 +243,7 @@ export default function Dashboard() {
                       <p className="text-xs text-muted-foreground">{e.indexedAt ? relativeTime(e.indexedAt) : ''}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
+                      <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
                     </div>
                     <StatusBadge status={e.status} />
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
