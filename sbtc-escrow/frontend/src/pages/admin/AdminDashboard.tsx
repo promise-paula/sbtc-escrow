@@ -59,7 +59,7 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Dispute Timeout</p>
                 <span className="text-sm font-medium">{cfg.disputeTimeout.toLocaleString()} blocks</span>
-                <span className="text-xs text-muted-foreground ml-1">(~{blocksToTime(cfg.disputeTimeout, minutesPerBlock)})</span>
+                <span className="text-xs text-muted-foreground ml-1">(~{blocksToTime(cfg.disputeTimeout)})</span>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Owner</p>
