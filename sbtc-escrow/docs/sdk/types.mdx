@@ -1,0 +1,211 @@
+---
+title: Types
+description: "TypeScript type definitions exported by the SDK"
+---
+
+# Types
+
+All types are exported from the main package entry point.
+
+```typescript
+import type {
+  Escrow,
+  EscrowConfig,
+  UserStats,
+  PlatformStats,
+  CreateEscrowOptions,
+  SignedTxOptions,
+  BroadcastResult,
+  NetworkType,
+} from 'sbtc-escrow-sdk';
+
+import { EscrowStatus, TokenType } from 'sbtc-escrow-sdk';
+```
+
+## Enums
+
+### EscrowStatus
+
+```typescript
+enum EscrowStatus {
+  PENDING = 0,
+  RELEASED = 1,
+  REFUNDED = 2,
+  DISPUTED = 3,
+}
+```
+
+### TokenType
+
+```typescript
+enum TokenType {
+  STX = 0,
+  SBTC = 1,
+}
+```
+
+## Interfaces
+
+### NetworkType
+
+```typescript
+type NetworkType = 'mainnet' | 'testnet';
+```
+
+---
+
+### Escrow
+
+Represents a single escrow record from the contract.
+
+```typescript
+interface Escrow {
+  id: number;
+  buyer: string;              // Stacks principal
+  seller: string;             // Stacks principal
+  amount: number;             // Smallest unit (microSTX or sats)
+  feeAmount: number;          // Platform fee
+  tokenType: TokenType;       // STX or SBTC
+  description: string;        // UTF-8, max 256 chars
+  status: EscrowStatus;
+  createdAt: number;          // Block height
+  expiresAt: number;          // Block height
+  completedAt: number | null; // Block height or null
+  disputedAt: number | null;  // Block height or null
+}
+```
+
+---
+
+### EscrowConfig
+
+Contract configuration returned by `getConfig()`.
+
+```typescript
+interface EscrowConfig {
+  owner: string;              // Contract owner principal
+  feeRecipient: string;       // Fee wallet principal
+  platformFeeBps: number;     // Fee in basis points (0-500)
+  isPaused: boolean;
+  minAmountStx: number;       // In microSTX
+  maxAmountStx: number;
+  minAmountSbtc: number;      // In satoshis
+  maxAmountSbtc: number;
+  maxDuration: number;        // In blocks
+  disputeTimeout: number;     // In blocks
+}
+```
+
+---
+
+### UserStats
+
+Per-user statistics returned by `getUserStats()`.
+
+```typescript
+interface UserStats {
+  escrowsCreated: number;     // As buyer
+  escrowsReceived: number;    // As seller
+  totalSentStx: number;       // microSTX sent as buyer
+  totalSentSbtc: number;      // sats sent as buyer
+  totalReceivedStx: number;   // microSTX received as seller
+  totalReceivedSbtc: number;  // sats received as seller
+}
+```
+
+---
+
+### PlatformStats
+
+Platform-wide statistics returned by `getPlatformStats()`.
+
+```typescript
+interface PlatformStats {
+  totalEscrows: number;
+  totalVolumeStx: number;          // microSTX
+  totalVolumeSbtc: number;         // satoshis
+  totalFeesCollectedStx: number;   // microSTX
+  totalFeesCollectedSbtc: number;  // satoshis
+  totalReleased: number;           // Count
+  totalRefunded: number;           // Count
+  activeDisputes: number;          // Count
+}
+```
+
+---
+
+### CreateEscrowOptions
+
+Options for creating a new escrow.
+
+```typescript
+interface CreateEscrowOptions {
+  seller: string;              // Recipient Stacks address
+  amount: number;              // In smallest unit
+  description: string;         // Max 256 chars
+  durationBlocks: number;      // 1 to 350,400
+  tokenType: TokenType;        // STX or SBTC
+}
+```
+
+---
+
+### SignedTxOptions
+
+Transaction signing credentials.
+
+```typescript
+interface SignedTxOptions {
+  senderKey: string;     // Private key (hex string)
+  fee?: number;          // Optional TX fee in microSTX
+  nonce?: number;        // Optional explicit nonce
+}
+```
+
+<Warning>
+The `senderKey` is a raw private key. Never expose it in client-side code, logs, or version control.
+</Warning>
+
+---
+
+### BroadcastResult
+
+Result from any write operation.
+
+```typescript
+interface BroadcastResult {
+  txid: string;         // Transaction ID (hex with 0x prefix)
+  success: boolean;     // Whether broadcast was accepted
+  error?: string;       // Error message if success is false
+}
+```
+
+## Type Guards
+
+You can use the enums as runtime values for comparisons:
+
+```typescript
+import { EscrowStatus, TokenType } from 'sbtc-escrow-sdk';
+
+const escrow = await client.getEscrow(1);
+if (!escrow) return;
+
+// Status checks
+if (escrow.status === EscrowStatus.PENDING) {
+  console.log('Waiting for action');
+}
+
+if (escrow.status === EscrowStatus.DISPUTED) {
+  const timedOut = await client.isDisputeTimedOut(escrow.id);
+  if (timedOut) {
+    console.log('Dispute timed out — buyer can recover');
+  }
+}
+
+// Token checks
+if (escrow.tokenType === TokenType.STX) {
+  console.log('Amount:', escrow.amount / 1_000_000, 'STX');
+} else {
+  console.log('Amount:', escrow.amount / 100_000_000, 'BTC');
+}
+```

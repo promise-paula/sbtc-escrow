@@ -1,0 +1,89 @@
+---
+title: SDK Overview
+description: "TypeScript SDK for integrating sBTC Escrow into your applications"
+---
+
+# SDK Overview
+
+The `sbtc-escrow-sdk` is a TypeScript client for interacting with the sBTC Escrow smart contract from Node.js or browser environments.
+
+## Features
+
+- **Read-only queries** — Fetch escrows, stats, and config without a wallet
+- **Transaction building** — Create, release, refund, dispute escrows with signing
+- **Admin operations** — Manage fees, disputes, and ownership
+- **Network-aware** — Auto-configures for testnet or mainnet
+- **Post-conditions** — Built-in transaction safety for STX and sBTC
+- **TypeScript-first** — Full type definitions for all methods and return values
+
+## Quick Example
+
+```typescript
+import { EscrowClient, TokenType } from 'sbtc-escrow-sdk';
+
+// Initialize client
+const client = new EscrowClient({ network: 'testnet' });
+
+// Read (no signing)
+const config = await client.getConfig();
+const escrow = await client.getEscrow(1);
+const stats = await client.getPlatformStats();
+
+// Write (requires private key)
+const result = await client.createEscrow(
+  {
+    seller: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+    amount: 1_000_000,
+    description: 'Payment for services',
+    durationBlocks: 960,
+    tokenType: TokenType.STX,
+  },
+  { senderKey: 'your-private-key-hex' }
+);
+
+console.log('TX:', result.txid);
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│                EscrowClient                  │
+│                                              │
+│  ┌────────────┐  ┌────────────┐  ┌────────┐│
+│  │  Read-Only  │  │   Write    │  │ Admin  ││
+│  │  Methods    │  │  Methods   │  │ Methods││
+│  └─────┬──────┘  └─────┬──────┘  └───┬────┘│
+│        │               │              │      │
+│        ▼               ▼              ▼      │
+│  callReadOnly()  makeContractCall()          │
+│                  broadcastTx()               │
+└────────┬────────────────┬────────────────────┘
+         │                │
+         ▼                ▼
+  Stacks API Node   Stacks Mempool
+  (read queries)    (broadcast TXs)
+```
+
+## Sections
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/sdk/installation">
+    Install and configure the SDK
+  </Card>
+  <Card title="Client" icon="plug" href="/sdk/client">
+    Initialize the EscrowClient
+  </Card>
+  <Card title="Read Methods" icon="eye" href="/sdk/read-methods">
+    Query escrows, stats, and config
+  </Card>
+  <Card title="Write Methods" icon="pen" href="/sdk/write-methods">
+    Create, release, refund, and dispute
+  </Card>
+  <Card title="Admin Methods" icon="shield" href="/sdk/admin-methods">
+    Manage fees, disputes, ownership
+  </Card>
+  <Card title="Types" icon="brackets-curly" href="/sdk/types">
+    TypeScript type definitions
+  </Card>
+</CardGroup>

@@ -1,0 +1,180 @@
+---
+title: Admin Methods
+description: "SDK methods for contract administration"
+---
+
+# Admin Methods
+
+Admin methods are restricted to the contract owner. They manage fees, disputes, and ownership.
+
+<Warning>
+All admin methods require the contract owner's private key. Calling with any other key will result in an `ERR_UNAUTHORIZED` error.
+</Warning>
+
+## Dispute Resolution
+
+### resolveDisputeForBuyer
+
+Resolve a dispute in the buyer's favor.
+
+```typescript
+const result = await client.resolveDisputeForBuyer(escrowId, txOptions);
+```
+
+### resolveDisputeForSeller
+
+Resolve a dispute in the seller's favor.
+
+```typescript
+const result = await client.resolveDisputeForSeller(escrowId, txOptions);
+```
+
+### Example
+
+```typescript
+const adminKey = process.env.ADMIN_KEY!;
+
+// Check disputed escrows
+const stats = await client.getPlatformStats();
+console.log('Active disputes:', stats.activeDisputes);
+
+// Resolve for buyer (refund)
+await client.resolveDisputeForBuyer(5, { senderKey: adminKey });
+
+// Resolve for seller (release)
+await client.resolveDisputeForSeller(6, { senderKey: adminKey });
+```
+
+---
+
+## Contract Controls
+
+### pauseContract
+
+Pause the contract (prevents new escrow creation).
+
+```typescript
+const result = await client.pauseContract(txOptions);
+```
+
+### unpauseContract
+
+Resume normal contract operation.
+
+```typescript
+const result = await client.unpauseContract(txOptions);
+```
+
+### Example
+
+```typescript
+// Emergency pause
+await client.pauseContract({ senderKey: adminKey });
+
+// Verify
+const paused = await client.isPaused();
+console.log('Paused:', paused); // true
+
+// Resume
+await client.unpauseContract({ senderKey: adminKey });
+```
+
+---
+
+## Fee Management
+
+### setPlatformFee
+
+Update the platform fee percentage.
+
+```typescript
+const result = await client.setPlatformFee(bps, txOptions);
+```
+
+| Parameter | Type | Range |
+|-----------|------|-------|
+| `bps` | `number` | 0–500 (0%–5%) |
+
+### setFeeRecipient
+
+Update the fee recipient address.
+
+```typescript
+const result = await client.setFeeRecipient(address, txOptions);
+```
+
+### setDisputeTimeout
+
+Update the dispute timeout duration.
+
+```typescript
+const result = await client.setDisputeTimeout(blocks, txOptions);
+```
+
+| Parameter | Type | Range |
+|-----------|------|-------|
+| `blocks` | `number` | 1–57,600 |
+
+### Example
+
+```typescript
+// Set fee to 1% (100 BPS)
+await client.setPlatformFee(100, { senderKey: adminKey });
+
+// Update fee recipient
+await client.setFeeRecipient(
+  'ST1NEW_FEE_WALLET...',
+  { senderKey: adminKey }
+);
+
+// Set dispute timeout to ~14 days
+await client.setDisputeTimeout(13_440, { senderKey: adminKey });
+
+// Verify
+const config = await client.getConfig();
+console.log('Fee:', config.platformFeeBps);
+console.log('Recipient:', config.feeRecipient);
+console.log('Timeout:', config.disputeTimeout);
+```
+
+---
+
+## Ownership
+
+### transferOwnership
+
+Initiate a 2-step ownership transfer.
+
+```typescript
+const result = await client.transferOwnership(newOwnerAddress, txOptions);
+```
+
+### acceptOwnership
+
+Accept a pending ownership transfer (called by the new owner).
+
+```typescript
+const result = await client.acceptOwnership(txOptions);
+```
+
+### Example
+
+```typescript
+const currentOwnerKey = process.env.ADMIN_KEY!;
+const newOwnerKey = process.env.NEW_ADMIN_KEY!;
+const newOwnerAddress = 'ST1NEW_OWNER...';
+
+// Step 1: Current owner initiates transfer
+await client.transferOwnership(newOwnerAddress, {
+  senderKey: currentOwnerKey
+});
+
+// Step 2: New owner accepts
+await client.acceptOwnership({
+  senderKey: newOwnerKey
+});
+
+// Verify
+const config = await client.getConfig();
+console.log('New owner:', config.owner);
+```

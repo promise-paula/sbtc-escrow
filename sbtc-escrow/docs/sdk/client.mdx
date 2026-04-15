@@ -1,0 +1,159 @@
+---
+title: Client
+description: "Initialize and configure the EscrowClient"
+---
+
+# EscrowClient
+
+The `EscrowClient` is the main entry point for all SDK operations.
+
+## Constructor
+
+```typescript
+import { EscrowClient } from 'sbtc-escrow-sdk';
+
+const client = new EscrowClient(config: {
+  network: 'testnet' | 'mainnet';
+  contractAddress?: string;
+  contractName?: string;
+  sbtcContract?: string;
+});
+```
+
+### Parameters
+
+<ParamField path="network" type="'testnet' | 'mainnet'" required>
+  The Stacks network to connect to. Determines default API URLs and contract addresses.
+</ParamField>
+
+<ParamField path="contractAddress" type="string">
+  Override the default contract deployer address. Defaults to the canonical address for the selected network.
+</ParamField>
+
+<ParamField path="contractName" type="string" default="escrow-v5">
+  Override the contract name. Defaults to `escrow-v5`.
+</ParamField>
+
+<ParamField path="sbtcContract" type="string">
+  Override the sBTC token contract address. Defaults to the canonical sBTC contract for the selected network.
+</ParamField>
+
+## Helper Methods
+
+### getContractId
+
+Returns the full contract identifier.
+
+```typescript
+client.getContractId();
+// → "ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v5"
+```
+
+### getNetworkType
+
+Returns the configured network.
+
+```typescript
+client.getNetworkType();
+// → "testnet"
+```
+
+### getSbtcContract
+
+Returns the sBTC token contract identifier.
+
+```typescript
+client.getSbtcContract();
+// → "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token"
+```
+
+### getExplorerTxUrl
+
+Returns a Hiro Explorer URL for a transaction.
+
+```typescript
+client.getExplorerTxUrl('0xabc123...');
+// → "https://explorer.hiro.so/txid/0xabc123...?chain=testnet"
+```
+
+### getExplorerContractUrl
+
+Returns a Hiro Explorer URL for the escrow contract.
+
+```typescript
+client.getExplorerContractUrl();
+// → "https://explorer.hiro.so/txid/ST1HK6...escrow-v5?chain=testnet"
+```
+
+## Usage Patterns
+
+### Read-Only (No Wallet)
+
+For querying data, no private key is needed:
+
+```typescript
+const client = new EscrowClient({ network: 'testnet' });
+
+const escrow = await client.getEscrow(1);
+const config = await client.getConfig();
+const stats = await client.getPlatformStats();
+```
+
+### Write Operations (With Wallet)
+
+Write operations require a `SignedTxOptions` object:
+
+```typescript
+const txOptions: SignedTxOptions = {
+  senderKey: 'your-hex-private-key',
+  fee: 10_000,    // optional: microSTX fee
+  nonce: 5,       // optional: explicit nonce
+};
+
+const result = await client.release(1, txOptions);
+```
+
+<ParamField path="senderKey" type="string" required>
+  The sender's private key as a hex string.
+</ParamField>
+
+<ParamField path="fee" type="number">
+  Transaction fee in microSTX. If omitted, the SDK uses the network's fee estimation.
+</ParamField>
+
+<ParamField path="nonce" type="number">
+  Explicit nonce. If omitted, fetched automatically from the network.
+</ParamField>
+
+### BroadcastResult
+
+All write methods return a `BroadcastResult`:
+
+```typescript
+interface BroadcastResult {
+  txid: string;      // Transaction ID (hex)
+  success: boolean;  // Whether broadcast succeeded
+  error?: string;    // Error message if failed
+}
+```
+
+```typescript
+const result = await client.release(1, txOptions);
+
+if (result.success) {
+  console.log('TX:', result.txid);
+  console.log('View:', client.getExplorerTxUrl(result.txid));
+} else {
+  console.error('Failed:', result.error);
+}
+```
+
+<Warning>
+Never hardcode private keys in source code. Use environment variables or secure key management.
+
+```typescript
+const txOptions = {
+  senderKey: process.env.STACKS_PRIVATE_KEY!,
+};
+```
+</Warning>

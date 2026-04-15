@@ -1,0 +1,243 @@
+---
+title: Read Methods
+description: "Query escrows, stats, and configuration without signing"
+---
+
+# Read Methods
+
+Read methods call the contract's read-only functions. They don't require a wallet or private key.
+
+## getEscrow
+
+Fetch a single escrow by ID.
+
+```typescript
+const escrow = await client.getEscrow(1);
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | `number` | Escrow ID |
+
+### Returns
+
+`Escrow | null` — The escrow record, or null if not found.
+
+### Example
+
+```typescript
+const escrow = await client.getEscrow(1);
+if (escrow) {
+  console.log('Buyer:', escrow.buyer);
+  console.log('Amount:', escrow.amount);
+  console.log('Status:', EscrowStatus[escrow.status]); // "PENDING"
+  console.log('Token:', escrow.tokenType === TokenType.STX ? 'STX' : 'sBTC');
+}
+```
+
+---
+
+## getEscrowCount
+
+Get the total number of escrows created.
+
+```typescript
+const count = await client.getEscrowCount();
+// → 42
+```
+
+### Returns
+
+`number` — Total escrow count.
+
+---
+
+## escrowExists
+
+Check if an escrow ID exists.
+
+```typescript
+const exists = await client.escrowExists(1);
+// → true
+```
+
+---
+
+## getStatus
+
+Get the status code of an escrow.
+
+```typescript
+const status = await client.getStatus(1);
+// → EscrowStatus.PENDING (0)
+```
+
+### Returns
+
+`EscrowStatus` — One of `PENDING`, `RELEASED`, `REFUNDED`, `DISPUTED`.
+
+---
+
+## getUserRole
+
+Get a user's role in a specific escrow.
+
+```typescript
+const role = await client.getUserRole(1, 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM');
+// → "buyer" | "seller" | "none"
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | `number` | Escrow ID |
+| `address` | `string` | Stacks address to check |
+
+---
+
+## getUserStats
+
+Get aggregated statistics for a user.
+
+```typescript
+const stats = await client.getUserStats('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM');
+console.log('Created:', stats.escrowsCreated);
+console.log('STX sent:', stats.totalSentStx);
+console.log('sBTC received:', stats.totalReceivedSbtc);
+```
+
+### Returns
+
+```typescript
+{
+  escrowsCreated: number;
+  escrowsReceived: number;
+  totalSentStx: number;
+  totalSentSbtc: number;
+  totalReceivedStx: number;
+  totalReceivedSbtc: number;
+}
+```
+
+---
+
+## getPlatformStats
+
+Get platform-wide statistics.
+
+```typescript
+const stats = await client.getPlatformStats();
+console.log('Total escrows:', stats.totalEscrows);
+console.log('STX volume:', stats.totalVolumeStx);
+console.log('Active disputes:', stats.activeDisputes);
+```
+
+### Returns
+
+```typescript
+{
+  totalEscrows: number;
+  totalVolumeStx: number;
+  totalVolumeSbtc: number;
+  totalFeesCollectedStx: number;
+  totalFeesCollectedSbtc: number;
+  totalReleased: number;
+  totalRefunded: number;
+  activeDisputes: number;
+}
+```
+
+---
+
+## getConfig
+
+Get the current contract configuration.
+
+```typescript
+const config = await client.getConfig();
+console.log('Owner:', config.owner);
+console.log('Fee:', config.platformFeeBps, 'BPS');
+console.log('Paused:', config.isPaused);
+console.log('Dispute timeout:', config.disputeTimeout, 'blocks');
+```
+
+### Returns
+
+```typescript
+{
+  owner: string;
+  feeRecipient: string;
+  platformFeeBps: number;
+  isPaused: boolean;
+  minAmountStx: number;
+  maxAmountStx: number;
+  minAmountSbtc: number;
+  maxAmountSbtc: number;
+  maxDuration: number;
+  disputeTimeout: number;
+}
+```
+
+---
+
+## calculateEscrowFee
+
+Preview the fee for a given amount.
+
+```typescript
+const fee = await client.calculateEscrowFee(10_000_000);
+// → 50_000 (0.5% of 10 STX)
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `amount` | `number` | Amount in smallest unit |
+
+### Returns
+
+`number` — Fee in the same unit as the input.
+
+---
+
+## isExpired
+
+Check if an escrow has passed its deadline.
+
+```typescript
+const expired = await client.isExpired(1);
+// → false
+```
+
+---
+
+## isPaused
+
+Check if the contract is paused.
+
+```typescript
+const paused = await client.isPaused();
+// → false
+```
+
+---
+
+## isDisputeTimedOut
+
+Check if a disputed escrow has exceeded the timeout period.
+
+```typescript
+const timedOut = await client.isDisputeTimedOut(1);
+if (timedOut) {
+  // Buyer can self-recover
+  await client.resolveExpiredDispute(1, txOptions);
+}
+```
+
+### Returns
+
+`boolean` — `true` if the dispute has timed out and the buyer can recover funds.

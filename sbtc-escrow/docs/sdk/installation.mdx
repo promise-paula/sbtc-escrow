@@ -1,0 +1,114 @@
+---
+title: Installation
+description: "Install and configure the sBTC Escrow SDK"
+---
+
+# Installation
+
+## Install via npm
+
+```bash
+npm install sbtc-escrow-sdk
+```
+
+<CodeGroup>
+```bash npm
+npm install sbtc-escrow-sdk
+```
+
+```bash yarn
+yarn add sbtc-escrow-sdk
+```
+
+```bash pnpm
+pnpm add sbtc-escrow-sdk
+```
+</CodeGroup>
+
+## Peer Dependencies
+
+The SDK depends on the following Stacks libraries (installed automatically):
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@stacks/transactions` | ^7.x | Transaction building and signing |
+| `@stacks/network` | ^7.x | Network configuration |
+
+## Imports
+
+```typescript
+// Named imports
+import { EscrowClient, EscrowStatus, TokenType } from 'sbtc-escrow-sdk';
+
+// Type-only imports
+import type {
+  Escrow,
+  EscrowConfig,
+  UserStats,
+  PlatformStats,
+  CreateEscrowOptions,
+  SignedTxOptions,
+  BroadcastResult,
+  NetworkType,
+} from 'sbtc-escrow-sdk';
+```
+
+## Requirements
+
+- **Node.js** 18+ or modern browser
+- **TypeScript** 5.0+ (recommended)
+- For write operations: a Stacks private key (hex string)
+
+## Environment Setup
+
+### Testnet (Development)
+
+```typescript
+const client = new EscrowClient({ network: 'testnet' });
+```
+
+This auto-configures:
+- API URL: `https://api.testnet.hiro.so`
+- Contract: `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v5`
+- sBTC: `ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token`
+
+### Mainnet (Production)
+
+```typescript
+const client = new EscrowClient({ network: 'mainnet' });
+```
+
+### Custom Configuration
+
+Override defaults for custom deployments:
+
+```typescript
+const client = new EscrowClient({
+  network: 'testnet',
+  contractAddress: 'ST1CUSTOM_ADDRESS',
+  contractName: 'my-escrow-v5',
+  sbtcContract: 'ST1CUSTOM.sbtc-token',
+});
+```
+
+## Verify Installation
+
+```typescript
+import { EscrowClient } from 'sbtc-escrow-sdk';
+
+const client = new EscrowClient({ network: 'testnet' });
+
+// Should print contract ID
+console.log('Contract:', client.getContractId());
+console.log('Network:', client.getNetworkType());
+
+// Test a read-only call
+const count = await client.getEscrowCount();
+console.log('Total escrows:', count);
+```
+
+Run it:
+
+```bash
+npx tsx verify.ts
+```

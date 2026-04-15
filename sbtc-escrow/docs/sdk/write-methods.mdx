@@ -1,0 +1,271 @@
+---
+title: Write Methods
+description: "Create, release, refund, dispute, and extend escrows"
+---
+
+# Write Methods
+
+Write methods build, sign, and broadcast transactions. They require a private key via `SignedTxOptions`.
+
+```typescript
+const txOptions: SignedTxOptions = {
+  senderKey: process.env.STACKS_PRIVATE_KEY!,
+  fee: 10_000,  // optional
+};
+```
+
+## createEscrow
+
+Create and fund a new escrow.
+
+```typescript
+const result = await client.createEscrow(options, txOptions);
+```
+
+### Parameters
+
+<ParamField path="options" type="CreateEscrowOptions" required>
+
+```typescript
+{
+  seller: string;            // Recipient address
+  amount: number;            // Amount in smallest unit
+  description: string;       // Purpose (max 256 chars)
+  durationBlocks: number;    // Duration in blocks
+  tokenType: TokenType;      // STX (0) or SBTC (1)
+}
+```
+
+</ParamField>
+
+<ParamField path="txOptions" type="SignedTxOptions" required>
+  Signing credentials and optional fee/nonce.
+</ParamField>
+
+### Returns
+
+`BroadcastResult` — Contains `txid`, `success`, and optional `error`.
+
+### Example
+
+```typescript
+import { EscrowClient, TokenType } from 'sbtc-escrow-sdk';
+
+const client = new EscrowClient({ network: 'testnet' });
+
+// Create a 1 STX escrow lasting ~1 day
+const result = await client.createEscrow(
+  {
+    seller: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+    amount: 1_000_000,
+    description: 'Logo design payment',
+    durationBlocks: 960,
+    tokenType: TokenType.STX,
+  },
+  { senderKey: process.env.BUYER_KEY! }
+);
+
+if (result.success) {
+  console.log('Created! TX:', result.txid);
+  console.log('View:', client.getExplorerTxUrl(result.txid));
+}
+```
+
+### sBTC Example
+
+```typescript
+// Create a 0.001 BTC escrow
+const result = await client.createEscrow(
+  {
+    seller: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+    amount: 100_000,           // 0.001 BTC in satoshis
+    description: 'OTC trade',
+    durationBlocks: 960,
+    tokenType: TokenType.SBTC,
+  },
+  { senderKey: process.env.BUYER_KEY! }
+);
+```
+
+---
+
+## release
+
+Release escrowed funds to the seller.
+
+```typescript
+const result = await client.release(escrowId, txOptions);
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `escrowId` | `number` | The escrow ID |
+| `txOptions` | `SignedTxOptions` | Must be signed by the **buyer** |
+
+### Example
+
+```typescript
+const result = await client.release(1, {
+  senderKey: process.env.BUYER_KEY!
+});
+// Seller receives the escrow amount
+// Platform receives the fee
+```
+
+<Info>
+The SDK automatically fetches the escrow details to build correct post-conditions. You only need to provide the escrow ID.
+</Info>
+
+---
+
+## refund
+
+Return funds to the buyer.
+
+```typescript
+const result = await client.refund(escrowId, txOptions);
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `escrowId` | `number` | The escrow ID |
+| `txOptions` | `SignedTxOptions` | Seller (before expiry) or anyone (after expiry) |
+
+### Example
+
+```typescript
+// Seller refunds before expiry
+const result = await client.refund(1, {
+  senderKey: process.env.SELLER_KEY!
+});
+
+// After expiry, anyone can refund
+const result = await client.refund(1, {
+  senderKey: process.env.ANY_KEY!
+});
+```
+
+---
+
+## dispute
+
+Raise a dispute on a pending escrow.
+
+```typescript
+const result = await client.dispute(escrowId, txOptions);
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `escrowId` | `number` | The escrow ID |
+| `txOptions` | `SignedTxOptions` | Must be buyer or seller |
+
+### Example
+
+```typescript
+const result = await client.dispute(1, {
+  senderKey: process.env.BUYER_KEY!
+});
+// Escrow is now frozen until admin resolves or timeout
+```
+
+---
+
+## extendEscrow
+
+Extend the deadline of a pending escrow.
+
+```typescript
+const result = await client.extendEscrow(escrowId, additionalBlocks, txOptions);
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `escrowId` | `number` | The escrow ID |
+| `additionalBlocks` | `number` | Blocks to add to deadline |
+| `txOptions` | `SignedTxOptions` | Must be the **buyer** |
+
+### Example
+
+```typescript
+// Extend by ~1 week
+const result = await client.extendEscrow(1, 6_720, {
+  senderKey: process.env.BUYER_KEY!
+});
+```
+
+---
+
+## resolveExpiredDispute
+
+Self-recover funds from a timed-out dispute (buyer only).
+
+```typescript
+const result = await client.resolveExpiredDispute(escrowId, txOptions);
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `escrowId` | `number` | The disputed escrow ID |
+| `txOptions` | `SignedTxOptions` | Must be the **buyer** |
+
+### Example
+
+```typescript
+// Check if dispute is timed out first
+const timedOut = await client.isDisputeTimedOut(1);
+
+if (timedOut) {
+  const result = await client.resolveExpiredDispute(1, {
+    senderKey: process.env.BUYER_KEY!
+  });
+  console.log('Recovered funds! TX:', result.txid);
+}
+```
+
+## Complete Workflow Example
+
+```typescript
+import { EscrowClient, TokenType, EscrowStatus } from 'sbtc-escrow-sdk';
+
+const client = new EscrowClient({ network: 'testnet' });
+
+const buyerKey = process.env.BUYER_KEY!;
+const sellerKey = process.env.SELLER_KEY!;
+
+// 1. Create escrow
+const { txid } = await client.createEscrow(
+  {
+    seller: 'ST2CY5V39...',
+    amount: 5_000_000,         // 5 STX
+    description: 'Freelance project',
+    durationBlocks: 6_720,     // ~1 week
+    tokenType: TokenType.STX,
+  },
+  { senderKey: buyerKey }
+);
+console.log('Created:', txid);
+
+// 2. Wait for confirmation...
+
+// 3. Check status
+const count = await client.getEscrowCount();
+const escrow = await client.getEscrow(count);
+console.log('Status:', EscrowStatus[escrow!.status]);
+
+// 4. Release to seller
+const releaseResult = await client.release(count, {
+  senderKey: buyerKey
+});
+console.log('Released:', releaseResult.txid);
+```
