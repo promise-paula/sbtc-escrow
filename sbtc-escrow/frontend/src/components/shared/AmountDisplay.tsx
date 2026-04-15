@@ -10,9 +10,23 @@ interface AmountDisplayProps {
   className?: string;
 }
 
-export function AmountDisplay({ micro, tokenType = TokenType.STX, showUsd = true, className }: AmountDisplayProps) {
+const STORAGE_KEY = 'sbtc-escrow-settings';
+
+function readShowUsdSetting(): boolean {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw).showUsd ?? false) : false;
+  } catch {
+    return false;
+  }
+}
+
+export function AmountDisplay({ micro, tokenType = TokenType.STX, showUsd, className }: AmountDisplayProps) {
   const label = tokenLabel(tokenType);
   const { data: stxPrice } = useStxPrice();
+
+  // If showUsd is explicitly passed, honor it. Otherwise read from user settings.
+  const shouldShowUsd = showUsd ?? readShowUsdSetting();
 
   const usdStr = stxPrice && stxPrice > 0
     ? `$${(microToSTX(micro) * stxPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -21,7 +35,7 @@ export function AmountDisplay({ micro, tokenType = TokenType.STX, showUsd = true
   return (
     <span className={className}>
       <span className="font-mono text-sm font-medium">{formatAmount(micro, tokenType)} {label}</span>
-      {showUsd && tokenType === TokenType.STX && usdStr && (
+      {shouldShowUsd && tokenType === TokenType.STX && usdStr && (
         <span className="text-xs text-muted-foreground ml-1">({usdStr})</span>
       )}
     </span>
