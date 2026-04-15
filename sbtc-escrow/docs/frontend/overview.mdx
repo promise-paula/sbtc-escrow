@@ -1,0 +1,98 @@
+---
+title: Frontend Overview
+description: "React + Stacks Connect frontend application"
+---
+
+# Frontend Overview
+
+The sBTC Escrow frontend is a React single-page application that provides a complete UI for managing escrows, viewing analytics, and administering the contract.
+
+## Tech Stack
+
+| Technology | Version | Purpose |
+|-----------|---------|---------|
+| React | 18 | UI framework |
+| React Router | v6 | Client-side routing |
+| TypeScript | 5.8 | Type safety |
+| Vite | 5.4 | Build & dev server |
+| Stacks Connect | Latest | Wallet integration |
+| TanStack React Query | Latest | Data fetching & caching |
+| Supabase JS | Latest | Realtime subscriptions |
+| Radix UI | 24+ | Accessible component primitives |
+| Tailwind CSS | 3.4 | Utility-first styling |
+| Framer Motion | Latest | Animations |
+| Sonner | Latest | Toast notifications |
+
+## Pages
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Landing | Marketing and onboarding |
+| `/dashboard` | Dashboard | User overview with active escrows |
+| `/create` | CreateEscrow | Form to create new escrows |
+| `/escrows` | MyEscrows | List all user escrows |
+| `/escrow/:id` | EscrowDetail | Single escrow with action buttons |
+| `/activity` | Activity | Global event feed |
+| `/analytics` | Analytics | Platform statistics |
+| `/settings` | Settings | User preferences |
+| `/admin` | AdminDashboard | Admin overview |
+| `/admin/disputes` | DisputeQueue | Manage disputes |
+| `/admin/controls` | ContractControls | Fees, pause, ownership |
+
+## Project Structure
+
+```
+frontend/src/
+├── App.tsx              # Router + providers
+├── main.tsx             # Entry point
+├── index.css            # Global styles
+├── pages/              # Route components
+│   ├── Landing.tsx
+│   ├── Dashboard.tsx
+│   ├── CreateEscrow.tsx
+│   ├── MyEscrows.tsx
+│   ├── EscrowDetail.tsx
+│   ├── Activity.tsx
+│   ├── Analytics.tsx
+│   ├── Settings.tsx
+│   └── admin/
+│       ├── AdminDashboard.tsx
+│       ├── DisputeQueue.tsx
+│       └── ContractControls.tsx
+├── components/
+│   ├── NavLink.tsx      # Active-state nav link
+│   ├── layout/          # App shell, header, sidebar
+│   ├── shared/          # Business components (AdminGuard)
+│   └── ui/              # Radix-based design system
+├── hooks/               # Custom React hooks
+├── contexts/            # React context providers
+│   ├── WalletContext.tsx
+│   └── ThemeContext.tsx
+└── lib/                # Services and utilities
+    ├── escrow-service.ts
+    ├── admin-service.ts
+    ├── stacks-config.ts
+    ├── supabase.ts
+    ├── post-conditions.ts
+    ├── types.ts
+    ├── utils.ts
+    ├── generate-receipt.ts
+    └── motion.ts
+```
+
+## Key Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Wallet Integration" icon="wallet" href="/frontend/wallet-integration">
+    Connect Leather/Xverse wallets, sign transactions
+  </Card>
+  <Card title="Custom Hooks" icon="hook" href="/frontend/hooks">
+    Block height, escrow data, realtime updates
+  </Card>
+  <Card title="Services" icon="gears" href="/frontend/services">
+    Escrow operations, admin controls, post-conditions
+  </Card>
+  <Card title="Supabase" icon="database" href="/frontend/supabase">
+    Realtime subscriptions and event indexing
+  </Card>
+</CardGroup>

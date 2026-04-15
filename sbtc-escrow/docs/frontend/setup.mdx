@@ -1,0 +1,113 @@
+---
+title: Setup
+description: "Set up the frontend development environment"
+---
+
+# Frontend Setup
+
+## Prerequisites
+
+- Node.js 18+
+- npm, yarn, or pnpm
+
+## Clone & Install
+
+```bash
+git clone https://github.com/promise-paula/sbtc-escrow.git
+cd sbtc-escrow/frontend
+npm install
+```
+
+## Environment Variables
+
+Create a `.env` file in the `frontend/` directory:
+
+```bash
+# Stacks Network
+VITE_STACKS_NETWORK=testnet
+VITE_STACKS_API_URL=https://api.testnet.hiro.so
+
+# Contract
+VITE_CONTRACT_ADDRESS=ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N
+VITE_CONTRACT_NAME=escrow-v5
+VITE_SBTC_CONTRACT=ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token
+
+# Supabase (optional — for realtime features)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+<Note>
+The app works without Supabase — it falls back to direct contract reads. Supabase enables realtime updates and faster list queries.
+</Note>
+
+## Development Server
+
+```bash
+npm run dev
+```
+
+Opens at `http://localhost:5173` with hot module replacement.
+
+## Build
+
+```bash
+npm run build
+```
+
+Outputs to `frontend/dist/` — a static SPA ready for any hosting platform.
+
+## Lint
+
+```bash
+npm run lint
+```
+
+## Test
+
+```bash
+npm test
+```
+
+Uses Vitest with JSDOM for component testing.
+
+## Deployment
+
+The app is configured for **Vercel** out of the box:
+
+```json
+// vercel.json (project root)
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite"
+}
+```
+
+### Static Asset Caching
+
+- `/assets/*` → `Cache-Control: public, max-age=31536000, immutable` (fingerprinted)
+- `/index.html` → `Cache-Control: no-cache` (always fresh)
+- SPA fallback: all routes → `index.html`
+
+## Configuration Reference
+
+### stacks-config.ts
+
+The network configuration is centralized in `lib/stacks-config.ts`:
+
+```typescript
+// Network detection
+export const STACKS_NETWORK = import.meta.env.VITE_STACKS_NETWORK || 'testnet';
+
+// Contract identity
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
+export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v5';
+export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`;
+export const SBTC_CONTRACT = import.meta.env.VITE_SBTC_CONTRACT;
+
+// Block time constants
+export const BLOCK_TIME_SECONDS = 90;  // Post-Nakamoto target
+export const BLOCKS_PER_DAY = 960;
+export const BLOCKS_PER_HOUR = 40;
+```

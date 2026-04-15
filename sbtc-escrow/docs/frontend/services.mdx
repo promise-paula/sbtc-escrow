@@ -1,0 +1,227 @@
+---
+title: Services
+description: "Frontend service layer — escrow operations, admin controls, utilities"
+---
+
+# Services
+
+The `lib/` directory contains the service layer: functions that construct and submit Stacks transactions.
+
+## escrow-service.ts
+
+High-level escrow operations that use `openContractCall` from Stacks Connect.
+
+### createEscrow
+
+```typescript
+import { createEscrow } from '@/lib/escrow-service';
+
+await createEscrow({
+  seller: 'ST2CY5V39...',
+  amount: 10_000_000,          // 10 STX
+  description: 'Logo design',
+  duration: 6720,              // ~1 week
+  tokenType: 0,                // STX
+  senderAddress: address!,     // From wallet context
+});
+```
+
+### releaseEscrow
+
+```typescript
+import { releaseEscrow } from '@/lib/escrow-service';
+
+await releaseEscrow(escrowId, amount, feeAmount, tokenType);
+```
+
+### refundEscrow
+
+```typescript
+import { refundEscrow } from '@/lib/escrow-service';
+
+await refundEscrow(escrowId, amount, feeAmount, tokenType);
+```
+
+### disputeEscrow
+
+```typescript
+import { disputeEscrow } from '@/lib/escrow-service';
+
+await disputeEscrow(escrowId);
+```
+
+### extendEscrow
+
+```typescript
+import { extendEscrow } from '@/lib/escrow-service';
+
+await extendEscrow(escrowId, additionalBlocks);
+```
+
+### resolveExpiredDispute
+
+```typescript
+import { resolveExpiredDispute } from '@/lib/escrow-service';
+
+await resolveExpiredDispute(escrowId, amount, feeAmount, tokenType);
+```
+
+<Info>
+All service functions open the wallet popup for user approval. They handle post-condition construction automatically.
+</Info>
+
+---
+
+## admin-service.ts
+
+Admin-only operations. The connected wallet must be the contract owner.
+
+### Contract Controls
+
+```typescript
+import {
+  pauseContract,
+  unpauseContract,
+  setPlatformFee,
+  setFeeRecipient,
+  setDisputeTimeout,
+} from '@/lib/admin-service';
+
+await pauseContract();
+await unpauseContract();
+await setPlatformFee(100);                    // 1%
+await setFeeRecipient('ST1NEW...');
+await setDisputeTimeout(14400);               // ~15 days
+```
+
+### Dispute Resolution
+
+```typescript
+import {
+  resolveDisputeForBuyer,
+  resolveDisputeForSeller,
+} from '@/lib/admin-service';
+
+await resolveDisputeForBuyer(escrowId, amount, feeAmount, tokenType);
+await resolveDisputeForSeller(escrowId, amount, feeAmount, tokenType);
+```
+
+### Ownership
+
+```typescript
+import {
+  transferOwnership,
+  acceptOwnership,
+} from '@/lib/admin-service';
+
+await transferOwnership('ST1NEW_OWNER...');
+await acceptOwnership();
+```
+
+---
+
+## post-conditions.ts
+
+Builds Stacks post-conditions for transaction safety.
+
+### userSendPc
+
+Creates a post-condition for the user sending funds to the contract.
+
+```typescript
+import { userSendPc } from '@/lib/post-conditions';
+
+const pc = userSendPc(senderAddress, totalDeposit, tokenType);
+// STX: Pc.principal(addr).willSendEq(amount).ustx()
+// sBTC: Pc.principal(addr).willSendEq(amount).ft(sbtcContract, 'sbtc-token')
+```
+
+### contractSendPc
+
+Creates a post-condition for the contract sending funds out.
+
+```typescript
+import { contractSendPc } from '@/lib/post-conditions';
+
+const pc = contractSendPc(amount, tokenType);
+// STX: Pc.principal(contractAddr).willSendEq(amount).ustx()
+// sBTC: Pc.principal(contractAddr).willSendEq(amount).ft(...)
+```
+
+---
+
+## utils.ts
+
+Utility functions for formatting and conversion.
+
+### Amount Conversion
+
+```typescript
+microToSTX(1_000_000)              // → 1
+satsToBTC(100_000_000)             // → 1
+toSmallestUnit(1, TokenType.STX)   // → 1_000_000
+toSmallestUnit(0.001, TokenType.SBTC)  // → 100_000
+```
+
+### Formatting
+
+```typescript
+formatSTX(1_000_000)               // → "1.000000 STX"
+formatSBTC(100_000_000)            // → "1.00000000 sBTC"
+formatAmount(amount, tokenType)    // → appropriate format
+formatUSD(1234.56)                 // → "$1,234.56"
+truncateAddress('ST1PQ..PGZGM')   // → "ST1PQ...PGZGM"
+```
+
+### Time
+
+```typescript
+blocksToTime(960)                  // → "1 day"
+blockToEstimatedDate(blockHeight)  // → Date object
+relativeTime(timestamp)            // → "2 hours ago"
+```
+
+### Validation
+
+```typescript
+isValidStacksAddress('ST1...')     // → true/false
+```
+
+### UI Helpers
+
+```typescript
+getStatusColor(EscrowStatus.PENDING)   // → CSS color class
+getExplorerUrl(txId)                   // → Hiro Explorer URL
+```
+
+---
+
+## generate-receipt.ts
+
+Generates PDF receipts for completed escrows using jsPDF.
+
+```typescript
+import { generateReceipt } from '@/lib/generate-receipt';
+
+generateReceipt(escrow);
+// Downloads a PDF with escrow details, amounts, and timestamps
+```
+
+---
+
+## types.ts
+
+Frontend-specific TypeScript types.
+
+```typescript
+enum EscrowStatus { Pending, Released, Refunded, Disputed }
+enum TokenType { STX = 0, SBTC = 1 }
+
+interface Escrow { /* ... */ }
+interface EscrowEvent { /* ... */ }
+interface PlatformStats { /* ... */ }
+interface PlatformConfig { /* ... */ }
+interface UserStats { /* ... */ }
+```
+
+See [SDK Types](/sdk/types) for the full type definitions — the frontend types mirror the SDK types.

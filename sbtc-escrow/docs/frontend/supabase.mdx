@@ -1,0 +1,230 @@
+---
+title: Supabase Backend
+description: "Realtime indexing, database schema, and Edge Functions"
+---
+
+# Supabase Backend
+
+Supabase provides the off-chain indexing layer: a PostgreSQL database fed by Chainhook webhooks, with realtime subscriptions for the frontend.
+
+## Architecture
+
+```
+Stacks Chain → Chainhook → Edge Function → PostgreSQL → Realtime → Frontend
+```
+
+1. **Chainhook** observes the `escrow-v5` contract for transaction events
+2. **Edge Function** (`chainhook-webhook`) processes events and writes to Postgres
+3. **PostgreSQL** stores indexed escrows, events, and config
+4. **Realtime** broadcasts changes to connected frontends via WebSocket
+
+## Database Schema
+
+### escrows
+
+Primary table storing all escrow records.
+
+```sql
+CREATE TABLE escrows (
+  id              bigint PRIMARY KEY,
+  buyer           text NOT NULL,
+  seller          text NOT NULL,
+  amount          bigint NOT NULL,
+  fee_amount      bigint NOT NULL,
+  token_type      smallint NOT NULL DEFAULT 0,
+  description     text NOT NULL,
+  status          smallint NOT NULL DEFAULT 0,
+  created_at_block bigint NOT NULL,
+  expires_at_block bigint NOT NULL,
+  completed_at_block bigint,
+  disputed_at_block  bigint,
+  tx_id           text NOT NULL,
+  indexed_at      timestamptz DEFAULT now(),
+  updated_at      timestamptz DEFAULT now()
+);
+```
+
+**Indexes:**
+
+| Index | Columns | Purpose |
+|-------|---------|---------|
+| `idx_escrows_buyer` | `buyer` | Filter by buyer address |
+| `idx_escrows_seller` | `seller` | Filter by seller address |
+| `idx_escrows_status` | `status` | Filter by status |
+| `idx_escrows_created` | `created_at_block DESC` | Sort by creation |
+| `idx_escrows_token_type` | `token_type` | Filter by token |
+| `idx_escrows_tx_id` | `tx_id` | Lookup by transaction |
+
+---
+
+### escrow_events
+
+Append-only log of all escrow-related events.
+
+```sql
+CREATE TABLE escrow_events (
+  id          bigserial PRIMARY KEY,
+  escrow_id   bigint REFERENCES escrows(id) ON DELETE CASCADE,
+  event_type  text NOT NULL,
+  block_height bigint NOT NULL,
+  tx_id       text NOT NULL,
+  data        jsonb,
+  indexed_at  timestamptz DEFAULT now()
+);
+```
+
+**Indexes:**
+
+| Index | Columns | Purpose |
+|-------|---------|---------|
+| `idx_events_escrow_id` | `escrow_id` | Events for an escrow |
+| `idx_events_type` | `event_type` | Filter by type |
+| `idx_events_block` | `block_height DESC` | Sort by block |
+| `idx_events_tx_id` | `tx_id` | Lookup by transaction |
+| `idx_events_idempotent` | `(tx_id, event_type, block_height)` UNIQUE | Prevent duplicates |
+
+**Event Types:**
+- `escrow-created`
+- `escrow-released`
+- `escrow-refunded`
+- `escrow-disputed`
+- `escrow-extended`
+- `dispute-resolved-buyer`
+- `dispute-resolved-seller`
+- `dispute-expired-resolved`
+- `contract-paused`
+- `contract-unpaused`
+- `fee-updated`
+- `fee-recipient-updated`
+- `dispute-timeout-updated`
+- `ownership-transferred`
+
+---
+
+### platform_config
+
+Singleton table tracking current contract configuration.
+
+```sql
+CREATE TABLE platform_config (
+  id              integer PRIMARY KEY DEFAULT 1,
+  fee_bps         integer DEFAULT 50,
+  fee_recipient   text DEFAULT '',
+  contract_paused boolean DEFAULT false,
+  dispute_timeout integer DEFAULT 4320,
+  contract_owner  text DEFAULT '',
+  updated_at      timestamptz DEFAULT now()
+);
+```
+
+<Info>
+This table always has exactly one row (`id = 1`). It mirrors the contract's data variables and is updated by the webhook whenever admin functions are called.
+</Info>
+
+## Row Level Security
+
+All tables have RLS enabled with these policies:
+
+| Table | Read | Write |
+|-------|------|-------|
+| `escrows` | Public (anon + authenticated) | Service role only |
+| `escrow_events` | Public | Service role only |
+| `platform_config` | Public | Service role only |
+
+```sql
+-- Example: deny anonymous inserts
+CREATE POLICY "deny_anon_insert" ON escrows
+  FOR INSERT TO anon WITH CHECK (false);
+
+CREATE POLICY "deny_authenticated_insert" ON escrows
+  FOR INSERT TO authenticated WITH CHECK (false);
+```
+
+## Edge Functions
+
+### chainhook-webhook
+
+Receives POST requests from Chainhook with blockchain event data.
+
+**URL:** `https://<project>.supabase.co/functions/v1/chainhook-webhook`
+
+**Flow:**
+1. Validates the request payload
+2. Extracts contract print events
+3. Parses event type and data
+4. Upserts escrow records
+5. Inserts event records (idempotent via unique constraint)
+6. Updates platform_config if admin event
+
+### indexer-health
+
+Health check endpoint for monitoring.
+
+**URL:** `https://<project>.supabase.co/functions/v1/indexer-health`
+
+Returns the status of the indexer and latest indexed block.
+
+## Realtime
+
+All tables have realtime enabled. The frontend subscribes to changes:
+
+```typescript
+import { getSupabase } from '@/lib/supabase';
+
+const supabase = getSupabase();
+
+// Subscribe to escrow changes
+supabase
+  .channel('escrows')
+  .on('postgres_changes',
+    { event: '*', schema: 'public', table: 'escrows' },
+    (payload) => {
+      console.log('Escrow changed:', payload);
+      // Refetch queries via React Query
+    }
+  )
+  .subscribe();
+```
+
+## Frontend Client
+
+```typescript
+// lib/supabase.ts
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
+
+let client: ReturnType<typeof createClient> | null = null;
+
+export function getSupabase() {
+  if (!client && isSupabaseConfigured) {
+    client = createClient(supabaseUrl, supabaseKey);
+  }
+  return client!;
+}
+```
+
+## Migrations
+
+Migrations are in `supabase/migrations/` and run in order:
+
+| File | Description |
+|------|-------------|
+| `20260411191616_escrow-indexer-schema.sql` | Base schema (tables, indexes, RLS) |
+| `20260412000000_add-token-type.sql` | Add `token_type` column for V5 |
+| `20260413120000_production-hardening.sql` | Deny write policies, idempotency index |
+| `20260414000000_update-dispute-timeout-default.sql` | Update default timeout |
+| `20260414120000_clear-v4-data.sql` | Clear test data for production |
+
+### Running Migrations
+
+```bash
+# Local
+supabase db reset
+
+# Remote
+supabase db push
+```

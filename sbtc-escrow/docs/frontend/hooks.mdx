@@ -1,0 +1,190 @@
+---
+title: Hooks
+description: "Custom React hooks for escrow data, block state, and UI"
+---
+
+# Hooks
+
+Custom React hooks that provide reactive data throughout the app.
+
+## use-escrow
+
+The primary hook for fetching escrow data from the contract and Supabase.
+
+```typescript
+import { useEscrow } from '@/hooks/use-escrow';
+```
+
+### Capabilities
+
+- Fetch individual escrows by ID
+- List escrows for a user (as buyer or seller)
+- Get user stats
+- Get platform stats
+- Get escrow events
+
+Uses TanStack React Query for caching, background refetching, and stale-while-revalidate.
+
+---
+
+## use-escrow-realtime
+
+Subscribes to realtime Supabase changes for live escrow updates.
+
+```typescript
+import { useEscrowRealtime } from '@/hooks/use-escrow-realtime';
+```
+
+When an escrow is created, updated, or resolved on-chain, the Chainhook webhook writes to Supabase, and this hook receives the update in realtime via WebSocket.
+
+---
+
+## use-block-height
+
+Tracks the current Stacks block height.
+
+```typescript
+import { useBlockHeight } from '@/hooks/use-block-height';
+
+function BlockInfo() {
+  const blockHeight = useBlockHeight();
+  return <span>Block: {blockHeight}</span>;
+}
+```
+
+Used for:
+- Calculating escrow time remaining
+- Checking if escrows are expired
+- Determining dispute timeout status
+
+---
+
+## use-block-rate
+
+Estimates the current block production rate (blocks per minute).
+
+```typescript
+import { useBlockRate } from '@/hooks/use-block-rate';
+
+function TimeEstimate() {
+  const blockRate = useBlockRate();
+  const blocksRemaining = 960;
+  const minutesRemaining = blocksRemaining / blockRate;
+  return <span>~{Math.round(minutesRemaining / 60)} hours remaining</span>;
+}
+```
+
+Post-Nakamoto Stacks targets ~90-second blocks (~0.67 blocks/minute). This hook provides a live estimate.
+
+---
+
+## use-admin
+
+Checks if the connected wallet is the contract admin.
+
+```typescript
+import { useAdmin } from '@/hooks/use-admin';
+
+function AdminPanel() {
+  const { isAdmin, isLoading } = useAdmin();
+
+  if (isLoading) return <Spinner />;
+  if (!isAdmin) return <p>Not authorized</p>;
+
+  return <AdminControls />;
+}
+```
+
+---
+
+## use-dispute-count
+
+Tracks the number of active disputes.
+
+```typescript
+import { useDisputeCount } from '@/hooks/use-dispute-count';
+
+function DisputeBadge() {
+  const count = useDisputeCount();
+  if (count === 0) return null;
+  return <Badge>{count} active</Badge>;
+}
+```
+
+---
+
+## use-stx-price
+
+Fetches the current STX/USD price from an external API.
+
+```typescript
+import { useStxPrice } from '@/hooks/use-stx-price';
+
+function PriceDisplay() {
+  const { price, isLoading } = useStxPrice();
+  return <span>STX: ${price?.toFixed(2)}</span>;
+}
+```
+
+Used in the create escrow form to show USD equivalent.
+
+---
+
+## use-settings
+
+Manages user preferences stored in localStorage.
+
+```typescript
+import { useSettings } from '@/hooks/use-settings';
+
+function SettingsPage() {
+  const { settings, updateSettings } = useSettings();
+
+  return (
+    <select
+      value={settings.network}
+      onChange={(e) => updateSettings({ network: e.target.value })}
+    >
+      <option value="testnet">Testnet</option>
+      <option value="mainnet">Mainnet</option>
+    </select>
+  );
+}
+```
+
+---
+
+## use-mobile
+
+Responsive breakpoint detection.
+
+```typescript
+import { useMobile } from '@/hooks/use-mobile';
+
+function ResponsiveLayout() {
+  const isMobile = useMobile();
+
+  return isMobile ? <MobileLayout /> : <DesktopLayout />;
+}
+```
+
+---
+
+## use-toast
+
+Wrapper around Sonner toast notifications.
+
+```typescript
+import { useToast } from '@/hooks/use-toast';
+
+function MyComponent() {
+  const { toast } = useToast();
+
+  const handleSuccess = () => {
+    toast({
+      title: 'Escrow created',
+      description: 'Transaction submitted successfully',
+    });
+  };
+}
+```

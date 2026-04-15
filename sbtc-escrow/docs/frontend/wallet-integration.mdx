@@ -1,0 +1,128 @@
+---
+title: Wallet Integration
+description: "Stacks Connect wallet connection and transaction signing"
+---
+
+# Wallet Integration
+
+The frontend uses **Stacks Connect** to integrate with Leather and Xverse wallets.
+
+## WalletContext
+
+The `WalletContext` provides wallet state and methods to the entire app.
+
+```typescript
+// contexts/WalletContext.tsx
+
+interface WalletContextType {
+  address: string | null;        // Connected STX address
+  isConnected: boolean;          // Whether wallet is connected
+  isAdmin: boolean;              // Whether address is contract owner
+  connect: () => void;           // Open wallet connection dialog
+  disconnect: () => void;        // Clear wallet state
+}
+```
+
+### Usage
+
+```tsx
+import { useWallet } from '@/contexts/WalletContext';
+
+function MyComponent() {
+  const { address, isConnected, isAdmin, connect, disconnect } = useWallet();
+
+  if (!isConnected) {
+    return <button onClick={connect}>Connect Wallet</button>;
+  }
+
+  return (
+    <div>
+      <p>Connected: {address}</p>
+      {isAdmin && <p>You are the admin</p>}
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  );
+}
+```
+
+### How It Works
+
+1. **Connect** — Calls `showConnect()` from `@stacks/connect` → opens wallet popup
+2. **Address extraction** — Reads the STX address from the wallet response
+3. **Admin check** — Compares address against `platform_config.contract_owner` from Supabase (or contract read)
+4. **Persistence** — Wallet state persists via the wallet extension's session
+
+### Admin Detection
+
+The context tracks the contract owner in realtime:
+
+```typescript
+// Subscribes to platform_config changes
+supabase
+  .channel('platform_config')
+  .on('postgres_changes', { event: '*', table: 'platform_config' },
+    (payload) => setContractOwner(payload.new.contract_owner)
+  )
+  .subscribe();
+
+// isAdmin = connected address matches contract owner
+const isAdmin = address === contractOwner;
+```
+
+## Signing Transactions
+
+Transactions are signed via the wallet extension — private keys never touch the frontend.
+
+### openContractCall
+
+```typescript
+import { openContractCall } from '@stacks/connect';
+
+await openContractCall({
+  contractAddress: 'ST1HK6...',
+  contractName: 'escrow-v5',
+  functionName: 'release',
+  functionArgs: [uintCV(1)],
+  postConditions: [/* ... */],
+  network: 'testnet',
+  onFinish: (data) => {
+    console.log('TX:', data.txId);
+  },
+  onCancel: () => {
+    console.log('User cancelled');
+  },
+});
+```
+
+### Key Points
+
+- `openContractCall` opens the wallet popup for user approval
+- **Post-conditions** are displayed to the user before signing
+- The wallet returns a `txId` on success
+- No private key handling in the frontend — signing happens in the extension
+
+## ThemeContext
+
+The `ThemeContext` manages dark/light/system theme:
+
+```typescript
+interface ThemeContextType {
+  theme: 'light' | 'dark' | 'system';
+  setTheme: (theme: string) => void;
+  resolvedTheme: 'light' | 'dark';
+}
+```
+
+```tsx
+import { useTheme } from '@/contexts/ThemeContext';
+
+function ThemeToggle() {
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  
+  return (
+    <button onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}>
+      {resolvedTheme === 'dark' ? '☀️' : '🌙'}
+    </button>
+  );
+}
+```
