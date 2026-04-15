@@ -1,0 +1,20 @@
+<svg viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sg" x1="20" y1="4" x2="20" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F7931A"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield -->
+  <path d="M20 4L8 9v7c0 6.18 4.1 11.96 12 13.6 7.9-1.64 12-7.42 12-13.6V9L20 4z" fill="url(#sg)"/>
+  <!-- Lock shackle -->
+  <path d="M17 17v-2a3 3 0 1 1 6 0v2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <!-- Lock body -->
+  <rect x="15" y="16.5" width="10" height="7" rx="1.5" fill="#fff"/>
+  <!-- Keyhole -->
+  <circle cx="20" cy="19.5" r="1.2" fill="#F7931A"/>
+  <path d="M19.3 20L20 23l.7-3" fill="#F7931A"/>
+  <!-- Text -->
+  <text x="46" y="19" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="#111827">sBTC</text>
+  <text x="46" y="34" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="400" fill="#6B7280">Escrow</text>
+</svg>

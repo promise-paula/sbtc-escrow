@@ -1,0 +1,138 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "sBTC Escrow",
+  "colors": {
+    "primary": "#F7931A",
+    "light": "#FFAD42",
+    "dark": "#E8850F"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/escrow-lifecycle",
+              "concepts/token-support",
+              "concepts/fees-and-limits",
+              "concepts/security"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/testing",
+              "guides/deployment",
+              "guides/faq"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/error-codes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Smart Contract",
+        "groups": [
+          {
+            "group": "Smart Contract",
+            "pages": [
+              "contract/overview",
+              "contract/public-functions",
+              "contract/read-only-functions",
+              "contract/admin-functions",
+              "contract/data-structures"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK",
+        "groups": [
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "sdk/overview",
+              "sdk/installation",
+              "sdk/client",
+              "sdk/read-methods",
+              "sdk/write-methods",
+              "sdk/admin-methods",
+              "sdk/types"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Frontend",
+        "groups": [
+          {
+            "group": "Frontend",
+            "pages": [
+              "frontend/overview",
+              "frontend/setup",
+              "frontend/wallet-integration",
+              "frontend/hooks",
+              "frontend/services",
+              "frontend/supabase"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/promise-paula/sbtc-escrow",
+          "icon": "github"
+        },
+        {
+          "anchor": "Stacks Explorer",
+          "href": "https://explorer.hiro.so",
+          "icon": "magnifying-glass"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "App",
+        "href": "https://sbtc-escrow.vercel.app"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Launch App",
+      "href": "https://sbtc-escrow.vercel.app"
+    }
+  },
+  "search": {
+    "prompt": "Search sBTC Escrow docs..."
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/promise-paula/sbtc-escrow"
+    }
+  }
+}

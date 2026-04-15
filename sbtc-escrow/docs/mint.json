@@ -1,0 +1,131 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "sBTC Escrow",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#F7931A",
+    "light": "#FFAD42",
+    "dark": "#E8850F",
+    "anchors": {
+      "from": "#F7931A",
+      "to": "#5546FF"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "App",
+      "url": "https://sbtc-escrow.vercel.app"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Launch App",
+    "url": "https://sbtc-escrow.vercel.app"
+  },
+  "tabs": [
+    {
+      "name": "Smart Contract",
+      "url": "contract"
+    },
+    {
+      "name": "SDK",
+      "url": "sdk"
+    },
+    {
+      "name": "Frontend",
+      "url": "frontend"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/promise-paula/sbtc-escrow"
+    },
+    {
+      "name": "Stacks Explorer",
+      "icon": "magnifying-glass",
+      "url": "https://explorer.hiro.so"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "architecture"
+      ]
+    },
+    {
+      "group": "Concepts",
+      "pages": [
+        "concepts/escrow-lifecycle",
+        "concepts/token-support",
+        "concepts/fees-and-limits",
+        "concepts/security"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/testing",
+        "guides/deployment",
+        "guides/faq"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "reference/error-codes"
+      ]
+    },
+    {
+      "group": "Smart Contract",
+      "pages": [
+        "contract/overview",
+        "contract/public-functions",
+        "contract/read-only-functions",
+        "contract/admin-functions",
+        "contract/data-structures"
+      ]
+    },
+    {
+      "group": "SDK Reference",
+      "pages": [
+        "sdk/overview",
+        "sdk/installation",
+        "sdk/client",
+        "sdk/read-methods",
+        "sdk/write-methods",
+        "sdk/admin-methods",
+        "sdk/types"
+      ]
+    },
+    {
+      "group": "Frontend",
+      "pages": [
+        "frontend/overview",
+        "frontend/setup",
+        "frontend/wallet-integration",
+        "frontend/hooks",
+        "frontend/services",
+        "frontend/supabase"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/promise-paula/sbtc-escrow"
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true,
+    "raiseIssue": true
+  },
+  "search": {
+    "prompt": "Search sBTC Escrow docs..."
+  }
+}
