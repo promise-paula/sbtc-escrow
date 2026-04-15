@@ -12,8 +12,9 @@ export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
     ? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'  // mainnet sBTC
     : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
 
-// Post-Nakamoto: Stacks blocks are fast (~seconds); use useBlockRate() for live rate.
-// This fallback is used when the API is unavailable.
+// Post-Nakamoto: Stacks blocks target ~5s but actual rate varies.
+// useBlockRate() provides a live estimate — this is the conservative fallback
+// used when the API is unavailable (pre-Nakamoto = ~10 min, current observed ~1.5 min).
 export const DEFAULT_MINUTES_PER_BLOCK = 1.5;
 export const DEFAULT_DISPUTE_TIMEOUT = 28_800; // ~30 days at 960 blocks/day (post-Nakamoto)
 export const MAX_DISPUTE_TIMEOUT = 57_600; // ~60 days at 960 blocks/day (post-Nakamoto)
