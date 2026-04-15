@@ -63,16 +63,21 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 
 ## Architecture at a Glance
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Frontend App   │────▶│  Stacks Connect  │────▶│  Stacks Chain   │
-│   (React/Vite)  │     │  (Wallet TX)     │     │  (Clarity V4)   │
-└────────┬────────┘     └──────────────────┘     └────────┬────────┘
-         │                                                 │
-         │  realtime                              Chainhook│
-         ▼                                                 ▼
-┌─────────────────┐                              ┌─────────────────┐
-│    Supabase     │◀─────────────────────────────│  Edge Function  │
-│   (Postgres)    │         webhook POST         │  (Indexer)      │
-└─────────────────┘                              └─────────────────┘
-```
+<div style="display:flex;flex-direction:column;gap:12px;font-family:ui-monospace,monospace;font-size:13px">
+<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center">
+<div style="border:1px solid #d4d4d8;border-radius:6px;padding:8px 14px;text-align:center"><strong>Frontend App</strong><br/><span style="opacity:0.7;font-size:12px">React / Vite</span></div>
+<div style="color:#F7931A;font-weight:700">→</div>
+<div style="border:1px solid #d4d4d8;border-radius:6px;padding:8px 14px;text-align:center"><strong>Stacks Connect</strong><br/><span style="opacity:0.7;font-size:12px">Wallet TX</span></div>
+<div style="color:#F7931A;font-weight:700">→</div>
+<div style="border:1px solid #d4d4d8;border-radius:6px;padding:8px 14px;text-align:center"><strong>Stacks Chain</strong><br/><span style="opacity:0.7;font-size:12px">Clarity V4</span></div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+<div style="text-align:center;font-size:12px;opacity:0.7">▲ realtime</div>
+<div style="text-align:center;font-size:12px;opacity:0.7">Chainhook ▼</div>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center">
+<div style="border:1px solid #d4d4d8;border-radius:6px;padding:8px 14px;text-align:center"><strong>Supabase</strong><br/><span style="opacity:0.7;font-size:12px">Postgres</span></div>
+<div style="color:#F7931A;font-weight:700">← POST ←</div>
+<div style="border:1px solid #d4d4d8;border-radius:6px;padding:8px 14px;text-align:center"><strong>Edge Function</strong><br/><span style="opacity:0.7;font-size:12px">Indexer</span></div>
+</div>
+</div>

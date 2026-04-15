@@ -4,31 +4,34 @@ Every escrow follows a deterministic state machine enforced by the smart contrac
 
 ## State Machine
 
-```
-                    ┌─────────────────────────────────────┐
-                    │                                     │
-                    ▼                                     │
-┌──────────┐  create  ┌──────────┐  release  ┌──────────┐
-│          │─────────▶│          │──────────▶│          │
-│  (none)  │          │ PENDING  │           │ RELEASED │
-│          │          │   (0)    │           │   (1)    │
-└──────────┘          └────┬─┬───┘           └──────────┘
-                           │ │
-                    refund │ │ dispute
-                           │ │
-                    ┌──────┘ └──────┐
-                    ▼               ▼
-              ┌──────────┐   ┌──────────┐
-              │          │   │          │
-              │ REFUNDED │   │ DISPUTED │
-              │   (2)    │   │   (3)    │
-              └──────────┘   └────┬─┬───┘
-                    ▲             │ │
-                    │    resolve  │ │  resolve
-                    │   for buyer │ │  for seller
-                    │             │ │
-                    └─────────────┘ └──────────▶ RELEASED
-```
+<div style="display:flex;flex-direction:column;gap:10px;font-family:ui-monospace,monospace;font-size:13px;max-width:100%;overflow-x:auto">
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center">
+<div style="border:1px dashed #d4d4d8;border-radius:6px;padding:6px 14px;text-align:center;opacity:0.6">(none)</div>
+<div style="color:#F7931A;font-weight:700;font-size:12px">— create →</div>
+<div style="border:2px solid #F7931A;border-radius:6px;padding:8px 16px;text-align:center;background:rgba(247,147,26,0.08)"><strong>PENDING</strong><br/><span style="opacity:0.6;font-size:12px">status: 0</span></div>
+</div>
+
+<div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;font-size:12px;opacity:0.7">
+<span>↓ release</span>
+<span>↓ refund (after expiry)</span>
+<span>↓ dispute</span>
+</div>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+<div style="border:1px solid #22c55e;border-radius:6px;padding:8px 16px;text-align:center;background:rgba(34,197,94,0.06)"><strong>RELEASED</strong><br/><span style="opacity:0.6;font-size:12px">status: 1 (terminal)</span></div>
+<div style="border:1px solid #3b82f6;border-radius:6px;padding:8px 16px;text-align:center;background:rgba(59,130,246,0.06)"><strong>REFUNDED</strong><br/><span style="opacity:0.6;font-size:12px">status: 2 (terminal)</span></div>
+<div style="border:1px solid #ef4444;border-radius:6px;padding:8px 16px;text-align:center;background:rgba(239,68,68,0.06)"><strong>DISPUTED</strong><br/><span style="opacity:0.6;font-size:12px">status: 3</span></div>
+</div>
+
+<div style="text-align:center;font-size:12px;opacity:0.7">↓ admin resolves dispute</div>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+<div style="border:1px solid #22c55e;border-radius:6px;padding:6px 14px;text-align:center;font-size:12px">→ RELEASED <span style="opacity:0.6">(for seller)</span></div>
+<div style="border:1px solid #3b82f6;border-radius:6px;padding:6px 14px;text-align:center;font-size:12px">→ REFUNDED <span style="opacity:0.6">(for buyer)</span></div>
+</div>
+
+</div>
 
 ## Status Codes
 

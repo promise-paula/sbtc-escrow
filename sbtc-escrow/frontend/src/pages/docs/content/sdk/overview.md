@@ -41,21 +41,19 @@ console.log('Created escrow TX:', result.txid);
 
 ## Architecture
 
-```
-┌──────────────────┐
-│  Your Application │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  EscrowClient    │
-│                  │
-│  • Read methods  │──── callReadOnlyFunction() ──▶ Stacks API
-│  • Write methods │──── makeContractCall() ──────▶ Stacks Node
-│  • Admin methods │──── broadcastTransaction() ──▶ Mempool
-│  • Helpers       │
-└──────────────────┘
-```
+<div style="display:flex;flex-direction:column;gap:10px;font-family:ui-monospace,monospace;font-size:13px;max-width:100%;overflow-x:auto">
+<div style="border:1px solid #d4d4d8;border-radius:6px;padding:8px 16px;text-align:center;max-width:200px;margin:0 auto"><strong>Your Application</strong></div>
+<div style="text-align:center;color:#F7931A;font-size:18px">▼</div>
+<div style="border:2px solid #F7931A;border-radius:8px;padding:16px;background:rgba(247,147,26,0.05);max-width:480px;margin:0 auto">
+<div style="font-weight:700;margin-bottom:10px;text-align:center">EscrowClient</div>
+<div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px"><span>• Read methods</span><span style="opacity:0.6">→ <code>callReadOnlyFunction()</code> → Stacks API</span></div>
+<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px"><span>• Write methods</span><span style="opacity:0.6">→ <code>makeContractCall()</code> → Stacks Node</span></div>
+<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px"><span>• Admin methods</span><span style="opacity:0.6">→ <code>broadcastTransaction()</code> → Mempool</span></div>
+<div><span>• Helpers</span></div>
+</div>
+</div>
+</div>
 
 ## Next Steps
 
