@@ -1,0 +1,122 @@
+---
+title: Contract Overview
+description: "sBTC Escrow v5 smart contract — Clarity v4 dual-token escrow"
+---
+
+# Smart Contract Overview
+
+The `escrow-v5` contract is a Clarity v4 smart contract deployed on the Stacks blockchain. It manages the full lifecycle of trustless escrow transactions in both STX and sBTC.
+
+## Contract Identity
+
+| Property | Value |
+|----------|-------|
+| **Name** | `escrow-v5` |
+| **Clarity Version** | 4 |
+| **Epoch** | 3.3 (post-Nakamoto) |
+| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v5` |
+| **Mainnet** | TBD |
+
+## Dependencies
+
+| Contract | Purpose |
+|----------|---------|
+| `sbtc-token` (SIP-010) | sBTC fungible token transfers |
+
+## Version History
+
+| Version | Contract | Features |
+|:-------:|----------|----------|
+| **V3** | `escrow.clar` | STX-only escrow, dispute resolution, timeout recovery |
+| **V4/V5** | `escrow-v5.clar` | Dual-token (STX + sBTC), per-token stats, SIP-010 integration |
+
+## Constants
+
+### Token Types
+
+```clarity
+(define-constant TOKEN_STX u0)
+(define-constant TOKEN_SBTC u1)
+```
+
+### Fee Configuration
+
+```clarity
+(define-constant PLATFORM_FEE_BPS u50)       ;; 0.5%
+(define-constant MAX_FEE_BPS u500)           ;; 5% ceiling
+(define-constant BPS_DENOMINATOR u10000)
+```
+
+### Amount Bounds
+
+```clarity
+;; STX (6 decimals)
+(define-constant MIN_AMOUNT_STX u1000)                    ;; 0.001 STX
+(define-constant MAX_AMOUNT_STX u100000000000000)         ;; 100M STX
+
+;; sBTC (8 decimals)
+(define-constant MIN_AMOUNT_SBTC u10000)                  ;; 0.0001 BTC
+(define-constant MAX_AMOUNT_SBTC u10000000000)            ;; 100 BTC
+```
+
+### Duration Bounds
+
+```clarity
+(define-constant MAX_DURATION u350400)                    ;; ~365 days
+(define-constant MIN_DISPUTE_TIMEOUT u1)
+(define-constant MAX_DISPUTE_TIMEOUT u57600)              ;; ~60 days
+(define-constant DEFAULT_DISPUTE_TIMEOUT u28800)          ;; ~30 days
+```
+
+### Status Codes
+
+```clarity
+(define-constant STATUS_PENDING u0)
+(define-constant STATUS_RELEASED u1)
+(define-constant STATUS_REFUNDED u2)
+(define-constant STATUS_DISPUTED u3)
+```
+
+## Function Index
+
+### Public Functions (Write)
+
+| Function | Who | Description |
+|----------|-----|-------------|
+| [`create-escrow`](/contract/public-functions#create-escrow) | Buyer | Create and fund a new escrow |
+| [`release`](/contract/public-functions#release) | Buyer | Release funds to seller |
+| [`refund`](/contract/public-functions#refund) | Seller / Anyone (expired) | Return funds to buyer |
+| [`dispute`](/contract/public-functions#dispute) | Buyer / Seller | Raise a dispute |
+| [`extend-escrow`](/contract/public-functions#extend-escrow) | Buyer | Extend the deadline |
+
+### Admin Functions (Write)
+
+| Function | Who | Description |
+|----------|-----|-------------|
+| [`resolve-dispute-for-buyer`](/contract/admin-functions#resolve-dispute-for-buyer) | Owner | Resolve dispute, refund buyer |
+| [`resolve-dispute-for-seller`](/contract/admin-functions#resolve-dispute-for-seller) | Owner | Resolve dispute, pay seller |
+| [`resolve-expired-dispute`](/contract/admin-functions#resolve-expired-dispute) | Buyer | Self-recover after timeout |
+| [`pause-contract`](/contract/admin-functions#pause-contract) | Owner | Emergency stop |
+| [`unpause-contract`](/contract/admin-functions#unpause-contract) | Owner | Resume operations |
+| [`set-platform-fee`](/contract/admin-functions#set-platform-fee) | Owner | Update fee percentage |
+| [`set-fee-recipient`](/contract/admin-functions#set-fee-recipient) | Owner | Update fee wallet |
+| [`set-dispute-timeout`](/contract/admin-functions#set-dispute-timeout) | Owner | Update timeout |
+| [`transfer-ownership`](/contract/admin-functions#transfer-ownership) | Owner | Start ownership transfer |
+| [`accept-ownership`](/contract/admin-functions#accept-ownership) | Pending owner | Complete ownership transfer |
+
+### Read-Only Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| [`get-escrow`](/contract/read-only-functions#get-escrow) | `optional` | Get escrow record by ID |
+| [`get-escrow-count`](/contract/read-only-functions#get-escrow-count) | `uint` | Total escrows created |
+| [`escrow-exists`](/contract/read-only-functions#escrow-exists) | `bool` | Check if escrow ID exists |
+| [`is-expired`](/contract/read-only-functions#is-expired) | `bool` | Check if escrow is expired |
+| [`get-status`](/contract/read-only-functions#get-status) | `uint` | Get escrow status code |
+| [`get-user-role`](/contract/read-only-functions#get-user-role) | `string` | Get user's role in escrow |
+| [`get-user-stats`](/contract/read-only-functions#get-user-stats) | `tuple` | Get aggregated user stats |
+| [`get-platform-stats`](/contract/read-only-functions#get-platform-stats) | `tuple` | Get platform-wide stats |
+| [`get-config`](/contract/read-only-functions#get-config) | `tuple` | Get contract configuration |
+| [`is-paused`](/contract/read-only-functions#is-paused) | `bool` | Check pause status |
+| [`calculate-escrow-fee`](/contract/read-only-functions#calculate-escrow-fee) | `uint` | Preview fee for amount |
+| [`is-dispute-timed-out`](/contract/read-only-functions#is-dispute-timed-out) | `bool` | Check dispute timeout |

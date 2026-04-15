@@ -1,0 +1,235 @@
+---
+title: Admin Functions
+description: "Contract ownership, fees, dispute resolution, and emergency controls"
+---
+
+# Admin Functions
+
+These functions are restricted to the contract owner (admin) unless otherwise noted.
+
+## Dispute Resolution
+
+### resolve-dispute-for-buyer
+
+Resolves a dispute in the buyer's favor, refunding the full deposit.
+
+```clarity
+(define-public (resolve-dispute-for-buyer (escrow-id uint))
+  (response bool uint))
+```
+
+<ParamField path="escrow-id" type="uint" required>
+  The disputed escrow to resolve.
+</ParamField>
+
+**Authorization:** Contract owner only.
+
+**Behavior:**
+- Transfers `amount + fee-amount` back to buyer
+- Sets status to REFUNDED
+- Decrements active disputes count
+
+**Errors:** `ERR_UNAUTHORIZED` (1001), `ERR_ESCROW_NOT_FOUND` (2001), `ERR_NOT_DISPUTED` (2009), `ERR_TRANSFER_FAILED` (3001)
+
+---
+
+### resolve-dispute-for-seller
+
+Resolves a dispute in the seller's favor, releasing funds normally.
+
+```clarity
+(define-public (resolve-dispute-for-seller (escrow-id uint))
+  (response bool uint))
+```
+
+<ParamField path="escrow-id" type="uint" required>
+  The disputed escrow to resolve.
+</ParamField>
+
+**Authorization:** Contract owner only.
+
+**Behavior:**
+- Transfers `amount` to seller
+- Transfers `fee-amount` to fee recipient
+- Sets status to RELEASED
+- Decrements active disputes count
+- Updates platform volume/fee stats
+
+---
+
+### resolve-expired-dispute
+
+Allows the buyer to self-recover funds from a timed-out dispute.
+
+```clarity
+(define-public (resolve-expired-dispute (escrow-id uint))
+  (response bool uint))
+```
+
+<ParamField path="escrow-id" type="uint" required>
+  The disputed escrow to recover.
+</ParamField>
+
+**Authorization:** Buyer only (not admin). The dispute must have exceeded the timeout period.
+
+**Behavior:**
+- Validates `block-height > disputed-at + dispute-timeout`
+- Transfers `amount + fee-amount` back to buyer
+- Sets status to REFUNDED
+- Decrements active disputes count
+
+**Errors:** `ERR_UNAUTHORIZED` (1001), `ERR_ESCROW_NOT_FOUND` (2001), `ERR_NOT_DISPUTED` (2009), `ERR_DISPUTE_NOT_TIMED_OUT` (2008)
+
+<Tip>
+This is a safety mechanism. Even if the admin is unresponsive, buyers can always recover their funds after the timeout period (~30 days by default).
+</Tip>
+
+---
+
+## Contract Controls
+
+### pause-contract
+
+Pauses the contract, preventing new escrow creation.
+
+```clarity
+(define-public (pause-contract)
+  (response bool uint))
+```
+
+**Authorization:** Contract owner only.
+
+**Effect:** Sets the pause flag. Only `create-escrow` is blocked — existing escrows can still be released, refunded, and disputed.
+
+---
+
+### unpause-contract
+
+Resumes normal contract operation.
+
+```clarity
+(define-public (unpause-contract)
+  (response bool uint))
+```
+
+**Authorization:** Contract owner only.
+
+---
+
+## Fee Management
+
+### set-platform-fee
+
+Updates the platform fee percentage.
+
+```clarity
+(define-public (set-platform-fee (new-fee-bps uint))
+  (response bool uint))
+```
+
+<ParamField path="new-fee-bps" type="uint" required>
+  New fee in basis points. Must be 0–500 (0%–5%).
+</ParamField>
+
+**Authorization:** Contract owner only.
+
+**Errors:** `ERR_UNAUTHORIZED` (1001), `ERR_INVALID_AMOUNT` (2005) if fee exceeds 500 BPS.
+
+<Warning>
+Changing the fee only affects newly created escrows. Existing escrows retain the fee calculated at creation time.
+</Warning>
+
+---
+
+### set-fee-recipient
+
+Updates the address that receives platform fees.
+
+```clarity
+(define-public (set-fee-recipient (new-recipient principal))
+  (response bool uint))
+```
+
+<ParamField path="new-recipient" type="principal" required>
+  The new fee recipient address.
+</ParamField>
+
+**Authorization:** Contract owner only.
+
+---
+
+### set-dispute-timeout
+
+Updates the dispute timeout duration.
+
+```clarity
+(define-public (set-dispute-timeout (new-timeout uint))
+  (response bool uint))
+```
+
+<ParamField path="new-timeout" type="uint" required>
+  New timeout in blocks. Must be between 1 and 57,600 (~60 days).
+</ParamField>
+
+**Authorization:** Contract owner only.
+
+**Errors:** `ERR_UNAUTHORIZED` (1001), `ERR_INVALID_TIMEOUT` (2011) if outside bounds.
+
+---
+
+## Ownership
+
+### transfer-ownership
+
+Initiates a 2-step ownership transfer.
+
+```clarity
+(define-public (transfer-ownership (new-owner principal))
+  (response bool uint))
+```
+
+<ParamField path="new-owner" type="principal" required>
+  The address to transfer ownership to.
+</ParamField>
+
+**Authorization:** Current contract owner only.
+
+**Behavior:**
+- Sets the `pending-owner` to `new-owner`
+- Does NOT transfer ownership yet — the new owner must accept
+
+**Errors:** `ERR_UNAUTHORIZED` (1001)
+
+---
+
+### accept-ownership
+
+Completes a pending ownership transfer.
+
+```clarity
+(define-public (accept-ownership)
+  (response bool uint))
+```
+
+**Authorization:** Pending owner only.
+
+**Behavior:**
+- Sets `contract-owner` to the pending owner
+- Clears `pending-owner`
+
+**Errors:** `ERR_NOT_PENDING_OWNER` (1004) if caller is not the pending owner, `ERR_OWNERSHIP_PENDING` (1003) if no transfer is pending.
+
+### Ownership Transfer Flow
+
+```
+Step 1:  Owner calls transfer-ownership(new-addr)
+         → pending-owner = new-addr
+
+Step 2:  New owner calls accept-ownership()
+         → contract-owner = new-addr
+         → pending-owner = none
+```
+
+<Info>
+The 2-step process prevents accidental transfers. If the wrong address is set as pending owner, the current owner can call `transfer-ownership` again with the correct address.
+</Info>

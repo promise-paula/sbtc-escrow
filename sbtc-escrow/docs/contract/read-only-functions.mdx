@@ -1,0 +1,283 @@
+---
+title: Read-Only Functions
+description: "Query escrow data, stats, and configuration without signing"
+---
+
+# Read-Only Functions
+
+Read-only functions query on-chain data without requiring a wallet or signature. These are free to call.
+
+## get-escrow
+
+Returns the full escrow record for a given ID.
+
+```clarity
+(define-read-only (get-escrow (escrow-id uint))
+  (optional {
+    buyer: principal,
+    seller: principal,
+    amount: uint,
+    fee-amount: uint,
+    token-type: uint,
+    description: (string-utf8 256),
+    status: uint,
+    created-at: uint,
+    expires-at: uint,
+    completed-at: (optional uint),
+    disputed-at: (optional uint)
+  }))
+```
+
+### Parameters
+
+<ParamField path="escrow-id" type="uint" required>
+  The escrow ID to look up.
+</ParamField>
+
+### Returns
+
+Returns `(some {...})` if the escrow exists, `none` otherwise.
+
+### Example
+
+```clarity
+(contract-call? .escrow-v5 get-escrow u1)
+;; → (some {
+;;   buyer: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM,
+;;   seller: ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG,
+;;   amount: u10000000,
+;;   fee-amount: u50000,
+;;   token-type: u0,
+;;   description: u"Website redesign",
+;;   status: u0,
+;;   created-at: u100,
+;;   expires-at: u7060,
+;;   completed-at: none,
+;;   disputed-at: none
+;; })
+```
+
+---
+
+## get-escrow-count
+
+Returns the total number of escrows ever created (including completed ones).
+
+```clarity
+(define-read-only (get-escrow-count) uint)
+```
+
+### Returns
+
+The next escrow ID minus one. If 5 escrows have been created, returns `u5`.
+
+---
+
+## escrow-exists
+
+Checks if an escrow ID exists.
+
+```clarity
+(define-read-only (escrow-exists (escrow-id uint)) bool)
+```
+
+---
+
+## is-expired
+
+Checks if an escrow has passed its deadline.
+
+```clarity
+(define-read-only (is-expired (escrow-id uint)) bool)
+```
+
+Returns `true` if `block-height > expires-at`. Returns `false` if the escrow doesn't exist.
+
+---
+
+## get-status
+
+Returns the status code of an escrow.
+
+```clarity
+(define-read-only (get-status (escrow-id uint))
+  (response uint uint))
+```
+
+### Returns
+
+| Value | Status |
+|:-----:|--------|
+| `u0` | Pending |
+| `u1` | Released |
+| `u2` | Refunded |
+| `u3` | Disputed |
+
+### Errors
+
+| Code | Cause |
+|:----:|-------|
+| 2001 | Escrow not found |
+
+---
+
+## get-user-role
+
+Returns the caller's role within a specific escrow.
+
+```clarity
+(define-read-only (get-user-role
+  (escrow-id uint)
+  (user principal))
+  (response (string-ascii 6) uint))
+```
+
+### Returns
+
+| Value | Meaning |
+|-------|---------|
+| `"buyer"` | User is the escrow buyer |
+| `"seller"` | User is the escrow seller |
+| `"none"` | User is not a participant |
+
+### Errors
+
+| Code | Cause |
+|:----:|-------|
+| 2001 | Escrow not found |
+
+---
+
+## get-user-stats
+
+Returns aggregated statistics for a user across all their escrows.
+
+```clarity
+(define-read-only (get-user-stats (user principal))
+  {
+    escrows-created: uint,
+    escrows-received: uint,
+    total-sent-stx: uint,
+    total-sent-sbtc: uint,
+    total-received-stx: uint,
+    total-received-sbtc: uint
+  })
+```
+
+### Fields
+
+| Field | Description |
+|-------|-------------|
+| `escrows-created` | Number of escrows where user was buyer |
+| `escrows-received` | Number of escrows where user was seller |
+| `total-sent-stx` | Total STX sent as buyer (in microSTX) |
+| `total-sent-sbtc` | Total sBTC sent as buyer (in satoshis) |
+| `total-received-stx` | Total STX received as seller (in microSTX) |
+| `total-received-sbtc` | Total sBTC received as seller (in satoshis) |
+
+<Note>
+Returns default zero values for users with no escrow history.
+</Note>
+
+---
+
+## get-platform-stats
+
+Returns platform-wide statistics.
+
+```clarity
+(define-read-only (get-platform-stats)
+  {
+    total-escrows: uint,
+    total-volume-stx: uint,
+    total-volume-sbtc: uint,
+    total-fees-collected-stx: uint,
+    total-fees-collected-sbtc: uint,
+    total-released: uint,
+    total-refunded: uint,
+    active-disputes: uint
+  })
+```
+
+### Fields
+
+| Field | Description |
+|-------|-------------|
+| `total-escrows` | Total escrows ever created |
+| `total-volume-stx` | Total STX volume (microSTX) |
+| `total-volume-sbtc` | Total sBTC volume (satoshis) |
+| `total-fees-collected-stx` | Total STX fees earned (microSTX) |
+| `total-fees-collected-sbtc` | Total sBTC fees earned (satoshis) |
+| `total-released` | Count of released escrows |
+| `total-refunded` | Count of refunded escrows |
+| `active-disputes` | Currently active (unresolved) disputes |
+
+---
+
+## get-config
+
+Returns the current contract configuration.
+
+```clarity
+(define-read-only (get-config)
+  {
+    owner: principal,
+    fee-recipient: principal,
+    platform-fee-bps: uint,
+    is-paused: bool,
+    min-amount-stx: uint,
+    max-amount-stx: uint,
+    min-amount-sbtc: uint,
+    max-amount-sbtc: uint,
+    max-duration: uint,
+    dispute-timeout: uint
+  })
+```
+
+---
+
+## is-paused
+
+Returns whether the contract is currently paused.
+
+```clarity
+(define-read-only (is-paused) bool)
+```
+
+---
+
+## calculate-escrow-fee
+
+Preview the fee for a given amount at the current fee rate.
+
+```clarity
+(define-read-only (calculate-escrow-fee (amount uint)) uint)
+```
+
+### Example
+
+```clarity
+(contract-call? .escrow-v5 calculate-escrow-fee u10000000)
+;; → u50000  (0.5% of 10 STX = 0.05 STX)
+```
+
+<Info>
+This is useful for displaying fee previews in the UI before the user commits to a transaction.
+</Info>
+
+---
+
+## is-dispute-timed-out
+
+Checks if a disputed escrow has exceeded the timeout period.
+
+```clarity
+(define-read-only (is-dispute-timed-out (escrow-id uint)) bool)
+```
+
+Returns `true` if:
+- The escrow exists
+- Status is DISPUTED
+- `block-height > disputed-at + dispute-timeout`
+
+Returns `false` otherwise (including if the escrow doesn't exist or isn't disputed).

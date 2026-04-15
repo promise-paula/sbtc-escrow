@@ -1,0 +1,146 @@
+---
+title: Data Structures
+description: "Contract maps, variables, and storage layout"
+---
+
+# Data Structures
+
+The contract stores all state in Clarity data variables and maps.
+
+## Maps
+
+### escrows
+
+The primary storage for all escrow records. Keyed by a `uint` escrow ID.
+
+```clarity
+(define-map escrows uint {
+  buyer: principal,
+  seller: principal,
+  amount: uint,
+  fee-amount: uint,
+  token-type: uint,
+  description: (string-utf8 256),
+  status: uint,
+  created-at: uint,
+  expires-at: uint,
+  completed-at: (optional uint),
+  disputed-at: (optional uint)
+})
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `buyer` | `principal` | Creator and funder of the escrow |
+| `seller` | `principal` | Intended recipient of funds |
+| `amount` | `uint` | Principal amount (excluding fee) |
+| `fee-amount` | `uint` | Platform fee, calculated at creation |
+| `token-type` | `uint` | `0` = STX, `1` = sBTC |
+| `description` | `string-utf8 256` | Human-readable purpose |
+| `status` | `uint` | 0=Pending, 1=Released, 2=Refunded, 3=Disputed |
+| `created-at` | `uint` | Block height when created |
+| `expires-at` | `uint` | Block height deadline |
+| `completed-at` | `optional uint` | Block height when released/refunded |
+| `disputed-at` | `optional uint` | Block height when dispute was raised |
+
+---
+
+### user-stats
+
+Aggregated per-user statistics. Keyed by the user's `principal`.
+
+```clarity
+(define-map user-stats principal {
+  escrows-created: uint,
+  escrows-received: uint,
+  total-sent-stx: uint,
+  total-sent-sbtc: uint,
+  total-received-stx: uint,
+  total-received-sbtc: uint
+})
+```
+
+| Field | Description |
+|-------|-------------|
+| `escrows-created` | Count of escrows where user was buyer |
+| `escrows-received` | Count of escrows where user was seller |
+| `total-sent-stx` | Cumulative STX sent as buyer (microSTX) |
+| `total-sent-sbtc` | Cumulative sBTC sent as buyer (satoshis) |
+| `total-received-stx` | Cumulative STX received as seller (microSTX) |
+| `total-received-sbtc` | Cumulative sBTC received as seller (satoshis) |
+
+<Note>
+Stats are updated incrementally. `total-sent` increases on escrow creation; `total-received` increases on release.
+</Note>
+
+---
+
+## Data Variables
+
+### Counters
+
+```clarity
+(define-data-var escrow-counter uint u0)
+```
+
+Auto-incrementing escrow ID counter. The next escrow will have ID `escrow-counter + 1`.
+
+### Ownership
+
+```clarity
+(define-data-var contract-owner principal tx-sender)
+(define-data-var pending-owner (optional principal) none)
+```
+
+- `contract-owner`: The admin address. Set to the deployer initially.
+- `pending-owner`: Used during 2-step ownership transfer.
+
+### Configuration
+
+```clarity
+(define-data-var fee-recipient principal tx-sender)
+(define-data-var platform-fee-bps uint PLATFORM_FEE_BPS)
+(define-data-var contract-paused bool false)
+(define-data-var dispute-timeout uint DEFAULT_DISPUTE_TIMEOUT)
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `fee-recipient` | Deployer | Address receiving platform fees |
+| `platform-fee-bps` | 50 (0.5%) | Fee rate in basis points |
+| `contract-paused` | `false` | Emergency stop flag |
+| `dispute-timeout` | 28,800 (~30 days) | Blocks before dispute auto-recovery |
+
+### Platform Statistics
+
+```clarity
+(define-data-var total-volume-stx uint u0)
+(define-data-var total-volume-sbtc uint u0)
+(define-data-var total-fees-collected-stx uint u0)
+(define-data-var total-fees-collected-sbtc uint u0)
+(define-data-var total-released uint u0)
+(define-data-var total-refunded uint u0)
+(define-data-var active-disputes uint u0)
+```
+
+| Variable | Updated When |
+|----------|-------------|
+| `total-volume-stx/sbtc` | On release (per token) |
+| `total-fees-collected-stx/sbtc` | On release (per token) |
+| `total-released` | On release or dispute resolved for seller |
+| `total-refunded` | On refund or dispute resolved for buyer |
+| `active-disputes` | +1 on dispute, -1 on resolution |
+
+## Storage Costs
+
+Clarity storage uses the standard Stacks fee model. Each escrow record costs approximately:
+
+| Operation | Cost Factor |
+|-----------|-------------|
+| Map insert (create-escrow) | ~500 bytes per escrow |
+| Map update (status change) | Same key, variable update |
+| Variable update (stats) | Minimal — single value write |
+
+<Info>
+All storage is on-chain and permanent. Completed escrows are never deleted — they remain queryable forever.
+</Info>
