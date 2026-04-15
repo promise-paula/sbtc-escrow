@@ -1,0 +1,115 @@
+---
+title: Fees & Limits
+description: "Platform fees, amount boundaries, and duration constraints"
+---
+
+# Fees & Limits
+
+## Platform Fee
+
+The platform charges a percentage-based fee on every escrow, deducted from the buyer's deposit.
+
+$$\text{fee} = \left\lfloor \frac{\text{amount} \times \text{feeBPS}}{10000} \right\rfloor$$
+
+| Parameter | Value | Range |
+|-----------|-------|-------|
+| Default fee | 50 BPS (0.5%) | — |
+| Maximum fee | 500 BPS (5%) | 0–500 BPS |
+| Denominator | 10,000 | — |
+
+### Fee Examples
+
+| Escrow Amount | Token | Fee (0.5%) | Buyer Deposits |
+|:------------:|:-----:|:----------:|:--------------:|
+| 1 STX | STX | 0.005 STX | 1.005 STX |
+| 100 STX | STX | 0.5 STX | 100.5 STX |
+| 10,000 STX | STX | 50 STX | 10,050 STX |
+| 0.01 BTC | sBTC | 0.00005 BTC | 0.01005 BTC |
+| 1 BTC | sBTC | 0.005 BTC | 1.005 BTC |
+
+### Fee Distribution
+
+- **On release** → Seller receives `amount`, platform receives `fee`
+- **On refund** → Buyer receives `amount + fee` (full refund)
+- **On dispute resolution for seller** → Same as release
+- **On dispute resolution for buyer** → Same as refund
+
+<Info>
+The fee is calculated and stored at escrow creation time. If the platform fee is changed later, existing escrows keep their original fee.
+</Info>
+
+### Preview Fee (Read-Only)
+
+```clarity
+(contract-call? .escrow-v5 calculate-escrow-fee u1000000)
+;; → u5000 (5000 microSTX = 0.005 STX)
+```
+
+```typescript
+// SDK
+const fee = await client.calculateEscrowFee(1_000_000);
+// → 5000
+```
+
+## Amount Limits
+
+| Token | Minimum | Maximum |
+|-------|---------|---------|
+| STX | 1,000 µSTX (0.001 STX) | 100,000,000,000,000 µSTX (100M STX) |
+| sBTC | 10,000 sats (0.0001 BTC) | 10,000,000,000 sats (100 BTC) |
+
+Attempting to create an escrow outside these bounds returns `ERR_INVALID_AMOUNT` (2005).
+
+## Duration Limits
+
+Escrow duration is measured in **Stacks blocks**, not wall-clock time.
+
+| Parameter | Blocks | Approximate Time |
+|-----------|:------:|:----------------:|
+| Minimum duration | 1 | ~90 seconds |
+| Maximum duration | 350,400 | ~365 days |
+| Block time (post-Nakamoto) | 1 | ~90 seconds |
+
+### Time Estimation
+
+$$\text{time (hours)} = \frac{\text{blocks} \times 90}{3600}$$
+
+| Blocks | Time |
+|:------:|:----:|
+| 40 | ~1 hour |
+| 960 | ~1 day |
+| 6,720 | ~1 week |
+| 28,800 | ~30 days |
+| 86,400 | ~90 days |
+| 350,400 | ~365 days |
+
+<Note>
+Block times are estimates. Post-Nakamoto Stacks targets ~90-second blocks, but actual times may vary.
+</Note>
+
+## Dispute Timeout
+
+The dispute timeout determines how long a dispute can remain unresolved before the buyer can self-recover.
+
+| Parameter | Value |
+|-----------|-------|
+| Default | 28,800 blocks (~30 days) |
+| Minimum | 1 block |
+| Maximum | 57,600 blocks (~60 days) |
+
+A dispute is "timed out" when:
+
+$$\text{block\_height} > \text{disputed\_at} + \text{dispute\_timeout}$$
+
+After timeout, the buyer can call `resolve-expired-dispute` to recover their full deposit.
+
+## Admin-Configurable Parameters
+
+The contract owner can adjust these parameters at runtime:
+
+| Parameter | Function | Constraints |
+|-----------|----------|-------------|
+| Platform fee | `set-platform-fee(bps)` | 0–500 BPS |
+| Fee recipient | `set-fee-recipient(addr)` | Any valid principal |
+| Dispute timeout | `set-dispute-timeout(blocks)` | 1–57,600 blocks |
+| Contract pause | `pause-contract()` / `unpause-contract()` | Boolean toggle |

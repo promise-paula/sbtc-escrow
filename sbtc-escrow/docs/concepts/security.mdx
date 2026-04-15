@@ -1,0 +1,154 @@
+---
+title: Security
+description: "Security model, guarantees, and best practices"
+---
+
+# Security
+
+sBTC Escrow is designed with multiple layers of security to protect user funds.
+
+## On-Chain Guarantees
+
+### Non-Custodial
+
+Funds are held by the smart contract itself, not by any individual or organization. The contract code — publicly verifiable and immutable once deployed — is the sole custodian.
+
+### Contract-Caller Authorization
+
+Every public function includes a `contract-caller == tx-sender` check:
+
+```clarity
+(asserts! (is-eq contract-caller tx-sender) ERR_UNAUTHORIZED)
+```
+
+This prevents **phishing attacks** where a malicious contract tricks a user into calling the escrow contract through an intermediary. Without this check, a user could be tricked into releasing someone else's escrow.
+
+### Post-Conditions
+
+All transactions include [Stacks post-conditions](https://docs.stacks.co/stacks-101/post-conditions) that:
+
+- Enforce the exact transfer amounts on-chain
+- Prevent the contract from transferring more than expected
+- Are displayed in the wallet for user review before signing
+
+### Role-Based Access
+
+Every function enforces strict authorization:
+
+| Role | Capabilities |
+|------|-------------|
+| **Buyer** | Create, release, dispute, extend, recover timed-out disputes |
+| **Seller** | Refund (anytime), dispute |
+| **Admin** | Pause/unpause, set fees, resolve disputes, transfer ownership |
+| **Anyone** | Refund expired escrows, read all data |
+
+### Amount Bounds
+
+All amounts are validated against min/max constraints per token type, preventing:
+- Dust attacks (amounts below minimum)
+- Overflow attacks (amounts above maximum)
+
+### Self-Escrow Prevention
+
+```clarity
+(asserts! (not (is-eq tx-sender seller)) ERR_SELF_ESCROW)
+```
+
+Buyers cannot create escrows to themselves, preventing fee-manipulation schemes.
+
+## Admin Controls
+
+### 2-Step Ownership Transfer
+
+Ownership transfer requires two transactions:
+
+1. Current owner calls `transfer-ownership(new-owner)` → sets pending owner
+2. New owner calls `accept-ownership()` → completes transfer
+
+This prevents accidental transfers to wrong addresses.
+
+### Emergency Pause
+
+The contract can be paused to halt new escrow creation during emergencies. Existing escrows can still be released, refunded, or disputed — the pause only prevents `create-escrow`.
+
+### Fee Ceiling
+
+Platform fees are capped at 500 BPS (5%). The admin cannot set fees above this ceiling.
+
+## Dispute Resolution
+
+### Admin Resolution
+
+The contract owner can resolve disputes in favor of either party. This is a centralized point of authority, but necessary for practical dispute resolution.
+
+### Timeout Recovery
+
+If the admin doesn't resolve a dispute within the timeout period (~30 days by default), the **buyer can self-recover** their full deposit. This ensures funds are never permanently locked.
+
+$$
+\text{recovery\_eligible} = \text{block\_height} > \text{disputed\_at} + \text{dispute\_timeout}
+$$
+
+## Row-Level Security (Supabase)
+
+The indexer database enforces:
+
+- **Public read access** — anyone can query escrow data
+- **Service-role-only writes** — only the Chainhook webhook (with service key) can insert/update
+- **Anon/authenticated users denied writes** — explicit deny policies
+
+```sql
+-- Example RLS policy
+CREATE POLICY "deny_anon_insert" ON escrows
+  FOR INSERT TO anon WITH CHECK (false);
+```
+
+### Idempotency
+
+Event processing includes a unique constraint to prevent duplicate writes:
+
+```sql
+CREATE UNIQUE INDEX idx_events_idempotent
+  ON escrow_events (tx_id, event_type, block_height);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="For Buyers" icon="user">
+    - Always review post-conditions in your wallet before signing
+    - Set reasonable durations — don't create escrows that expire too quickly
+    - Use the dispute mechanism if the seller doesn't deliver
+    - Monitor your escrows and extend deadlines if needed
+  </Accordion>
+  <Accordion title="For Sellers" icon="store">
+    - Deliver work before the escrow expires
+    - Communicate with the buyer if you need more time (ask them to extend)
+    - Refund promptly if you can't deliver
+    - Never share your private key
+  </Accordion>
+  <Accordion title="For Developers" icon="code">
+    - Always use post-conditions in custom integrations
+    - Validate all user inputs before constructing transactions
+    - Use the SDK's built-in post-condition helpers
+    - Never expose private keys in client-side code
+    - Use environment variables for contract addresses and API keys
+  </Accordion>
+  <Accordion title="For Admins" icon="shield">
+    - Use the 2-step ownership transfer for handoffs
+    - Set reasonable dispute timeouts (too short = unfair, too long = locked funds)
+    - Monitor the dispute queue regularly
+    - Keep the fee recipient address updated
+    - Use the pause function only for genuine emergencies
+  </Accordion>
+</AccordionGroup>
+
+## Known Limitations
+
+| Limitation | Mitigation |
+|-----------|------------|
+| Admin can resolve disputes arbitrarily | Timeout recovery ensures buyer can always recover after ~30 days |
+| No multi-sig admin | Use a custodial wallet service or plan for multi-sig in future version |
+| Block time estimates are approximate | Use generous durations; display "approximately" in UI |
+| No partial release/refund | Design decision for simplicity; full amount or nothing |
+| Centralized indexer | On-chain data is authoritative; indexer is a convenience layer |

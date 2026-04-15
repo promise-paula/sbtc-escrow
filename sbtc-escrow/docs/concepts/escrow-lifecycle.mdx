@@ -1,0 +1,191 @@
+---
+title: Escrow Lifecycle
+description: "Understanding the escrow state machine — from creation to completion"
+---
+
+# Escrow Lifecycle
+
+Every escrow follows a deterministic state machine enforced by the smart contract. Once created, an escrow can only transition through specific states based on who acts and when.
+
+## State Machine
+
+```
+                    ┌─────────────────────────────────────┐
+                    │                                     │
+                    ▼                                     │
+┌──────────┐  create  ┌──────────┐  release  ┌──────────┐
+│          │─────────▶│          │──────────▶│          │
+│  (none)  │          │ PENDING  │           │ RELEASED │
+│          │          │   (0)    │           │   (1)    │
+└──────────┘          └────┬─┬───┘           └──────────┘
+                           │ │
+                    refund │ │ dispute
+                           │ │
+                    ┌──────┘ └──────┐
+                    ▼               ▼
+              ┌──────────┐   ┌──────────┐
+              │          │   │          │
+              │ REFUNDED │   │ DISPUTED │
+              │   (2)    │   │   (3)    │
+              └──────────┘   └────┬─┬───┘
+                    ▲             │ │
+                    │    resolve  │ │  resolve
+                    │   for buyer │ │  for seller
+                    │             │ │
+                    └─────────────┘ └──────────▶ RELEASED
+```
+
+## Status Codes
+
+| Code | Name | Description |
+|------|------|-------------|
+| `0` | **Pending** | Escrow created, funds locked. Awaiting action. |
+| `1` | **Released** | Funds sent to seller (minus fee to platform). Terminal. |
+| `2` | **Refunded** | Full amount returned to buyer. Terminal. |
+| `3` | **Disputed** | Frozen. Awaiting admin resolution or timeout recovery. |
+
+<Warning>
+**Released** and **Refunded** are terminal states. No further actions can be taken on a completed escrow.
+</Warning>
+
+## Actions by State
+
+### Pending → Released
+
+**Who:** Buyer only
+
+The buyer calls `release` to send funds to the seller:
+
+- **Seller receives:** principal amount
+- **Platform receives:** fee amount
+- Works **even after the escrow has expired** — the buyer can always release
+
+```clarity
+(contract-call? .escrow-v5 release u1)
+```
+
+### Pending → Refunded
+
+**Who:** Seller (anytime) or anyone (after expiry)
+
+- **Seller refund**: The seller can refund anytime as a goodwill gesture
+- **Expiry refund**: After `expires-at` block height, anyone can trigger a refund — useful for automation or third-party services
+
+Full amount (principal + fee) is returned to the buyer.
+
+```clarity
+(contract-call? .escrow-v5 refund u1)
+```
+
+### Pending → Disputed
+
+**Who:** Buyer or seller
+
+Either party can raise a dispute at any time while the escrow is pending. Disputes also work after expiry.
+
+- Sets status to `DISPUTED`
+- Records `disputed-at` block height (used for timeout calculation)
+- Freezes the escrow — no release or refund until resolved
+
+```clarity
+(contract-call? .escrow-v5 dispute u1)
+```
+
+### Disputed → Released (admin resolves for seller)
+
+**Who:** Contract owner only
+
+```clarity
+(contract-call? .escrow-v5 resolve-dispute-for-seller u1)
+```
+
+### Disputed → Refunded (admin resolves for buyer)
+
+**Who:** Contract owner only
+
+```clarity
+(contract-call? .escrow-v5 resolve-dispute-for-buyer u1)
+```
+
+### Disputed → Refunded (timeout recovery)
+
+**Who:** Buyer only, after dispute timeout
+
+If a dispute is not resolved within the `dispute-timeout` period (default ~30 days), the buyer can self-recover funds:
+
+```clarity
+(contract-call? .escrow-v5 resolve-expired-dispute u1)
+```
+
+<Info>
+The dispute timeout mechanism ensures buyers are never permanently locked out of their funds, even if the admin is unresponsive.
+</Info>
+
+### Pending → Extended (deadline extension)
+
+**Who:** Buyer only, before expiry
+
+The buyer can extend the escrow deadline by additional blocks:
+
+```clarity
+(contract-call? .escrow-v5 extend-escrow u1 u960) ;; +1 day
+```
+
+<Note>
+Extension does not change the status. The escrow remains in **Pending** state with a later `expires-at`.
+</Note>
+
+## Authorization Matrix
+
+| Action | Buyer | Seller | Admin | Anyone |
+|--------|:-----:|:------:|:-----:|:------:|
+| Create escrow | ✅ | — | — | — |
+| Release | ✅ | — | — | — |
+| Refund (before expiry) | — | ✅ | — | — |
+| Refund (after expiry) | ✅ | ✅ | ✅ | ✅ |
+| Dispute | ✅ | ✅ | — | — |
+| Extend deadline | ✅ | — | — | — |
+| Resolve dispute (for buyer) | — | — | ✅ | — |
+| Resolve dispute (for seller) | — | — | ✅ | — |
+| Recover expired dispute | ✅ | — | — | — |
+
+## Timeline Example
+
+```
+Block 1000: Buyer creates escrow (duration: 960 blocks)
+             → Status: PENDING
+             → expires-at: 1960
+
+Block 1200: Seller delivers work
+
+Block 1300: Buyer releases escrow
+             → Status: RELEASED
+             → Seller receives STX/sBTC
+             → Platform receives fee
+
+--- OR ---
+
+Block 1300: Buyer disputes escrow
+             → Status: DISPUTED
+             → disputed-at: 1300
+
+Block 1400: Admin resolves for seller
+             → Status: RELEASED
+
+--- OR ---
+
+Block 30100: Dispute timeout reached (1300 + 28800)
+             → Buyer calls resolve-expired-dispute
+             → Status: REFUNDED
+```
+
+## Fee Structure
+
+When an escrow is **created**, the buyer deposits `amount + fee`:
+
+$$\text{fee} = \left\lfloor \frac{\text{amount} \times \text{feeBPS}}{10000} \right\rfloor$$
+
+- On **release**: seller gets `amount`, platform gets `fee`
+- On **refund**: buyer gets back `amount + fee` (full deposit)
+- On **dispute resolved for seller**: same as release
+- On **dispute resolved for buyer**: same as refund
