@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveDisputeForBuyer, resolveDisputeForSeller } from '@/lib/admin-service';
+import { EscrowStatus } from '@/lib/types';
 import { blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { cardVariants, listItemVariants, slideDown } from '@/lib/motion';
@@ -183,7 +184,10 @@ export default function DisputeQueue() {
             <EmptyState icon={Shield} title="No resolved disputes" description="Resolved disputes will appear here." />
           ) : (
             <div className="space-y-3">
-              {resolved.map((e, idx) => (
+              {resolved.map((e, idx) => {
+                const resolvedFor = e.status === EscrowStatus.Released ? 'Seller' : 'Buyer';
+                const resolvedForClass = e.status === EscrowStatus.Released ? 'text-primary' : 'text-accent-warm';
+                return (
                 <motion.div key={e.id} custom={idx} variants={listItemVariants} initial="hidden" animate="visible">
                   <Card className="border-l-4 border-l-muted">
                     <CardContent className="p-4 flex items-center justify-between">
@@ -192,13 +196,17 @@ export default function DisputeQueue() {
                           <span className="font-mono text-sm font-medium">#{e.id}</span>
                           <AmountDisplay micro={e.amount} tokenType={e.tokenType} showUsd={false} />
                         </div>
-                        <p className="text-xs text-muted-foreground">Completed block {e.completedAt?.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Resolved for <span className={`font-medium ${resolvedForClass}`}>{resolvedFor}</span>
+                          {' · '}Block {e.completedAt?.toLocaleString()}
+                        </p>
                       </div>
                       <StatusBadge status={e.status} />
                     </CardContent>
                   </Card>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
