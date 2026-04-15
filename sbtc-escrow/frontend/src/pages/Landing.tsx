@@ -206,9 +206,11 @@ export default function Landing() {
             <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Features</button>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Security</button>
             <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">How it Works</button>
+            <button onClick={() => navigate('/docs')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Docs</button>
           </div>
 
           <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/docs')} className="sm:hidden text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md">Docs</button>
             <ThemeToggle />
             {isConnected ? (
               <Button size="sm" onClick={() => navigate('/dashboard')}>Dashboard</Button>
