@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePlatformConfig } from '@/hooks/use-admin';
+import { PlatformConfig } from '@/lib/types';
 import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
@@ -24,6 +26,7 @@ const timeoutPresetsDef = [
 
 export default function ContractControls() {
   const { data: config, isLoading, isError } = usePlatformConfig();
+  const queryClient = useQueryClient();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [isPaused, setIsPaused] = useState(false);
@@ -43,6 +46,14 @@ export default function ContractControls() {
 
   if (isLoading) return <DashboardSkeleton />;
 
+  // Optimistically update the React Query cache so admin changes persist
+  // across navigation while waiting for chainhook to index the on-chain event.
+  const patchConfig = (patch: Partial<PlatformConfig>) => {
+    queryClient.setQueryData<PlatformConfig>(['platform-config'], (old) =>
+      old ? { ...old, ...patch } : old
+    );
+  };
+
   const cfg = config!;
   const feeValue = parseInt(feeBps) || 0;
   const timeoutValue = parseInt(timeout) || 0;
@@ -59,6 +70,7 @@ export default function ContractControls() {
       if (isPaused) await unpauseContract();
       else await pauseContract();
       setIsPaused(!isPaused);
+      patchConfig({ isPaused: !isPaused });
     } finally {
       setLoading(null);
     }
@@ -109,13 +121,13 @@ export default function ContractControls() {
             <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Fee preview:</span> On a 100 STX escrow → {feeOnHundred} STX fee
             </div>
-            <Button size="sm" disabled={feeValue < 0 || feeValue > MAX_FEE_BPS || loading === 'fee'} onClick={async () => { setLoading('fee'); await setPlatformFee(feeValue); setLoading(null); }}>
+            <Button size="sm" disabled={feeValue < 0 || feeValue > MAX_FEE_BPS || loading === 'fee'} onClick={async () => { setLoading('fee'); try { await setPlatformFee(feeValue); patchConfig({ platformFeeBps: feeValue }); } finally { setLoading(null); } }}>
               Update Fee
             </Button>
             <div className="border-t border-border pt-4 space-y-1.5">
               <Label className="text-xs">Fee Recipient</Label>
               <Input placeholder="ST... or SP..." value={feeRecip} onChange={e => setFeeRecip(e.target.value)} className="font-mono text-sm" />
-              <Button size="sm" disabled={!isValidStacksAddress(feeRecip) || loading === 'recipient'} onClick={async () => { setLoading('recipient'); await setFeeRecipient(feeRecip); setLoading(null); }}>
+              <Button size="sm" disabled={!isValidStacksAddress(feeRecip) || loading === 'recipient'} onClick={async () => { setLoading('recipient'); try { await setFeeRecipient(feeRecip); patchConfig({ feeRecipient: feeRecip }); } finally { setLoading(null); } }}>
                 Update Recipient
               </Button>
             </div>
@@ -141,7 +153,7 @@ export default function ContractControls() {
               <Input type="number" value={timeout} onChange={e => setTimeoutVal(e.target.value)} className="font-mono text-sm w-40" min={MIN_DISPUTE_TIMEOUT} max={MAX_DISPUTE_TIMEOUT} />
               <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue, minutesPerBlock)})</span>
             </div>
-            <Button size="sm" disabled={timeoutValue < MIN_DISPUTE_TIMEOUT || timeoutValue > MAX_DISPUTE_TIMEOUT || loading === 'timeout'} onClick={async () => { setLoading('timeout'); await setDisputeTimeout(timeoutValue); setLoading(null); }}>
+            <Button size="sm" disabled={timeoutValue < MIN_DISPUTE_TIMEOUT || timeoutValue > MAX_DISPUTE_TIMEOUT || loading === 'timeout'} onClick={async () => { setLoading('timeout'); try { await setDisputeTimeout(timeoutValue); patchConfig({ disputeTimeout: timeoutValue }); } finally { setLoading(null); } }}>
               Update Timeout
             </Button>
           </CardContent>
