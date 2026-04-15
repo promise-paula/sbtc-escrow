@@ -10,7 +10,7 @@ import { ContractStatusIndicator } from '@/components/shared/ContractStatusIndic
 import { DashboardSkeleton } from '@/components/shared/PageSkeletons';
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Sliders, ArrowRightLeft, DollarSign, Coins, CheckCircle2, ShieldAlert, RotateCcw, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Sliders, ArrowRightLeft, DollarSign, Coins, CheckCircle2, ShieldAlert, ShieldCheck, RotateCcw, TrendingUp } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 
 export default function AdminDashboard() {
@@ -34,6 +34,7 @@ export default function AdminDashboard() {
     { label: 'Released', value: ps.totalReleased.toLocaleString(), icon: CheckCircle2 },
     { label: 'Refunded', value: ps.totalRefunded.toLocaleString(), icon: RotateCcw },
     { label: 'Active Disputes', value: ps.activeDisputes.toLocaleString(), icon: ShieldAlert, warn: ps.activeDisputes > 0 },
+    { label: 'Resolved Disputes', value: ps.resolvedDisputes.toLocaleString(), icon: ShieldCheck },
   ];
 
   return (
