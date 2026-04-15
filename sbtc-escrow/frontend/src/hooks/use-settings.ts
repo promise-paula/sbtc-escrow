@@ -1,9 +1,7 @@
 import { useState, useCallback } from 'react';
 
 export interface AppSettings {
-  compactRows: boolean;
   showUsd: boolean;
-  currency: 'STX' | 'microSTX';
   notifyConfirmations: boolean;
   notifyDisputes: boolean;
   notifyExpiry: boolean;
@@ -12,9 +10,7 @@ export interface AppSettings {
 const STORAGE_KEY = 'sbtc-escrow-settings';
 
 const defaults: AppSettings = {
-  compactRows: false,
   showUsd: false,
-  currency: 'STX',
   notifyConfirmations: true,
   notifyDisputes: true,
   notifyExpiry: true,
