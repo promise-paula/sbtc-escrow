@@ -31,9 +31,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 1. Check Hiro chainhook status
     let chainhookStatus = null;
     if (HIRO_API_KEY) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       const res = await fetch(`${HIRO_BASE}/${CHAINHOOK_UUID}`, {
         headers: { "x-api-key": HIRO_API_KEY },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (res.ok) {
         const data = await res.json();
         chainhookStatus = {

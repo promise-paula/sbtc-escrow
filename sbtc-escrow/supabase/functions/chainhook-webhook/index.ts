@@ -141,8 +141,8 @@ function extractEventData(
 // Database helpers — all throw on failure so errors propagate to HTTP response
 // ============================================================================
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 500;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 300;
 
 async function withRetry<T>(
   label: string,
@@ -160,7 +160,7 @@ async function withRetry<T>(
 
     console.error(`[${label}] attempt ${attempt}/${MAX_RETRIES}:`, error.message);
     if (attempt < MAX_RETRIES) {
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     } else {
       throw new Error(`[${label}] failed after ${MAX_RETRIES} attempts: ${error.message}`);
     }
@@ -569,10 +569,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // --- Rollback blocks (reorg) ---
+    // --- Rollback blocks (reorg) — best-effort, never block the 200 response ---
     for (const block of payload?.event?.rollback ?? []) {
       try {
-        await handleRollback(block);
+        // Cap rollback processing at 4s to stay within edge function limits
+        const result = await Promise.race([
+          handleRollback(block),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("rollback timeout (4s)")), 4000)
+          ),
+        ]);
       } catch (err) {
         const msg = `Rollback block ${block?.block_identifier?.index}: ${err}`;
         console.error(`[rollback] ${msg}`);
@@ -580,31 +586,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Return 500 if any operations failed — Chainhook will retry
+    // ALWAYS return 200 to Hiro — returning 500 causes retries and
+    // eventually marks the chainhook as "interrupted" (disabled).
+    // Errors are logged and surfaced via the indexer-health endpoint.
     if (errors.length > 0) {
       console.error(`[webhook] ${errors.length} error(s), ${processedCount} event(s) succeeded`);
-      return new Response(
-        JSON.stringify({ ok: false, errors, processed: processedCount }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
     }
 
     return new Response(
-      JSON.stringify({ ok: true, processed: processedCount }),
+      JSON.stringify({
+        ok: errors.length === 0,
+        processed: processedCount,
+        ...(errors.length > 0 ? { errors } : {}),
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (err) {
-    console.error("Webhook error:", err);
+    // Even top-level errors return 200 to prevent chainhook interruption.
+    // The error is logged and will surface via indexer-health checks.
+    console.error("[webhook] Top-level error (returning 200 to protect chainhook):", err);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ ok: false, error: "Internal server error" }),
       {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
