@@ -9,10 +9,12 @@ const statusClasses: Record<EscrowStatus, string> = {
 };
 
 export function StatusBadge({ status }: { status: EscrowStatus }) {
+  const dotClass = statusClasses[status] ?? 'bg-muted-foreground';
+  const label = STATUS_LABELS[status] ?? 'Unknown';
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
-      <span className={`h-1.5 w-1.5 rounded-full ${statusClasses[status]}`} />
-      {STATUS_LABELS[status]}
+      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+      {label}
     </span>
   );
 }
