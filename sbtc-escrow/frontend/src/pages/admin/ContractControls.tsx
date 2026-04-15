@@ -148,7 +148,7 @@ export default function ContractControls() {
             </div>
             <div className="flex items-center gap-2">
               <Input type="number" value={timeout} onChange={e => setTimeoutVal(e.target.value)} className="font-mono text-sm w-40" min={MIN_DISPUTE_TIMEOUT} max={MAX_DISPUTE_TIMEOUT} />
-              <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue, minutesPerBlock)})</span>
+              <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue)})</span>
             </div>
             <Button size="sm" disabled={timeoutValue < MIN_DISPUTE_TIMEOUT || timeoutValue > MAX_DISPUTE_TIMEOUT || loading === 'timeout'} onClick={async () => { setLoading('timeout'); try { await setDisputeTimeout(timeoutValue); patchConfig({ disputeTimeout: timeoutValue }); } finally { setLoading(null); } }}>
               Update Timeout
@@ -192,7 +192,7 @@ export default function ContractControls() {
               { label: 'Max Amount (STX)', value: `${formatSTX(cfg.maxAmount)} STX`, mono: true },
               { label: 'Min Amount (sBTC)', value: `${formatSBTC(cfg.minAmountSbtc)} sBTC`, mono: true },
               { label: 'Max Amount (sBTC)', value: `${formatSBTC(cfg.maxAmountSbtc)} sBTC`, mono: true },
-              { label: 'Max Duration', value: `${cfg.maxDuration.toLocaleString()} blocks (~${blocksToTime(cfg.maxDuration, minutesPerBlock)})` },
+              { label: 'Max Duration', value: `${cfg.maxDuration.toLocaleString()} blocks (~${blocksToTime(cfg.maxDuration)})` },
             ].map((row, idx) => (
               <div key={row.label} className={`flex justify-between items-center gap-3 p-3 text-sm ${idx % 2 === 1 ? 'bg-muted/30' : ''}`}>
                 <span className="text-muted-foreground shrink-0">{row.label}</span>
