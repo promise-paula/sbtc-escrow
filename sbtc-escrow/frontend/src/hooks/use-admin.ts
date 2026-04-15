@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '@/lib/types';
+import { DEFAULT_DISPUTE_TIMEOUT, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
 
 const EMPTY_STATS: PlatformStats = {
   totalEscrows: 0,
@@ -23,8 +24,8 @@ const DEFAULT_CONFIG: PlatformConfig = {
   maxAmount: 100_000_000_000,
   minAmountSbtc: 10_000,
   maxAmountSbtc: 10_000_000_000,
-  maxDuration: 52_560,
-  disputeTimeout: 4_320,
+  maxDuration: MAX_DURATION_BLOCKS,
+  disputeTimeout: DEFAULT_DISPUTE_TIMEOUT,
 };
 
 export function usePlatformStats() {
@@ -74,8 +75,8 @@ export function usePlatformConfig() {
         maxAmount: 100_000_000_000,
         minAmountSbtc: 10_000,
         maxAmountSbtc: 10_000_000_000,
-        maxDuration: 52_560,
-        disputeTimeout: data.dispute_timeout ?? 4_320,
+        maxDuration: MAX_DURATION_BLOCKS,
+        disputeTimeout: data.dispute_timeout ?? DEFAULT_DISPUTE_TIMEOUT,
       };
     },
   });
