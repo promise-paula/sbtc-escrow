@@ -1,0 +1,165 @@
+# Architecture
+
+sBTC Escrow is a multi-layer system with on-chain smart contracts at the core, an off-chain indexer for fast queries, and a React frontend for user interaction.
+
+## System Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        USER LAYER                                 │
+│                                                                   │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
+│  │  Frontend    │    │  SDK Client │    │  Direct Contract    │  │
+│  │  (React App) │    │  (Node.js)  │    │  Calls (Clarinet)   │  │
+│  └──────┬───────┘    └──────┬──────┘    └──────────┬──────────┘  │
+│         │                   │                      │              │
+└─────────┼───────────────────┼──────────────────────┼──────────────┘
+          │                   │                      │
+          ▼                   ▼                      ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                     STACKS BLOCKCHAIN                             │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                    escrow-v5.clar                            │ │
+│  │                                                              │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐  │ │
+│  │  │  Create   │  │ Release  │  │  Refund  │  │  Dispute  │  │ │
+│  │  │  Escrow   │  │  Funds   │  │  Funds   │  │  + Resolve│  │ │
+│  │  └──────────┘  └──────────┘  └──────────┘  └───────────┘  │ │
+│  │                                                              │ │
+│  │  Data: escrows map, user-stats map, platform-stats          │ │
+│  └──────────────────────────────────┬──────────────────────────┘ │
+│                                      │ events (prints)           │
+└──────────────────────────────────────┼───────────────────────────┘
+                                       │
+                                       ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      INDEXER LAYER                                │
+│                                                                   │
+│  ┌──────────────┐         ┌────────────────────────────────────┐ │
+│  │  Chainhook    │────────▶│  Supabase Edge Function           │ │
+│  │  (Observer)   │  POST   │  (chainhook-webhook)              │ │
+│  └──────────────┘         └───────────────┬────────────────────┘ │
+│                                            │                      │
+│                                            ▼                      │
+│                            ┌──────────────────────────┐          │
+│                            │  Supabase PostgreSQL      │          │
+│                            │                           │          │
+│                            │  • escrows table          │          │
+│                            │  • escrow_events table    │          │
+│                            │  • platform_config table  │          │
+│                            │  • RLS + Realtime enabled │          │
+│                            └──────────────────────────┘          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## Components
+
+### Smart Contract (`escrow-v5.clar`)
+
+The on-chain Clarity v4 contract is the source of truth. It:
+
+- **Holds funds** — STX and sBTC are transferred into the contract on escrow creation
+- **Enforces rules** — Only authorized parties can release, refund, or dispute
+- **Tracks state** — Escrow records, user stats, and platform stats stored in contract maps
+- **Emits events** — `print` statements emit structured events consumed by Chainhook
+
+> ℹ️ **Info:** The contract uses `contract-caller` authorization — all public functions verify that `contract-caller == tx-sender`, preventing phishing through malicious intermediary contracts.
+
+### TypeScript SDK (`sbtc-escrow-sdk`)
+
+A developer-friendly wrapper around the Stacks blockchain API:
+
+- **Read-only calls** via `callReadOnlyFunction` — no wallet or signing needed
+- **Write transactions** via `makeContractCall` + `broadcastTransaction` — requires a private key
+- **Network-aware** — auto-configures contract addresses and API URLs based on `'testnet'` or `'mainnet'`
+- **Post-conditions** — Automatically builds STX/FT post-conditions for transaction safety
+
+### Frontend App (`frontend/`)
+
+A React SPA deployed on Vercel:
+
+| Technology | Purpose |
+|-----------|---------|
+| React 18 + Router v6 | UI framework and routing |
+| Stacks Connect | Wallet integration (Leather/Xverse) |
+| TanStack React Query | Data fetching + caching |
+| Supabase JS | Realtime subscriptions |
+| Radix UI | Accessible component primitives |
+| Tailwind CSS | Styling |
+| Framer Motion | Animations |
+| Vite | Build tooling |
+
+### Supabase Backend
+
+Off-chain indexing layer for fast queries:
+
+- **Edge Functions** — `chainhook-webhook` processes blockchain events and upserts into Postgres
+- **PostgreSQL** — Indexed tables for escrows, events, and platform config
+- **Row Level Security** — Public read, service-role-only write
+- **Realtime** — Postgres changes broadcast to connected clients via WebSocket
+
+### Chainhook
+
+[Chainhook](https://docs.hiro.so/chainhook) is a Stacks event observer that:
+
+1. Monitors the `escrow-v5` contract for transaction events
+2. Extracts `print` event data from contract calls
+3. POSTs structured JSON to the Supabase edge function
+4. The edge function parses events and writes to the database
+
+This enables the frontend to display data without polling the blockchain directly.
+
+## Data Flow
+
+### Creating an Escrow
+
+```
+User → Wallet → Stacks Node → escrow-v5.create-escrow()
+                                    │
+                                    ├── STX/sBTC transferred to contract
+                                    ├── Escrow record written to map
+                                    ├── User stats updated
+                                    └── Event printed
+                                          │
+                                    Chainhook detects event
+                                          │
+                                          ▼
+                                    Edge Function → Supabase
+                                          │
+                                    Frontend receives realtime update
+```
+
+### Reading Escrow Data
+
+```
+Frontend ──┬── Supabase (fast, indexed) ── for list views, search, events
+           │
+           └── Stacks API (read-only calls) ── for authoritative on-chain state
+```
+
+> 📝 **Note:** The frontend uses Supabase for list views and event feeds (fast, supports filtering and pagination), but falls back to direct read-only contract calls for authoritative data when needed (e.g., checking if a dispute is timed out).
+
+## Directory Structure
+
+```
+sbtc-escrow/
+├── contracts/              # Clarity smart contracts
+│   ├── escrow-v5.clar      # Primary V4 dual-token contract
+│   └── escrow.clar         # Legacy V3 STX-only contract
+├── tests/                  # Clarinet + Vitest contract tests
+├── scripts/                # Deployment and testnet scripts
+├── settings/               # Clarinet network configs
+├── deployments/            # Deployment plans (simnet/testnet)
+├── frontend/               # React frontend application
+│   └── src/
+│       ├── pages/          # Route pages
+│       ├── components/     # UI components
+│       ├── hooks/          # React hooks
+│       ├── contexts/       # Wallet + Theme providers
+│       └── lib/            # Services, types, utilities
+├── supabase/               # Supabase backend
+│   ├── functions/          # Edge functions (webhooks)
+│   └── migrations/         # Database schema migrations
+└── Clarinet.toml           # Clarinet project config
+```
