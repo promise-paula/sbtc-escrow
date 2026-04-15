@@ -5,7 +5,7 @@ import { usePlatformConfig } from '@/hooks/use-admin';
 import { PlatformConfig } from '@/lib/types';
 import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
-import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,11 +17,13 @@ import { cardVariants } from '@/lib/motion';
 import { AlertTriangle, DollarSign, Clock, UserCheck, Info } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 
-const timeoutPresetsDef = [
-  { label: '5 blocks (testing)', minutes: null, blocks: 5 },
-  { label: '1 day', minutes: 60 * 24, blocks: null },
-  { label: '1 week', minutes: 60 * 24 * 7, blocks: null },
-  { label: '30 days', minutes: 60 * 24 * 30, blocks: null },
+// Presets use fixed block counts (at 1.5 min/block) so the value sent on-chain
+// is deterministic and doesn't fluctuate with the live block rate.
+const timeoutPresets = [
+  { label: '5 blocks (testing)', blocks: 5 },
+  { label: '1 day (~960 blocks)', blocks: 960 },
+  { label: '1 week (~6,720 blocks)', blocks: 6_720 },
+  { label: '30 days (~28,800 blocks)', blocks: 28_800 },
 ];
 
 export default function ContractControls() {
@@ -58,11 +60,6 @@ export default function ContractControls() {
   const feeValue = parseInt(feeBps) || 0;
   const timeoutValue = parseInt(timeout) || 0;
   const feeOnHundred = (100 * feeValue / 10000).toFixed(2);
-
-  const timeoutPresets = timeoutPresetsDef.map(p => ({
-    label: p.label,
-    blocks: p.blocks ?? timeToBlocks(p.minutes!, minutesPerBlock),
-  }));
 
   const handleTogglePause = async () => {
     setLoading('pause');
