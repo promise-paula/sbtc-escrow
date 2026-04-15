@@ -62,6 +62,9 @@ export function usePlatformStats() {
 export function usePlatformConfig() {
   return useQuery({
     queryKey: ['platform-config'],
+    // Keep data fresh for 2 min so optimistic updates from admin actions
+    // aren't overwritten by stale Supabase data before the chainhook indexes.
+    staleTime: 2 * 60 * 1000,
     queryFn: async (): Promise<PlatformConfig> => {
       if (!isSupabaseConfigured) return DEFAULT_CONFIG;
       const { data, error } = await supabase.from('platform_config').select('*').eq('id', 1).single();
