@@ -25,6 +25,7 @@ import {
   Shield,
   AlertTriangle,
   Sliders,
+  BookOpen,
 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,7 @@ const userItems = [
   { title: 'Activity', url: '/activity', icon: Activity },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/settings', icon: Settings },
+  { title: 'Docs', url: '/docs', icon: BookOpen },
 ];
 
 const adminItems = [
