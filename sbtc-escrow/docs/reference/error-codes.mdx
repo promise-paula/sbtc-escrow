@@ -1,0 +1,95 @@
+---
+title: Error Codes
+description: "Complete reference of all smart contract error codes"
+---
+
+# Error Codes
+
+All errors returned by the `escrow-v5` contract as `(err uint)`.
+
+## Authorization Errors (1xxx)
+
+| Code | Constant | Description | Common Cause |
+|:----:|----------|-------------|-------------|
+| **1001** | `ERR_UNAUTHORIZED` | Not authorized to perform this action | Calling a function you don't have permission for (e.g., non-buyer calling release), or `contract-caller != tx-sender` |
+| **1002** | `ERR_CONTRACT_PAUSED` | Contract is currently paused | Admin has paused the contract; only `create-escrow` is blocked |
+| **1003** | `ERR_OWNERSHIP_PENDING` | Ownership transfer is already pending | A `transfer-ownership` is in progress; the pending owner must accept or a new transfer must be initiated |
+| **1004** | `ERR_NOT_PENDING_OWNER` | Caller is not the pending owner | Called `accept-ownership` but you're not the address set as pending owner |
+
+## Escrow Errors (2xxx)
+
+| Code | Constant | Description | Common Cause |
+|:----:|----------|-------------|-------------|
+| **2001** | `ERR_ESCROW_NOT_FOUND` | Escrow ID does not exist | Invalid escrow ID passed to any function |
+| **2002** | `ERR_ESCROW_ALREADY_COMPLETED` | Escrow is already completed | Trying to release, refund, or dispute an escrow that's already in a terminal state (Released or Refunded) |
+| **2003** | `ERR_ESCROW_EXPIRED` | Escrow has expired | Trying to extend an already-expired escrow |
+| **2004** | `ERR_ESCROW_NOT_EXPIRED` | Escrow has not expired yet | Trying to refund as non-seller before the deadline |
+| **2005** | `ERR_INVALID_AMOUNT` | Amount is outside allowed bounds | Amount below minimum or above maximum for the token type, or fee exceeds max BPS |
+| **2006** | `ERR_INVALID_DURATION` | Duration is invalid | Duration is 0 or exceeds MAX_DURATION (350,400 blocks) |
+| **2007** | `ERR_SELF_ESCROW` | Buyer and seller are the same | `tx-sender == seller` in create-escrow |
+| **2008** | `ERR_DISPUTE_NOT_TIMED_OUT` | Dispute timeout has not been reached | Calling `resolve-expired-dispute` before the timeout period |
+| **2009** | `ERR_NOT_DISPUTED` | Escrow is not in disputed status | Calling dispute resolution on a non-disputed escrow |
+| **2010** | `ERR_INVALID_EXTENSION` | Extension is invalid | Extension blocks is 0, or total remaining exceeds MAX_DURATION |
+| **2011** | `ERR_INVALID_TIMEOUT` | Timeout value is outside bounds | Dispute timeout below MIN (1) or above MAX (57,600) |
+| **2012** | `ERR_INVALID_TOKEN` | Invalid token type | Token type is not 0 (STX) or 1 (sBTC) |
+
+## Transfer Errors (3xxx)
+
+| Code | Constant | Description | Common Cause |
+|:----:|----------|-------------|-------------|
+| **3001** | `ERR_TRANSFER_FAILED` | Token transfer failed | Insufficient balance, or sBTC contract call failed |
+| **3002** | `ERR_INSUFFICIENT_BALANCE` | Insufficient balance | Contract doesn't have enough funds to transfer (should not happen in normal operation) |
+
+## Troubleshooting
+
+### ERR_UNAUTHORIZED (1001)
+
+This is the most common error. Check:
+
+1. **Are you the right role?** — Only buyers can release, only sellers can refund before expiry, etc.
+2. **Are you calling directly?** — The contract requires `contract-caller == tx-sender`. If you're calling through another contract, this will fail.
+3. **Are you the admin?** — Admin functions require the contract owner's address.
+
+### ERR_ESCROW_ALREADY_COMPLETED (2002)
+
+The escrow has already been released or refunded. Check its status:
+
+```typescript
+const status = await client.getStatus(escrowId);
+// If RELEASED (1) or REFUNDED (2), no further actions are possible
+```
+
+### ERR_TRANSFER_FAILED (3001)
+
+Usually means insufficient balance. For sBTC, ensure:
+
+1. The buyer has approved the sBTC transfer
+2. The buyer has enough sBTC balance
+3. The sBTC contract address is correct for the network
+
+### ERR_INVALID_AMOUNT (2005)
+
+Check the amount bounds for the token type:
+
+| Token | Minimum | Maximum |
+|-------|---------|---------|
+| STX | 1,000 µSTX | 100,000,000,000,000 µSTX |
+| sBTC | 10,000 sats | 10,000,000,000 sats |
+
+### Frontend Error Mapping
+
+The frontend maps error codes to user-friendly messages:
+
+```typescript
+const ERROR_MESSAGES: Record<number, string> = {
+  1001: 'You are not authorized to perform this action',
+  1002: 'The contract is currently paused',
+  2001: 'Escrow not found',
+  2002: 'This escrow has already been completed',
+  2005: 'Amount is outside the allowed range',
+  2007: 'You cannot create an escrow with yourself',
+  2012: 'Invalid token type',
+  3001: 'Token transfer failed — check your balance',
+  // ...
+};
+```
