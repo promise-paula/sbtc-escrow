@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
-import { Home, LayoutDashboard, PlusCircle, List, Activity } from 'lucide-react';
+import { Home, LayoutDashboard, PlusCircle, List, BookOpen } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const items = [
@@ -8,7 +8,7 @@ const items = [
   { title: 'Board', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Create', url: '/create', icon: PlusCircle },
   { title: 'Escrows', url: '/escrows', icon: List },
-  { title: 'Activity', url: '/activity', icon: Activity },
+  { title: 'Docs', url: '/docs', icon: BookOpen },
 ];
 
 export function MobileNav() {
