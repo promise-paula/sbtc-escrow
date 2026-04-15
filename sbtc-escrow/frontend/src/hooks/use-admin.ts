@@ -11,6 +11,7 @@ const EMPTY_STATS: PlatformStats = {
   totalReleased: 0,
   totalRefunded: 0,
   activeDisputes: 0,
+  resolvedDisputes: 0,
 };
 
 const DEFAULT_CONFIG: PlatformConfig = {
@@ -35,6 +36,13 @@ export function usePlatformStats() {
       if (error || !data?.length) return EMPTY_STATS;
       const stx = data.filter(r => (r.token_type ?? 0) === 0);
       const sbtc = data.filter(r => (r.token_type ?? 0) === 1);
+
+      // Count resolved disputes from events table
+      const { count: resolvedDisputes } = await supabase
+        .from('escrow_events')
+        .select('*', { count: 'exact', head: true })
+        .in('event_type', ['dispute-resolved-for-buyer', 'dispute-resolved-for-seller', 'dispute-expired-resolved']);
+
       return {
         totalEscrows: data.length,
         totalVolumeStx: stx.reduce((s, r) => s + (r.amount ?? 0), 0),
@@ -44,6 +52,7 @@ export function usePlatformStats() {
         totalReleased: data.filter(r => r.status === EscrowStatus.Released).length,
         totalRefunded: data.filter(r => r.status === EscrowStatus.Refunded).length,
         activeDisputes: data.filter(r => r.status === EscrowStatus.Disputed).length,
+        resolvedDisputes: resolvedDisputes ?? 0,
       };
     },
   });
