@@ -1,0 +1,133 @@
+---
+title: FAQ
+description: "Frequently asked questions about sBTC Escrow"
+---
+
+# FAQ
+
+<AccordionGroup>
+
+## General
+
+<Accordion title="What is sBTC Escrow?">
+sBTC Escrow is a non-custodial escrow protocol built on the Stacks blockchain. It allows two parties to create trustless escrows using STX or sBTC tokens, with on-chain dispute resolution and automatic expiry.
+</Accordion>
+
+<Accordion title="Is it custodial?">
+**No.** Funds are held by the smart contract, not by any individual or organization. The contract code is publicly verifiable and enforces all rules on-chain.
+</Accordion>
+
+<Accordion title="What tokens are supported?">
+- **STX** — The native Stacks token
+- **sBTC** — A Bitcoin-backed SIP-010 token on Stacks
+
+Each token has its own amount limits. See [Token Support](/concepts/token-support).
+</Accordion>
+
+<Accordion title="What's the fee?">
+0.5% (50 basis points) by default. The fee is calculated when the escrow is created and stored with the escrow. The admin can adjust the fee between 0% and 5%.
+
+See [Fees & Limits](/concepts/fees-and-limits) for details.
+</Accordion>
+
+<Accordion title="How long can an escrow last?">
+Between 1 block (~90 seconds) and 350,400 blocks (~365 days). The buyer chooses the duration when creating the escrow and can extend it before expiry.
+</Accordion>
+
+## Using Escrows
+
+<Accordion title="How do I create an escrow?">
+1. Connect your wallet at [sbtc-escrow.vercel.app](https://sbtc-escrow.vercel.app)
+2. Go to "Create Escrow"
+3. Enter the seller's address, amount, description, and duration
+4. Select STX or sBTC
+5. Confirm the transaction in your wallet
+
+The escrow amount plus fee will be transferred from your wallet to the contract.
+</Accordion>
+
+<Accordion title="How does the buyer release funds?">
+The buyer navigates to the escrow detail page and clicks "Release". This sends the escrowed amount to the seller and the fee to the platform. The buyer must approve the transaction in their wallet.
+</Accordion>
+
+<Accordion title="Can the seller refund?">
+Yes. The seller can refund anytime, returning the full deposit (amount + fee) to the buyer. This is a goodwill gesture.
+</Accordion>
+
+<Accordion title="What happens when an escrow expires?">
+After the deadline, **anyone** can trigger a refund to the buyer. The buyer's funds are never permanently locked — they can always get them back after expiry.
+
+The buyer can also still release after expiry if they choose to.
+</Accordion>
+
+<Accordion title="Can I extend the deadline?">
+Yes. The **buyer** can extend the deadline before it passes by calling `extend-escrow`. The extension must keep the total duration under ~365 days.
+</Accordion>
+
+## Disputes
+
+<Accordion title="How do disputes work?">
+1. Either the buyer or seller raises a dispute
+2. The escrow is frozen — no release or refund until resolved
+3. The contract admin reviews and resolves in favor of either party
+4. If the admin doesn't resolve within ~30 days, the buyer can self-recover
+
+See [Escrow Lifecycle](/concepts/escrow-lifecycle) for the full state machine.
+</Accordion>
+
+<Accordion title="What if the admin doesn't resolve my dispute?">
+After the dispute timeout period (~30 days by default), the buyer can call `resolve-expired-dispute` to recover their full deposit. This safety mechanism ensures funds are never permanently locked.
+</Accordion>
+
+<Accordion title="Can I dispute after expiry?">
+Yes. Disputes can be raised even after the escrow has expired. This prevents a race condition where funds are refunded just before a dispute is filed.
+</Accordion>
+
+## Technical
+
+<Accordion title="What is contract-caller authorization?">
+Every function checks that `contract-caller == tx-sender`. This prevents phishing attacks where a malicious contract tricks you into calling the escrow contract through an intermediary.
+
+In practice, this means you must call the contract directly — not through another contract.
+</Accordion>
+
+<Accordion title="What are post-conditions?">
+[Post-conditions](https://docs.stacks.co/stacks-101/post-conditions) are on-chain safety checks that enforce transfer amounts. They're displayed in your wallet before signing and prevent the contract from transferring more than expected.
+
+The frontend and SDK automatically build correct post-conditions for every transaction.
+</Accordion>
+
+<Accordion title="How accurate are block time estimates?">
+Post-Nakamoto Stacks targets ~90-second blocks, but actual times can vary. The frontend shows "approximately" for all time estimates. For time-sensitive escrows, use generous durations.
+</Accordion>
+
+<Accordion title="Can I use the SDK without a wallet?">
+For **read-only** operations (fetching escrows, stats, config), no wallet is needed. For **write** operations (creating, releasing, etc.), you need a private key.
+
+See [SDK Overview](/sdk/overview).
+</Accordion>
+
+<Accordion title="Is the indexer required?">
+No. The on-chain contract is the source of truth. The Supabase indexer is a convenience layer that enables:
+- Faster list queries with filtering/pagination
+- Realtime updates via WebSocket
+- Event history
+
+The frontend can work without it by falling back to direct contract reads.
+</Accordion>
+
+## Admin
+
+<Accordion title="Who is the admin?">
+The admin is the contract owner — initially the deployer address. Ownership can be transferred via a 2-step process (`transfer-ownership` + `accept-ownership`).
+</Accordion>
+
+<Accordion title="Can the admin steal funds?">
+The admin can resolve disputes in favor of either party, but cannot move funds outside the defined flows (release, refund, resolve). The dispute timeout mechanism ensures buyers can always recover after ~30 days.
+</Accordion>
+
+<Accordion title="What does pausing the contract do?">
+Pausing blocks new escrow creation. Existing escrows can still be released, refunded, and disputed. Pausing is an emergency control for situations like discovered bugs.
+</Accordion>
+
+</AccordionGroup>

@@ -1,0 +1,234 @@
+---
+title: Testing Guide
+description: "How to test sBTC Escrow — from local simnet to testnet"
+---
+
+# Testing Guide
+
+sBTC Escrow includes comprehensive tests at multiple levels: contract unit tests, frontend component tests, and integration tests against testnet.
+
+## Contract Tests (Simnet)
+
+### Setup
+
+```bash
+cd sbtc-escrow
+npm install
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# With coverage report
+npm run test:report
+```
+
+### Test Framework
+
+- **Clarinet SDK** — Simnet environment with pre-funded wallets
+- **Vitest** — Test runner
+- **8 test wallets** — 100M STX + 1B sats each
+
+### Test Files
+
+| File | Contract | Coverage |
+|------|----------|----------|
+| `tests/escrow.test.ts` | escrow.clar (V3) | STX-only flows |
+| `tests/escrow-v5.test.ts` | escrow-v5.clar (V5) | Dual-token (STX + sBTC) |
+
+### What's Tested
+
+<AccordionGroup>
+  <Accordion title="Admin Functions" icon="shield">
+    - Pause/unpause contract
+    - Ownership transfer (2-step)
+    - Fee updates (within bounds)
+    - Fee recipient changes
+    - Dispute timeout changes
+    - Unauthorized caller rejection
+  </Accordion>
+  <Accordion title="Escrow Creation" icon="plus">
+    - Valid STX escrow
+    - Valid sBTC escrow
+    - Amount bounds (min/max per token)
+    - Duration bounds
+    - Self-escrow prevention
+    - Paused contract rejection
+    - Invalid token type
+  </Accordion>
+  <Accordion title="Release Flow" icon="check">
+    - Buyer releases to seller
+    - Fee distributed correctly
+    - Works after expiry
+    - Non-buyer rejection
+    - Double-release prevention
+  </Accordion>
+  <Accordion title="Refund Flow" icon="rotate-left">
+    - Seller refunds anytime
+    - Anyone refunds after expiry
+    - Full amount returned (principal + fee)
+    - Non-seller rejection before expiry
+  </Accordion>
+  <Accordion title="Dispute Flow" icon="gavel">
+    - Buyer disputes
+    - Seller disputes
+    - Admin resolves for buyer
+    - Admin resolves for seller
+    - Dispute timeout recovery
+    - Non-participant rejection
+  </Accordion>
+  <Accordion title="Extension" icon="clock">
+    - Buyer extends deadline
+    - Extension within max bounds
+    - Non-buyer rejection
+    - Post-expiry rejection
+  </Accordion>
+  <Accordion title="Read-Only Functions" icon="eye">
+    - get-escrow returns correct data
+    - get-user-stats tracks correctly
+    - get-platform-stats updates
+    - is-expired checks block height
+    - is-dispute-timed-out checks timeout
+  </Accordion>
+</AccordionGroup>
+
+### Example Test
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { Cl } from '@stacks/transactions';
+
+describe('create-escrow', () => {
+  it('creates an STX escrow', () => {
+    const { result } = simnet.callPublicFn(
+      'escrow-v5',
+      'create-escrow',
+      [
+        Cl.standardPrincipal(seller),    // seller
+        Cl.uint(1_000_000),              // 1 STX
+        Cl.stringUtf8('Test escrow'),    // description
+        Cl.uint(960),                    // ~1 day
+        Cl.uint(0),                      // STX
+      ],
+      buyer
+    );
+
+    expect(result).toBeOk(Cl.uint(1));
+  });
+});
+```
+
+---
+
+## Testnet Testing
+
+### Deploy to Testnet
+
+```bash
+npm run deploy:testnet
+```
+
+### Run Testnet Tests
+
+```bash
+# Basic tests
+npm run test:testnet
+
+# Full integration suite
+npm run test:testnet:full
+```
+
+### Manual Testing Checklist
+
+<Steps>
+  <Step title="Setup">
+    1. Install Leather or Xverse wallet
+    2. Switch to Testnet
+    3. Get STX from faucet
+    4. Open app at https://sbtc-escrow.vercel.app
+    5. Connect wallet
+  </Step>
+  <Step title="Happy Path — Create & Release">
+    1. Create an escrow (STX, ~1 day duration)
+    2. Switch to seller wallet
+    3. View escrow in "My Escrows"
+    4. Switch back to buyer wallet
+    5. Release the escrow
+    6. Verify seller received funds
+  </Step>
+  <Step title="Refund Path">
+    1. Create an escrow
+    2. Switch to seller wallet
+    3. Refund the escrow
+    4. Verify buyer received full amount back
+  </Step>
+  <Step title="Dispute Path">
+    1. Create an escrow
+    2. Dispute as buyer
+    3. Switch to admin wallet
+    4. Resolve dispute (for buyer or seller)
+  </Step>
+  <Step title="Expiry Path">
+    1. Create an escrow with short duration
+    2. Wait for expiry
+    3. Trigger refund from any wallet
+  </Step>
+  <Step title="Admin Controls">
+    1. Pause contract → verify creation blocked
+    2. Unpause → verify creation works
+    3. Update fee → verify new escrows use new fee
+    4. Transfer ownership (2-step)
+  </Step>
+</Steps>
+
+### Verifying Data
+
+Query Supabase to verify indexed data:
+
+```sql
+-- Recent escrows
+SELECT id, buyer, seller, amount, status, token_type
+FROM escrows
+ORDER BY created_at_block DESC
+LIMIT 10;
+
+-- Events for an escrow
+SELECT event_type, block_height, tx_id, data
+FROM escrow_events
+WHERE escrow_id = 1
+ORDER BY block_height;
+
+-- Platform config
+SELECT * FROM platform_config;
+```
+
+---
+
+## Frontend Tests
+
+```bash
+cd frontend
+npm test
+```
+
+Uses Vitest with JSDOM environment + Testing Library for React component tests.
+
+---
+
+## Test Accounts
+
+For local simnet testing, Clarinet provides these pre-funded wallets:
+
+| Wallet | Address | STX Balance | sBTC Balance |
+|--------|---------|:-----------:|:------------:|
+| deployer | `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM` | 100M | 1B sats |
+| wallet_1 | `ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5` | 100M | 1B sats |
+| wallet_2 | `ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG` | 100M | 1B sats |
+| wallet_3 | `ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC` | 100M | 1B sats |
+| ... | +4 more wallets | 100M each | 1B sats each |

@@ -1,0 +1,181 @@
+---
+title: Deployment Guide
+description: "Deploy the smart contract, frontend, and backend"
+---
+
+# Deployment Guide
+
+## Smart Contract
+
+### Prerequisites
+
+- [Clarinet](https://docs.hiro.so/clarinet) installed
+- STX in your deployer wallet (for transaction fees)
+
+### Local (Simnet)
+
+```bash
+clarinet check     # Verify contract syntax
+clarinet test      # Run all tests
+clarinet console   # Interactive REPL
+```
+
+### Testnet
+
+```bash
+npm run deploy:testnet
+```
+
+This uses the `scripts/deploy-testnet.ts` script. The deployment plan is defined in `deployments/default.testnet-plan.yaml`.
+
+**Testnet deployer:** `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N`
+
+### Mainnet
+
+<Warning>
+Mainnet deployment requires careful review of the contract code, fees, and configuration. Ensure thorough testing on testnet first.
+</Warning>
+
+1. Update `deployments/default.mainnet-plan.yaml` with your deployer address
+2. Set the mainnet sBTC contract: `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token`
+3. Deploy: `clarinet deployments apply -p deployments/default.mainnet-plan.yaml`
+
+### Post-Deployment Checklist
+
+<Steps>
+  <Step title="Verify contract">
+    Check the contract on [Hiro Explorer](https://explorer.hiro.so). Confirm all functions are present.
+  </Step>
+  <Step title="Set fee recipient">
+    Call `set-fee-recipient` with your operational wallet address.
+  </Step>
+  <Step title="Register Chainhook">
+    ```bash
+    npm run register:chainhook
+    ```
+    Points the Chainhook observer to your Supabase edge function.
+  </Step>
+  <Step title="Test end-to-end">
+    Create a test escrow → release → verify in Supabase.
+  </Step>
+</Steps>
+
+---
+
+## Frontend
+
+### Vercel (Recommended)
+
+The frontend is configured for zero-config Vercel deployment:
+
+1. Import the repository in [Vercel](https://vercel.com)
+2. Set the **Root Directory** to the project root (not `frontend/`)
+3. Add environment variables:
+
+```
+VITE_STACKS_NETWORK=testnet
+VITE_CONTRACT_ADDRESS=ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N
+VITE_CONTRACT_NAME=escrow-v5
+VITE_SBTC_CONTRACT=ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+4. Deploy — Vercel runs `cd frontend && npm install && npm run build`
+
+### Other Platforms
+
+Build the static site and deploy anywhere:
+
+```bash
+cd frontend
+npm install
+npm run build
+# Deploy the `dist/` directory
+```
+
+Works on: Netlify, Cloudflare Pages, AWS S3 + CloudFront, any static host.
+
+<Note>
+The SPA requires all routes to fall back to `index.html`. Configure your host's rewrite rules accordingly.
+</Note>
+
+---
+
+## Supabase Backend
+
+### Project Setup
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Install the CLI: `npm install -g supabase`
+3. Link your project:
+
+```bash
+cd sbtc-escrow
+supabase login
+supabase link --project-ref your-project-ref
+```
+
+### Run Migrations
+
+```bash
+supabase db push
+```
+
+This applies all migrations in `supabase/migrations/` to your remote database.
+
+### Deploy Edge Functions
+
+```bash
+# Deploy the webhook
+supabase functions deploy chainhook-webhook
+
+# Deploy the health check
+supabase functions deploy indexer-health
+```
+
+### Set Secrets
+
+```bash
+supabase secrets set CHAINHOOK_SECRET=your-webhook-secret
+```
+
+### Verify
+
+```bash
+# Check function status
+supabase functions list
+
+# Test health endpoint
+curl https://your-project.supabase.co/functions/v1/indexer-health
+```
+
+---
+
+## Chainhook Registration
+
+Register the Chainhook observer to forward events to your Supabase edge function:
+
+```bash
+npm run register:chainhook
+```
+
+Or use the `scripts/register-chainhook.ts` script directly:
+
+```bash
+npx tsx scripts/register-chainhook.ts
+```
+
+This registers a predicate that watches for contract calls to `escrow-v5` and POSTs events to your webhook URL.
+
+---
+
+## Environment Summary
+
+| Component | Testnet | Mainnet |
+|-----------|---------|---------|
+| Contract | `ST1HK6...escrow-v5` | TBD |
+| sBTC | `ST1F7Q...sbtc-token` | `SM3VDX...sbtc-token` |
+| Frontend | sbtc-escrow.vercel.app | TBD |
+| Supabase | Project-specific | Project-specific |
+| Stacks API | api.testnet.hiro.so | api.mainnet.hiro.so |
