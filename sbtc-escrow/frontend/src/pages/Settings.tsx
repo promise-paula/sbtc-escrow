@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { Separator } from '@/components/ui/separator';
 import { Wallet, Settings2, Info, ExternalLink, LogOut, RotateCcw } from 'lucide-react';
@@ -97,24 +96,8 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <p className="text-xs font-medium text-muted-foreground">Display</p>
               <div className="flex items-center justify-between">
-                <Label htmlFor="compact" className="text-sm">Compact table rows</Label>
-                <Switch id="compact" checked={settings.compactRows} onCheckedChange={v => update('compactRows', v)} />
-              </div>
-              <div className="flex items-center justify-between">
                 <Label htmlFor="usd" className="text-sm">Show USD estimates</Label>
                 <Switch id="usd" checked={settings.showUsd} onCheckedChange={v => update('showUsd', v)} />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="currency" className="text-sm">Default currency</Label>
-                <Select value={settings.currency} onValueChange={v => update('currency', v as 'STX' | 'microSTX')}>
-                  <SelectTrigger className="w-32 h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="STX">STX</SelectItem>
-                    <SelectItem value="microSTX">microSTX</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
 
@@ -122,18 +105,21 @@ export default function SettingsPage() {
 
             {/* Notifications */}
             <div className="space-y-4">
-              <p className="text-xs font-medium text-muted-foreground">Notifications</p>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Notifications</p>
+                <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Coming Soon</span>
+              </div>
+              <div className="flex items-center justify-between opacity-50">
                 <Label htmlFor="notif-confirm" className="text-sm">Transaction confirmations</Label>
-                <Switch id="notif-confirm" checked={settings.notifyConfirmations} onCheckedChange={v => update('notifyConfirmations', v)} />
+                <Switch id="notif-confirm" checked={settings.notifyConfirmations} disabled />
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between opacity-50">
                 <Label htmlFor="notif-dispute" className="text-sm">Dispute alerts</Label>
-                <Switch id="notif-dispute" checked={settings.notifyDisputes} onCheckedChange={v => update('notifyDisputes', v)} />
+                <Switch id="notif-dispute" checked={settings.notifyDisputes} disabled />
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between opacity-50">
                 <Label htmlFor="notif-expiry" className="text-sm">Escrow expiry reminders</Label>
-                <Switch id="notif-expiry" checked={settings.notifyExpiry} onCheckedChange={v => update('notifyExpiry', v)} />
+                <Switch id="notif-expiry" checked={settings.notifyExpiry} disabled />
               </div>
             </div>
           </CardContent>
