@@ -47,6 +47,7 @@ export interface PlatformStats {
   totalReleased: number; // count
   totalRefunded: number; // count
   activeDisputes: number; // count
+  resolvedDisputes: number; // count
 }
 
 export interface PlatformConfig {
