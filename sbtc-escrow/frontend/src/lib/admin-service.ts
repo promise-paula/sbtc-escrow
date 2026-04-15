@@ -22,7 +22,7 @@ async function adminCall(
     toast.success(successMsg, { description: 'Transaction submitted.' });
     return response.txid;
   } catch (err) {
-    toast.error(`${successMsg} failed`, { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    toast.error(`Failed: ${successMsg}`, { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
     throw err;
   }
 }
