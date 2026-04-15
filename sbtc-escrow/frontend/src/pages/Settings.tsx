@@ -140,7 +140,7 @@ export default function SettingsPage() {
               <div className="flex justify-between gap-3 p-3"><span className="text-muted-foreground shrink-0">Contract</span><span className="font-mono text-xs truncate">{CONTRACT_ADDRESS}.{CONTRACT_NAME}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Network</span><span className="capitalize">{STACKS_NETWORK}</span></div>
               <div className="flex justify-between p-3"><span className="text-muted-foreground">Platform Fee</span><span>{config ? config.platformFeeBps / 100 : '—'}%</span></div>
-              <div className="flex justify-between p-3"><span className="text-muted-foreground">Dispute Timeout</span><span>{config ? `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(config.disputeTimeout, minutesPerBlock)})` : '—'}</span></div>
+              <div className="flex justify-between p-3"><span className="text-muted-foreground">Dispute Timeout</span><span>{config ? `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(config.disputeTimeout)})` : '—'}</span></div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild>
