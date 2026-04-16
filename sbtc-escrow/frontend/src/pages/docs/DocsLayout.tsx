@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { docsNavigation, type DocSection} from "./docs-config";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Menu, X, ArrowLeft } from "lucide-react";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 function SidebarSection({ section, currentSlug }: { section: DocSection; currentSlug: string }) {
   const isActive = section.pages.some((p) => p.slug === currentSlug);
@@ -90,6 +91,8 @@ export function DocsLayout({ children }: { children: React.ReactNode }) {
             <ArrowLeft className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Back to App</span>
           </Link>
+
+          <ThemeToggle />
 
           <a
             href="https://github.com/promise-paula/sbtc-escrow"

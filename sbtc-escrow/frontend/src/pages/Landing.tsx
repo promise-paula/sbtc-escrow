@@ -48,7 +48,7 @@ const steps = [
 const security = [
   { icon: FileCheck, title: 'Clarity Smart Contract', desc: 'All escrow logic runs on-chain in a verified Clarity contract. Deterministic execution with no hidden behavior.' },
   { icon: Server, title: 'Non-Custodial Architecture', desc: 'Your keys never leave your wallet. The platform cannot move, freeze, or access your funds at any time.' },
-  { icon: Timer, title: 'Dispute Timeout Hardened', desc: 'V5 contract enforces a configurable dispute window with buyer self-recovery after timeout.' },
+  { icon: Timer, title: 'Dispute Timeout Hardened', desc: 'Contract enforces a configurable dispute window with buyer self-recovery after timeout.' },
 ];
 
 
