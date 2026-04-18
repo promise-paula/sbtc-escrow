@@ -16,6 +16,7 @@ import { MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_ST
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, dur, scaleIn, shake } from '@/lib/motion';
 import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } from 'lucide-react';
@@ -87,7 +88,10 @@ export default function CreateEscrow() {
   const progressPercent = step === 1 ? 33 : step === 2 ? 66 : 100;
 
   const handleSubmit = async () => {
-    if (!address) return;
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
     setTxStatus('pending');
     try {
       const hash = await createEscrow({ buyer: address, seller: recipient, amount: smallestUnit, description: description.trim(), duration, tokenType, feeBps: cfg.platformFeeBps });
