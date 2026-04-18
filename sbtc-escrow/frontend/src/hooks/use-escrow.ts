@@ -64,6 +64,32 @@ export function useEscrowEvents(escrowId?: number) {
   });
 }
 
+/** Events scoped to escrows where the given address is buyer or seller. */
+export function useUserEscrowEvents(address: string | null) {
+  return useQuery({
+    queryKey: ['user-events', address],
+    queryFn: async (): Promise<EscrowEvent[]> => {
+      if (!isSupabaseConfigured || !address) return [];
+      // First get the user's escrow IDs
+      const { data: escrows, error: escrowErr } = await supabase
+        .from('escrows')
+        .select('id')
+        .or(`buyer.eq.${address},seller.eq.${address}`);
+      if (escrowErr || !escrows?.length) return [];
+      const ids = escrows.map(e => e.id);
+      // Then get events for those escrows
+      const { data, error } = await supabase
+        .from('escrow_events')
+        .select('*')
+        .in('escrow_id', ids)
+        .order('block_height', { ascending: false });
+      if (error || !data?.length) return [];
+      return data.map(mapEventRow);
+    },
+    enabled: !!address,
+  });
+}
+
 export function useUserStats(address: string | null) {
   return useQuery({
     queryKey: ['user-stats', address],
