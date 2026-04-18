@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useWallet } from '@/contexts/WalletContext';
-import { useEscrowEvents } from '@/hooks/use-escrow';
+import { useUserEscrowEvents } from '@/hooks/use-escrow';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
@@ -42,7 +42,7 @@ const filterLabels: Record<string, string> = {
 export default function ActivityPage() {
   const navigate = useNavigate();
   const { address } = useWallet();
-  const { data: allEvents, isLoading, isError } = useEscrowEvents();
+  const { data: allEvents, isLoading, isError } = useUserEscrowEvents(address);
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const sortedAll = useMemo(
