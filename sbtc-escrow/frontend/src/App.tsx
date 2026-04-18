@@ -8,6 +8,7 @@ import { WalletProvider } from "@/contexts/WalletContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AdminGuard } from "@/components/shared/AdminGuard";
+import { WalletGuard } from "@/components/shared/WalletGuard";
 import Landing from "@/pages/Landing";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -39,13 +40,13 @@ const App = () => (
                 <Route path="/docs" element={<DocsPage />} />
                 <Route path="/docs/*" element={<DocsPage />} />
                 <Route element={<AppLayout />}>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/create" element={<CreateEscrow />} />
-                  <Route path="/escrows" element={<MyEscrows />} />
-                  <Route path="/escrow/:id" element={<EscrowDetail />} />
-                  <Route path="/activity" element={<Activity />} />
-                  <Route path="/analytics" element={<Analytics />} />
-                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/dashboard" element={<WalletGuard><Dashboard /></WalletGuard>} />
+                  <Route path="/create" element={<WalletGuard><CreateEscrow /></WalletGuard>} />
+                  <Route path="/escrows" element={<WalletGuard><MyEscrows /></WalletGuard>} />
+                  <Route path="/escrow/:id" element={<WalletGuard><EscrowDetail /></WalletGuard>} />
+                  <Route path="/activity" element={<WalletGuard><Activity /></WalletGuard>} />
+                  <Route path="/analytics" element={<WalletGuard><Analytics /></WalletGuard>} />
+                  <Route path="/settings" element={<WalletGuard><Settings /></WalletGuard>} />
                   <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
                   <Route path="/admin/disputes" element={<AdminGuard><DisputeQueue /></AdminGuard>} />
                   <Route path="/admin/controls" element={<AdminGuard><ContractControls /></AdminGuard>} />
