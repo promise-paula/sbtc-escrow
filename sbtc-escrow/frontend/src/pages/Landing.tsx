@@ -180,12 +180,16 @@ export default function Landing() {
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? 1.5;
 
-  const handleGetStarted = () => {
+  const handleGetStarted = async () => {
     if (isConnected) {
       navigate('/dashboard');
     } else {
-      connect();
-      navigate('/dashboard');
+      try {
+        await connect();
+        navigate('/dashboard');
+      } catch {
+        // User cancelled or connection failed — stay on landing
+      }
     }
   };
 
