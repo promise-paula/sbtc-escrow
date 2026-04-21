@@ -122,8 +122,8 @@ export default function Analytics() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Analytics</h1>
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Analytics</h1>
 
       {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
