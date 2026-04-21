@@ -82,16 +82,16 @@ export default function MyEscrows() {
   if (isLoading) return <EscrowListSkeleton />;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-5xl">
+    <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-foreground tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
           My Escrows{' '}
           <span className="text-muted-foreground font-normal">({allEscrows?.length ?? 0})</span>
         </h1>
         <div className="flex items-center gap-2">
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-36 h-9 text-xs">
+            <SelectTrigger className="w-36 h-10 text-sm">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -102,12 +102,12 @@ export default function MyEscrows() {
             </SelectContent>
           </Select>
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-3 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Search..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-8 h-9 w-full sm:w-48 text-xs"
+              className="pl-8 h-10 w-full sm:w-48 text-sm"
             />
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function MyEscrows() {
       <Tabs value={statusFilter} onValueChange={setStatusFilter}>
         <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
           {STATUS_TABS.map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value} className="text-xs gap-1.5 px-2.5 py-1 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger key={tab.value} value={tab.value} className="text-xs gap-1.5 px-3 py-1.5 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               {tab.label}
               {(statusCounts[tab.value] ?? 0) > 0 && (
                 <Badge variant="secondary" className="h-4 min-w-4 px-1 text-xs font-normal rounded-full">
@@ -156,7 +156,7 @@ export default function MyEscrows() {
         />
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((e, i) => {
             const isBuyer = e.buyer === address;
             const counterparty = isBuyer ? e.seller : e.buyer;
