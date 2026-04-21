@@ -17,11 +17,11 @@
     --popover-foreground: 15% 0.005 250;
 
     /* Primary — bold Bitcoin orange */
-    --primary: 58% 0.19 48;
+    --primary: 56% 0.19 48;
     --primary-foreground: 99% 0 0;
 
     /* Accent pair — warm orange + Stacks violet */
-    --accent-warm: 68% 0.19 48;
+    --accent-warm: 60% 0.19 48;
     --accent-violet: 55% 0.2 285;
 
     --secondary: 94% 0.003 250;
@@ -43,7 +43,7 @@
     --warning: 78% 0.16 75;
     --warning-foreground: 30% 0.05 75;
 
-    --status-pending: 78% 0.16 75;
+    --status-pending: 62% 0.16 75;
     --status-released: 62% 0.17 155;
     --status-refunded: 55% 0.2 285;
     --status-disputed: 55% 0.22 27;
@@ -105,7 +105,7 @@
     --secondary-foreground: 95% 0.005 250;
 
     --muted: 18% 0.003 250;
-    --muted-foreground: 55% 0.008 250;
+    --muted-foreground: 65% 0.008 250;
 
     --accent: 18% 0.003 250;
     --accent-foreground: 95% 0.005 250;
@@ -147,7 +147,7 @@
     --gradient-hero: linear-gradient(180deg, oklch(8% 0.002 250), oklch(12% 0.006 45));
 
     --sidebar-background: 10% 0.003 250;
-    --sidebar-foreground: 55% 0.008 250;
+    --sidebar-foreground: 65% 0.008 250;
     --sidebar-primary: 72% 0.19 48;
     --sidebar-primary-foreground: 8% 0.002 250;
     --sidebar-accent: 18% 0.003 250;
