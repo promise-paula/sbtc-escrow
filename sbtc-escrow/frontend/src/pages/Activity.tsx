@@ -86,8 +86,8 @@ export default function ActivityPage() {
   if (isLoading) return <ActivitySkeleton />;
 
   return (
-    <div className="p-4 sm:p-6 max-w-3xl space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Activity</h1>
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Activity</h1>
 
       {isError && <ErrorBanner message="Failed to load activity. Showing cached data." />}
 
@@ -116,7 +116,7 @@ export default function ActivityPage() {
             <TabsTrigger
               key={t}
               value={t}
-              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-2.5 py-1"
+              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-3 py-1.5"
             >
               {filterLabels[t] ?? t}
               {counts[t] > 0 && (
