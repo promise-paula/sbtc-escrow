@@ -18,7 +18,7 @@ import { Logo } from '@/components/shared/Logo';
 import {
   Wallet, ArrowRight, Shield, Clock,
   Lock, Activity, Scale, CalendarPlus, Users,
-  FileCheck, Server, Timer,
+  FileCheck, Server, Timer, Percent, Code2,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -27,7 +27,9 @@ import {
 
 const trustSignals = [
   { icon: Lock, label: 'Non-Custodial' },
-  { icon: Activity, label: 'Built on Stacks' },
+  { icon: FileCheck, label: 'Clarity Smart Contract' },
+  { icon: Percent, label: '0.5% Flat Fee' },
+  { icon: Code2, label: 'Open Source' },
 ];
 
 const features = [
@@ -228,8 +230,8 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 py-14 lg:py-20" style={{ background: 'var(--gradient-hero)' }}>
-        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+      <section style={{ background: 'var(--gradient-hero)' }}>
+        <div className="max-w-6xl mx-auto px-4 py-14 lg:py-20 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left — copy */}
           <motion.div variants={heroLeftVariants} initial="hidden" animate="visible">
             {/* Pill badge */}
@@ -239,10 +241,10 @@ export default function Landing() {
             </div>
 
             <h1 className="font-bold tracking-tight text-foreground leading-[1.1]" style={{ fontSize: 'clamp(1.875rem, 1.2rem + 2.5vw, 3.75rem)' }}>
-              Institutional-Grade Escrow&nbsp;for&nbsp;Bitcoin
+              Bitcoin escrow at&nbsp;0.5%.
             </h1>
             <p className="mt-4 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
-              Non-custodial smart contract escrow on Stacks. Lock, release, or dispute — all on-chain.
+              10× cheaper than traditional escrow. Non-custodial smart contracts on Stacks, built for freelancers, P2P traders, and small businesses.
             </p>
 
             {/* Inline social proof */}
@@ -256,8 +258,8 @@ export default function Landing() {
                   Get Started <ArrowRight className="h-4 w-4" />
                 </Button>
               </motion.div>
-              <Button size="lg" variant="outline" onClick={() => scrollTo('how-it-works')}>
-                How it Works
+              <Button size="lg" variant="outline" onClick={() => navigate('/docs')} className="gap-2">
+                Read the Docs <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </motion.div>
@@ -289,7 +291,7 @@ export default function Landing() {
       </section>
 
       {/* ── Features ───────────────────────────────────────────── */}
-      <section id="features" className="max-w-6xl mx-auto px-4 pt-16 pb-24">
+      <section id="features" className="max-w-6xl mx-auto px-4 py-16 sm:py-24">
         <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }}>
           <h2 className="text-2xl font-bold text-foreground tracking-tight">Platform Features</h2>
           <p className="mt-3 text-muted-foreground max-w-lg">Everything you need to manage escrow transactions with confidence.</p>
@@ -320,8 +322,8 @@ export default function Landing() {
             <p className="mt-3 text-muted-foreground">Three steps from wallet to settlement.</p>
           </motion.div>
 
-          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="mt-14 grid sm:grid-cols-3 gap-10 relative">
-            <div className="hidden sm:block absolute top-6 left-[16.67%] right-[16.67%] h-px bg-border" aria-hidden="true" />
+          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="mt-14 grid sm:grid-cols-2 md:grid-cols-3 gap-10 relative">
+            <div className="hidden md:block absolute top-6 left-[16.67%] right-[16.67%] h-px bg-border" aria-hidden="true" />
 
             {steps.map((s) => (
               <motion.div key={s.num} variants={revealVariants} className="relative text-center">
@@ -338,20 +340,37 @@ export default function Landing() {
 
       {/* ── Stats ──────────────────────────────────────────────── */}
       <section className="border-t border-border">
-        <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="max-w-6xl mx-auto px-4 py-20 grid grid-cols-2 sm:grid-cols-4 gap-5">
-          {[
-            { value: (ps?.totalEscrows ?? 0).toLocaleString(), value2: null, label: 'Escrows Created' },
-            { value: formatSTX(ps?.totalVolumeStx ?? 0) + ' STX', value2: (ps?.totalVolumeSbtc ?? 0) > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, label: 'Total Volume' },
-            { value: `${((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%`, value2: null, label: 'Platform Fee' },
-            { value: `${Math.round((cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) * DEFAULT_MINUTES_PER_BLOCK / 1440)} days`, value2: null, label: 'Dispute Window' },
-          ].map((s) => (
-            <motion.div key={s.label} variants={revealVariants} className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-4 sm:p-5 text-center overflow-hidden">
-              <p className="text-lg sm:text-2xl font-bold font-mono text-foreground tracking-tight truncate">{s.value}</p>
-              {s.value2 && <p className="text-sm font-mono font-medium text-foreground truncate">{s.value2}</p>}
-              <p className="text-sm text-muted-foreground mt-1">{s.label}</p>
-            </motion.div>
-          ))}
-        </motion.div>
+        <div className="max-w-6xl mx-auto px-4 py-16 sm:py-24">
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">By the numbers</h2>
+            <p className="mt-3 text-muted-foreground">Live on-chain activity, updated every block.</p>
+          </motion.div>
+
+          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {[
+              { value: (ps?.totalEscrows ?? 0).toLocaleString(), value2: null, label: 'Escrows Created' },
+              { value: formatSTX(ps?.totalVolumeStx ?? 0) + ' STX', value2: (ps?.totalVolumeSbtc ?? 0) > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, label: 'Total Volume' },
+            ].map((s) => (
+              <motion.div key={s.label} variants={revealVariants} className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-6 sm:p-8 text-center overflow-hidden">
+                <p className="text-3xl sm:text-4xl font-bold font-mono text-foreground tracking-tight truncate">{s.value}</p>
+                {s.value2 && <p className="text-base font-mono font-medium text-foreground truncate mt-1">{s.value2}</p>}
+                <p className="text-sm text-muted-foreground mt-2">{s.label}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Contract terms — separated from social proof */}
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Percent className="h-3.5 w-3.5 text-primary" />
+              Platform fee: <span className="font-mono text-foreground">{((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Timer className="h-3.5 w-3.5 text-primary" />
+              Dispute window: <span className="font-mono text-foreground">{Math.round((cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) * DEFAULT_MINUTES_PER_BLOCK / 1440)} days</span>
+            </span>
+          </motion.div>
+        </div>
       </section>
 
       {/* ── Security ───────────────────────────────────────────── */}
@@ -362,7 +381,7 @@ export default function Landing() {
             <p className="mt-3 text-muted-foreground max-w-lg">Enterprise-grade protections at every layer of the stack.</p>
           </motion.div>
 
-          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.1 }} className="mt-14 grid sm:grid-cols-3 gap-6">
+          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.1 }} className="mt-14 grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {security.map((s) => (
               <motion.div key={s.title} variants={revealVariants} className="rounded-lg border border-border/60 bg-surface-1 p-5 sm:p-7 transition-all hover:shadow-glow-sm hover:border-primary/20">
                 <s.icon className="h-6 w-6 text-primary mb-5" />
@@ -375,7 +394,7 @@ export default function Landing() {
       </section>
 
       {/* ── CTA ────────────────────────────────────────────────── */}
-      <section className="border-t border-border bg-surface-2">
+      <section className="border-t border-border">
         <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-6xl mx-auto px-4 py-16 sm:py-24 text-center">
           <h2 className="text-2xl font-bold text-foreground tracking-tight">Ready to get started?</h2>
           <p className="mt-3 text-muted-foreground">Create your first escrow in under a minute.</p>
