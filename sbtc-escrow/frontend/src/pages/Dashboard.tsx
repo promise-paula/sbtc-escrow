@@ -61,10 +61,10 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-5xl">
+    <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Dashboard</h1>
         <Button size="sm" onClick={() => navigate('/create')} className="gap-1.5">
           <PlusCircle className="h-3.5 w-3.5" /> Create Escrow
         </Button>
@@ -231,7 +231,7 @@ export default function Dashboard() {
                     variants={listItemVariants}
                     initial="hidden"
                     animate="visible"
-                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm transition-all"
+                    className="flex items-center gap-3 sm:gap-4 px-4 py-3 cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm transition-all"
                     onClick={() => navigate(`/escrow/${e.id}`)}
                   >
                     <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_CLASSES[e.status]}`} />
@@ -246,7 +246,7 @@ export default function Dashboard() {
                       <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
                     </div>
                     <StatusBadge status={e.status} />
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <ArrowRight className="hidden sm:block h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   </motion.div>
                 );
               })}
