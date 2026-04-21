@@ -35,7 +35,7 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
 
   return (
     <div className="relative group">
-      <div className="absolute top-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-2 right-2 flex items-center gap-2 opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         {match && (
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-mono">
             {match[1]}
@@ -86,7 +86,7 @@ function DocsMarkdown({ content }: { content: string }) {
           <th className="text-left px-3 py-2 border-b-2 border-border font-semibold text-foreground">{children}</th>
         ),
         td: ({ children }) => (
-          <td className="px-3 py-2 border-b border-border/50 text-muted-foreground">{children}</td>
+          <td className="px-3 py-2 border-b border-border/50 text-foreground">{children}</td>
         ),
         blockquote: ({ children }) => (
           <div className="border-l-4 border-primary/50 bg-primary/5 rounded-r-lg px-4 py-3 my-4 text-sm [&>p]:m-0">
@@ -97,9 +97,9 @@ function DocsMarkdown({ content }: { content: string }) {
         h2: ({ children }) => <h2 className="text-2xl font-semibold mt-10 mb-4 pb-2 border-b border-border/50 text-foreground">{children}</h2>,
         h3: ({ children }) => <h3 className="text-lg font-semibold mt-8 mb-3 text-foreground">{children}</h3>,
         h4: ({ children }) => <h4 className="text-base font-semibold mt-6 mb-2 text-foreground">{children}</h4>,
-        p: ({ children }) => <p className="text-muted-foreground leading-7 mb-4">{children}</p>,
-        ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1 text-muted-foreground">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1 text-muted-foreground">{children}</ol>,
+        p: ({ children }) => <p className="text-foreground leading-7 mb-4">{children}</p>,
+        ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1 text-foreground">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1 text-foreground">{children}</ol>,
         li: ({ children }) => <li className="leading-7">{children}</li>,
         pre: ({ children }) => (
           <pre className="bg-[#1a1a2e] text-gray-200 rounded-lg p-4 my-4 overflow-x-auto text-sm leading-relaxed">
