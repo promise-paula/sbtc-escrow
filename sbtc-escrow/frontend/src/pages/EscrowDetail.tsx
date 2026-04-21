@@ -135,7 +135,7 @@ export default function EscrowDetail() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-3xl space-y-6">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-8">
       {/* Breadcrumb */}
       <motion.div variants={pageVariants} initial="initial" animate="animate">
         <button onClick={() => navigate('/escrows')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -154,36 +154,34 @@ export default function EscrowDetail() {
 
       {/* Hero Summary Card */}
       <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
-        <Card className="shadow-glow-sm">
-          <CardContent className="p-5 sm:p-6 space-y-4">
+        <Card className="shadow-glow-sm relative">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="absolute top-3 right-3 h-10 w-10 shrink-0" aria-label="Share escrow">
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                navigator.clipboard.writeText(window.location.href).then(
+                  () => toast.success('Link copied to clipboard'),
+                  () => toast.error('Failed to copy link')
+                );
+              }} className="gap-2">
+                <Link className="h-3.5 w-3.5" /> Copy Link
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => generateEscrowReceipt(escrow, escrowEvents)} className="gap-2">
+                <Download className="h-3.5 w-3.5" /> Download Receipt
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CardContent className="p-5 sm:p-6 pr-14 sm:pr-16 space-y-4">
             {/* Row 1: ID + Amount (primary info) */}
             <div className="flex items-start justify-between gap-4">
               <span className="text-2xl font-bold font-mono text-foreground tracking-tight">#{escrow.id}</span>
-              <div className="flex items-start gap-2">
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground mb-0.5">Amount</p>
-                  <AmountDisplay micro={escrow.amount} tokenType={escrow.tokenType} className="text-lg" />
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                      <Share2 className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      navigator.clipboard.writeText(window.location.href).then(
-                        () => toast.success('Link copied to clipboard'),
-                        () => toast.error('Failed to copy link')
-                      );
-                    }} className="gap-2">
-                      <Link className="h-3.5 w-3.5" /> Copy Link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => generateEscrowReceipt(escrow, escrowEvents)} className="gap-2">
-                      <Download className="h-3.5 w-3.5" /> Download Receipt
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground mb-0.5">Amount</p>
+                <AmountDisplay micro={escrow.amount} tokenType={escrow.tokenType} className="text-lg" />
               </div>
             </div>
 
@@ -232,13 +230,13 @@ export default function EscrowDetail() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className={`rounded-lg border p-3 ${isBuyer ? 'border-accent-warm/40 bg-accent-warm/5' : 'border-border'}`}>
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                  Buyer {isBuyer && <span className="text-accent-warm font-medium">(you)</span>}
+                  Buyer {isBuyer && <span className="text-primary font-medium">(you)</span>}
                 </p>
                 <AddressDisplay address={escrow.buyer} showExplorer />
               </div>
               <div className={`rounded-lg border p-3 ${isSeller ? 'border-accent-warm/40 bg-accent-warm/5' : 'border-border'}`}>
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                  Seller {isSeller && <span className="text-accent-warm font-medium">(you)</span>}
+                  Seller {isSeller && <span className="text-primary font-medium">(you)</span>}
                 </p>
                 <AddressDisplay address={escrow.seller} showExplorer />
               </div>
@@ -260,12 +258,12 @@ export default function EscrowDetail() {
             <div className="divide-y divide-border">
               <div className="flex items-center justify-between py-2.5 first:pt-0">
                 <span className="text-xs text-muted-foreground">Created</span>
-                <span className="font-mono text-xs text-foreground">Block {escrow.createdAt.toLocaleString()}</span>
+                <span className="font-mono text-xs text-foreground">Block {escrow.createdAt}</span>
               </div>
               <div className="flex items-center justify-between gap-3 py-2.5">
                 <span className="text-xs text-muted-foreground shrink-0">Expires</span>
                 <span className="font-mono text-xs text-foreground truncate text-right">
-                  Block {escrow.expiresAt.toLocaleString()}
+                  Block {escrow.expiresAt}
                   {blocksToExpiry > 0 && ` (${blocksToTime(blocksToExpiry, minutesPerBlock)})`}
                   {blocksToExpiry <= 0 && ' (Expired)'}
                 </span>
@@ -273,7 +271,7 @@ export default function EscrowDetail() {
               {escrow.completedAt && (
                 <div className="flex items-center justify-between py-2.5">
                   <span className="text-xs text-muted-foreground">Completed</span>
-                  <span className="font-mono text-xs text-foreground">Block {escrow.completedAt.toLocaleString()}</span>
+                  <span className="font-mono text-xs text-foreground">Block {escrow.completedAt}</span>
                 </div>
               )}
               <div className="flex items-center justify-between py-2.5">
@@ -334,7 +332,7 @@ export default function EscrowDetail() {
                       <div className={`pb-5 ${isLast ? 'pb-0' : ''}`}>
                         <p className="text-sm font-medium">{cfg.label}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="font-mono">Block {event.blockHeight.toLocaleString()}</span>
+                          <span className="font-mono">Block {event.blockHeight}</span>
                           <span>·</span>
                           <span>{relativeTime(event.timestamp)}</span>
                         </div>
