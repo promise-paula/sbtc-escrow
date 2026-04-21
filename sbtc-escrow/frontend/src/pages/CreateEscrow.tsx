@@ -19,7 +19,7 @@ import { TransactionPending } from '@/components/shared/TransactionPending';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, dur, scaleIn, shake } from '@/lib/motion';
-import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck, AlertCircle } from 'lucide-react';
 
 /** Time-based duration presets (in minutes) */
 const durationPresets = [
@@ -62,6 +62,7 @@ export default function CreateEscrow() {
 
   const [txStatus, setTxStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [txHash, setTxHash] = useState('');
+  const [txError, setTxError] = useState<{ title: string; hint: string; detail?: string } | null>(null);
 
   const cfg = config || { platformFeeBps: 50, minAmount: MIN_AMOUNT_STX, maxAmount: MAX_AMOUNT_STX, minAmountSbtc: MIN_AMOUNT_SBTC, maxAmountSbtc: MAX_AMOUNT_SBTC };
   const amount = parseFloat(amountStr) || 0;
@@ -93,19 +94,31 @@ export default function CreateEscrow() {
       return;
     }
     setTxStatus('pending');
+    setTxError(null);
     try {
       const hash = await createEscrow({ buyer: address, seller: recipient, amount: smallestUnit, description: description.trim(), duration, tokenType, feeBps: cfg.platformFeeBps });
       setTxHash(hash);
       setTxStatus('success');
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const low = msg.toLowerCase();
+      if (low.includes('reject') || low.includes('denied') || low.includes('cancel') || low.includes('dismissed') || low.includes('closed')) {
+        setTxError({ title: 'Wallet signature declined', hint: 'You closed or rejected the wallet prompt. Approve the transaction in your wallet to continue.' });
+      } else if (low.includes('insufficient') || low.includes('balance')) {
+        setTxError({ title: 'Insufficient balance', hint: `You need ${formatAmount(total, tokenType)} ${token} plus network fees in your wallet.`, detail: msg });
+      } else if (low.includes('network') || low.includes('fetch') || low.includes('timeout')) {
+        setTxError({ title: 'Network error', hint: 'Could not reach the Stacks network. Check your connection and try again.', detail: msg });
+      } else {
+        setTxError({ title: 'Transaction failed', hint: 'The transaction could not be submitted.', detail: msg });
+      }
       setTxStatus('error');
     }
   };
 
   if (txStatus === 'pending') {
     return (
-      <div className="p-4 sm:p-6 max-w-lg">
-        <h1 className="text-xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
+      <div className="p-4 sm:p-6 max-w-lg mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
           <TransactionPending txHash={txHash || undefined} message="Creating escrow…" />
         </motion.div>
@@ -115,8 +128,8 @@ export default function CreateEscrow() {
 
   if (txStatus === 'success') {
     return (
-      <div className="p-4 sm:p-6 max-w-lg">
-        <h1 className="text-xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
+      <div className="p-4 sm:p-6 max-w-lg mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible" className="flex flex-col items-center py-12 text-center">
           <motion.div variants={scaleIn} initial="initial" animate="animate" className="rounded-full bg-success/10 p-3 mb-4"><Check className="h-6 w-6 text-success" /></motion.div>
           <h3 className="text-sm font-medium">Escrow Created Successfully</h3>
@@ -136,20 +149,26 @@ export default function CreateEscrow() {
 
   if (txStatus === 'error') {
     return (
-      <div className="p-4 sm:p-6 max-w-lg">
-        <h1 className="text-xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
+      <div className="p-4 sm:p-6 max-w-lg mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
         <motion.div variants={shake} initial="initial" animate="animate" className="flex flex-col items-center py-12 text-center">
-          <h3 className="text-sm font-medium text-destructive">Transaction Failed</h3>
-          <p className="text-xs text-muted-foreground mt-1">Something went wrong. Please try again.</p>
-          <Button size="sm" onClick={() => setTxStatus('idle')} className="mt-4">Retry</Button>
+          <div className="rounded-full bg-destructive/10 p-3 mb-4">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+          </div>
+          <h3 className="text-sm font-medium text-destructive">{txError?.title ?? 'Transaction failed'}</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm">{txError?.hint ?? 'The transaction could not be submitted.'}</p>
+          {txError?.detail && (
+            <p className="text-[11px] font-mono text-muted-foreground/70 mt-3 max-w-sm break-words">{txError.detail}</p>
+          )}
+          <Button size="sm" onClick={() => { setTxStatus('idle'); setTxError(null); }} className="mt-4">Try Again</Button>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-lg space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Create Escrow</h1>
+    <div className="p-4 sm:p-6 max-w-lg mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Create Escrow</h1>
 
       {/* Step indicator */}
       <div className="space-y-3">
