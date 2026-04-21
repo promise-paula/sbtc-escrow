@@ -31,7 +31,15 @@ export interface Escrow {
 export interface EscrowEvent {
   id: string;
   escrowId: number;
-  eventType: 'created' | 'released' | 'refunded' | 'disputed' | 'dispute-resolved' | 'dispute-timeout-resolved' | 'extended' | 'expired';
+  eventType:
+    | 'escrow-created'
+    | 'escrow-released'
+    | 'escrow-refunded'
+    | 'escrow-disputed'
+    | 'escrow-extended'
+    | 'dispute-resolved-for-buyer'
+    | 'dispute-resolved-for-seller'
+    | 'dispute-expired-resolved';
   actor: string;
   blockHeight: number;
   timestamp: string; // ISO
