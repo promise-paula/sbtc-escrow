@@ -31,8 +31,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Settings</h1>
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Settings</h1>
 
       {/* Wallet Management */}
       <motion.div custom={0} initial="hidden" animate="visible" variants={cardVariants}>
