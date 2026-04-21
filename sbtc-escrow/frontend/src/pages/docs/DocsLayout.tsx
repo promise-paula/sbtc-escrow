@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Menu, X, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
-function SidebarSection({ section, currentSlug }: { section: DocSection; currentSlug: string }) {
+function SidebarSection({ section, currentSlug, onNavigate }: { section: DocSection; currentSlug: string; onNavigate?: () => void }) {
   const isActive = section.pages.some((p) => p.slug === currentSlug);
   const [open, setOpen] = useState(isActive);
 
@@ -24,6 +24,7 @@ function SidebarSection({ section, currentSlug }: { section: DocSection; current
             <Link
               key={page.slug}
               to={`/docs/${page.slug}`}
+              onClick={onNavigate}
               className={cn(
                 "block px-3 py-1.5 text-sm rounded-md transition-colors",
                 currentSlug === page.slug
@@ -40,14 +41,14 @@ function SidebarSection({ section, currentSlug }: { section: DocSection; current
   );
 }
 
-export function DocsSidebar({ className }: { className?: string }) {
+export function DocsSidebar({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
   const { "*": slug } = useParams();
   const currentSlug = slug || "introduction";
 
   return (
     <nav className={cn("space-y-1", className)}>
       {docsNavigation.map((section) => (
-        <SidebarSection key={section.title} section={section} currentSlug={currentSlug} />
+        <SidebarSection key={section.title} section={section} currentSlug={currentSlug} onNavigate={onNavigate} />
       ))}
     </nav>
   );
@@ -120,7 +121,7 @@ export function DocsLayout({ children }: { children: React.ReactNode }) {
           <div className="fixed inset-0 z-40 lg:hidden">
             <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
             <aside className="absolute left-0 top-14 bottom-0 w-72 bg-background border-r border-border overflow-y-auto py-6 px-3">
-              <DocsSidebar />
+              <DocsSidebar onNavigate={() => setSidebarOpen(false)} />
             </aside>
           </div>
         )}
