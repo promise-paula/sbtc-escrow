@@ -9,9 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
+import { useAddressBook } from '@/hooks/use-address-book';
 import { MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
@@ -19,7 +21,7 @@ import { TransactionPending } from '@/components/shared/TransactionPending';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, dur, scaleIn, shake } from '@/lib/motion';
-import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck, AlertCircle } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck, AlertCircle, BookUser } from 'lucide-react';
 
 /** Time-based duration presets (in minutes) */
 const durationPresets = [
@@ -63,6 +65,20 @@ export default function CreateEscrow() {
   const [txStatus, setTxStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [txHash, setTxHash] = useState('');
   const [txError, setTxError] = useState<{ title: string; hint: string; detail?: string } | null>(null);
+
+  const { entries: contacts, findByAddress, add: addContact } = useAddressBook();
+  const matchedContact = recipient ? findByAddress(recipient) : undefined;
+  const [contactName, setContactName] = useState('');
+  const [contactSaved, setContactSaved] = useState(false);
+
+  const handleSaveContact = () => {
+    const name = contactName.trim();
+    if (!name) return;
+    addContact(name, recipient);
+    setContactSaved(true);
+    setContactName('');
+    toast.success('Contact saved');
+  };
 
   const cfg = config || { platformFeeBps: 50, minAmount: MIN_AMOUNT_STX, maxAmount: MAX_AMOUNT_STX, minAmountSbtc: MIN_AMOUNT_SBTC, maxAmountSbtc: MAX_AMOUNT_SBTC };
   const amount = parseFloat(amountStr) || 0;
@@ -127,6 +143,7 @@ export default function CreateEscrow() {
   }
 
   if (txStatus === 'success') {
+    const offerSave = !matchedContact && !contactSaved && recipientValid;
     return (
       <div className="p-4 sm:p-6 max-w-lg mx-auto">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight mb-6">Create Escrow</h1>
@@ -142,6 +159,37 @@ export default function CreateEscrow() {
               </a>
             </Button>
           </div>
+
+          {offerSave && (
+            <div className="mt-8 pt-6 border-t border-border w-full max-w-sm text-left">
+              <p className="text-xs text-muted-foreground mb-2">Save this seller for next time?</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Name (e.g. Alice)"
+                  value={contactName}
+                  onChange={e => setContactName(e.target.value)}
+                  className="text-sm"
+                  maxLength={64}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveContact}
+                  disabled={!contactName.trim()}
+                  className="gap-1.5 shrink-0"
+                >
+                  <BookUser className="h-3.5 w-3.5" /> Save
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground/70 mt-2 font-mono truncate">
+                {truncateAddress(recipient, 8)}
+              </p>
+            </div>
+          )}
+          {contactSaved && (
+            <p className="text-xs text-muted-foreground mt-6 inline-flex items-center gap-1.5">
+              <Check className="h-3.5 w-3.5 text-success" /> Saved to your address book
+            </p>
+          )}
         </motion.div>
       </div>
     );
@@ -212,13 +260,46 @@ export default function CreateEscrow() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Recipient Address</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Recipient Address</Label>
+                    {contacts.length > 0 && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1.5 -mr-2">
+                            <BookUser className="h-3.5 w-3.5" /> Pick from contacts
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0 w-72" align="end">
+                          <div className="max-h-64 overflow-y-auto py-1">
+                            {contacts.map(c => (
+                              <button
+                                key={c.address}
+                                type="button"
+                                onClick={() => setRecipient(c.address)}
+                                className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors"
+                              >
+                                <p className="text-sm font-medium truncate">{c.name}</p>
+                                <p className="text-xs font-mono text-muted-foreground truncate">
+                                  {truncateAddress(c.address, 8)}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
                   <Input
                     placeholder="ST... or SP..."
                     value={recipient}
                     onChange={e => setRecipient(e.target.value)}
                     className="font-mono text-sm"
                   />
+                  {matchedContact && (
+                    <p className="text-xs text-muted-foreground">
+                      From contacts: <span className="text-foreground font-medium">{matchedContact.name}</span>
+                    </p>
+                  )}
                   {recipient && !recipientValid && (
                     <p className="text-xs text-destructive" role="alert">Invalid Stacks address</p>
                   )}
