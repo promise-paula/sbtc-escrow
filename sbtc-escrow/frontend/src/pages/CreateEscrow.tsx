@@ -14,6 +14,7 @@ import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, 
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
+import { useUsdEstimate } from '@/hooks/use-usd-estimate';
 import { MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
@@ -92,6 +93,10 @@ export default function CreateEscrow() {
     ? parseInt(customDuration)
     : timeToBlocks(durationMinutes, minutesPerBlock);
   const token = tokenLabel(tokenType);
+
+  const amountUsd = useUsdEstimate(smallestUnit, tokenType);
+  const feeUsd = useUsdEstimate(fee, tokenType);
+  const totalUsd = useUsdEstimate(total, tokenType);
 
   const recipientValid = isValidStacksAddress(recipient);
   const selfEscrow = recipient === address;
@@ -458,15 +463,24 @@ export default function CreateEscrow() {
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Amount</span>
-                    <span className="font-mono">{formatAmount(smallestUnit, tokenType)} {token}</span>
+                    <span className="font-mono text-right">
+                      {formatAmount(smallestUnit, tokenType)} {token}
+                      {amountUsd && <span className="block text-xs text-muted-foreground">{amountUsd}</span>}
+                    </span>
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Fee ({cfg.platformFeeBps / 100}%)</span>
-                    <span className="font-mono">{formatAmount(fee, tokenType)} {token}</span>
+                    <span className="font-mono text-right">
+                      {formatAmount(fee, tokenType)} {token}
+                      {feeUsd && <span className="block text-xs text-muted-foreground">{feeUsd}</span>}
+                    </span>
                   </div>
                   <div className="flex justify-between p-3 font-medium">
                     <span>Total</span>
-                    <span className="font-mono">{formatAmount(total, tokenType)} {token}</span>
+                    <span className="font-mono text-right">
+                      {formatAmount(total, tokenType)} {token}
+                      {totalUsd && <span className="block text-xs text-muted-foreground font-normal">{totalUsd}</span>}
+                    </span>
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Duration</span>
