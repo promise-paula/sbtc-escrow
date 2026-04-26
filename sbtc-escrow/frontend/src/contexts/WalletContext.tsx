@@ -5,8 +5,9 @@ import {
   isConnected as stacksIsConnected,
   getLocalStorage,
 } from '@stacks/connect';
-import { CONTRACT_ADDRESS } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, STACKS_NETWORK } from '@/lib/stacks-config';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getAddressNetwork } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface WalletContextType {
@@ -30,13 +31,41 @@ function getPersistedAddress(): string | null {
   return stored?.addresses?.stx?.[0]?.address ?? null;
 }
 
+function isWrongNetwork(addr: string | null): boolean {
+  const detected = getAddressNetwork(addr);
+  return detected !== null && detected !== STACKS_NETWORK;
+}
+
+function showWrongNetworkToast(addr: string) {
+  const detected = getAddressNetwork(addr);
+  if (!detected) return;
+  const expected = STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet';
+  const got = detected === 'mainnet' ? 'Mainnet' : 'Testnet';
+  toast.error('Wrong network', {
+    description: `This site is on ${expected}, but your wallet is on ${got}. Switch networks in your wallet and reconnect.`,
+    duration: 10000,
+  });
+}
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(() => {
-    if (stacksIsConnected()) return getPersistedAddress();
-    return null;
+    if (!stacksIsConnected()) return null;
+    const persisted = getPersistedAddress();
+    return isWrongNetwork(persisted) ? null : persisted;
   });
   const [contractOwner, setContractOwner] = useState<string>(CONTRACT_ADDRESS);
   const ownerFetched = useRef(false);
+
+  // If a stale persisted session was rejected for network mismatch, surface it
+  // to the user once on mount and clear the stored connect state.
+  useEffect(() => {
+    if (!stacksIsConnected()) return;
+    const persisted = getPersistedAddress();
+    if (isWrongNetwork(persisted)) {
+      stacksDisconnect();
+      showWrongNetworkToast(persisted!);
+    }
+  }, []);
 
   // Fetch the actual contract owner from Supabase (survives ownership transfers)
   const fetchContractOwner = useCallback(() => {
@@ -88,6 +117,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const stxAddr = response.addresses.find(
         (a) => a.symbol === 'STX',
       )?.address ?? null;
+
+      if (isWrongNetwork(stxAddr)) {
+        stacksDisconnect();
+        showWrongNetworkToast(stxAddr!);
+        return;
+      }
+
       setAddress(stxAddr);
     } catch (err) {
       console.error('Wallet connection failed:', err);
