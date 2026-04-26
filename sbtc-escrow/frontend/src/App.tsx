@@ -23,6 +23,7 @@ const DisputeQueue = lazy(() => import("@/pages/admin/DisputeQueue"));
 const ContractControls = lazy(() => import("@/pages/admin/ContractControls"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const DocsPage = lazy(() => import("@/pages/docs/DocsPage"));
+const HowItWorks = lazy(() => import("@/pages/HowItWorks"));
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
               <Routes>
                 <Route path="/" element={<Landing />} />
+                <Route path="/how-it-works" element={<HowItWorks />} />
                 <Route path="/docs" element={<DocsPage />} />
                 <Route path="/docs/*" element={<DocsPage />} />
                 <Route element={<AppLayout />}>
