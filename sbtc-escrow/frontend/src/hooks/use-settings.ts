@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { SETTINGS_CHANGED_EVENT } from './use-usd-estimate';
 
 export interface AppSettings {
   showUsd: boolean;
@@ -25,6 +26,12 @@ function load(): AppSettings {
   }
 }
 
+function notifyChange() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
+  }
+}
+
 export function useSettings() {
   const [settings, setSettingsState] = useState<AppSettings>(load);
 
@@ -32,6 +39,7 @@ export function useSettings() {
     setSettingsState(prev => {
       const next = { ...prev, [key]: value };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      notifyChange();
       return next;
     });
   }, []);
@@ -39,6 +47,7 @@ export function useSettings() {
   const reset = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setSettingsState(defaults);
+    notifyChange();
   }, []);
 
   return { settings, update, reset };
