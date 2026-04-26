@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { useWallet } from '@/contexts/WalletContext';
 import { truncateAddress, getExplorerUrl, formatSTX, formatSBTC } from '@/lib/utils';
+import { useUsdEstimate } from '@/hooks/use-usd-estimate';
+import { TokenType } from '@/lib/types';
 import { STACKS_API_URL, SBTC_CONTRACT } from '@/lib/stacks-config';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,16 +82,7 @@ export function WalletButton() {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : balances ? (
-          <div className="px-2 py-1.5 space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">STX</span>
-              <span className="font-mono font-medium">{formatSTX(balances.stx)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">sBTC</span>
-              <span className="font-mono font-medium">{formatSBTC(balances.sbtc)}</span>
-            </div>
-          </div>
+          <BalanceList stx={balances.stx} sbtc={balances.sbtc} />
         ) : (
           <div className="px-2 py-1.5 text-xs text-muted-foreground">
             Unable to load balances
@@ -110,5 +103,28 @@ export function WalletButton() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function BalanceList({ stx, sbtc }: { stx: number; sbtc: number }) {
+  const stxUsd = useUsdEstimate(stx, TokenType.STX);
+  const sbtcUsd = useUsdEstimate(sbtc, TokenType.SBTC);
+  return (
+    <div className="px-2 py-1.5 space-y-1">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">STX</span>
+        <span className="font-mono font-medium">
+          {formatSTX(stx)}
+          {stxUsd && <span className="text-xs text-muted-foreground ml-1">({stxUsd})</span>}
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">sBTC</span>
+        <span className="font-mono font-medium">
+          {formatSBTC(sbtc)}
+          {sbtcUsd && <span className="text-xs text-muted-foreground ml-1">({sbtcUsd})</span>}
+        </span>
+      </div>
+    </div>
   );
 }
