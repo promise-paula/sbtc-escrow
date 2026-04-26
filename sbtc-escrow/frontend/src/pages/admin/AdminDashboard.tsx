@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { usePlatformStats, usePlatformConfig } from '@/hooks/use-admin';
 import { formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
+import { useUsdEstimate } from '@/hooks/use-usd-estimate';
+import { TokenType } from '@/lib/types';
 import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { cardVariants } from '@/lib/motion';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -25,17 +27,26 @@ export default function AdminDashboard() {
   const ps = platformStats!;
   const cfg = config!;
 
+  const volumeStxUsd = useUsdEstimate(ps.totalVolumeStx, TokenType.STX);
+  const volumeSbtcUsd = useUsdEstimate(ps.totalVolumeSbtc, TokenType.SBTC);
+  const feesStxUsd = useUsdEstimate(ps.totalFeesStx, TokenType.STX);
+  const feesSbtcUsd = useUsdEstimate(ps.totalFeesSbtc, TokenType.SBTC);
+  const avgFeeStxUsd = useUsdEstimate(
+    ps.totalEscrows > 0 ? Math.round(ps.totalFeesStx / ps.totalEscrows) : 0,
+    TokenType.STX,
+  );
+
   const stats = [
     { label: 'Total Escrows', value: ps.totalEscrows.toLocaleString(), icon: ArrowRightLeft },
-    { label: 'Volume (STX)', value: `${formatSTX(ps.totalVolumeStx)} STX`, icon: Coins },
-    ...(ps.totalVolumeSbtc > 0 ? [{ label: 'Volume (sBTC)', value: `${formatSBTC(ps.totalVolumeSbtc)} sBTC`, icon: Coins }] : []),
-    { label: 'Fees (STX)', value: `${formatSTX(ps.totalFeesStx)} STX`, icon: DollarSign },
-    ...(ps.totalFeesSbtc > 0 ? [{ label: 'Fees (sBTC)', value: `${formatSBTC(ps.totalFeesSbtc)} sBTC`, icon: DollarSign }] : []),
+    { label: 'Volume (STX)', value: `${formatSTX(ps.totalVolumeStx)} STX`, sub: volumeStxUsd, icon: Coins },
+    ...(ps.totalVolumeSbtc > 0 ? [{ label: 'Volume (sBTC)', value: `${formatSBTC(ps.totalVolumeSbtc)} sBTC`, sub: volumeSbtcUsd, icon: Coins }] : []),
+    { label: 'Fees (STX)', value: `${formatSTX(ps.totalFeesStx)} STX`, sub: feesStxUsd, icon: DollarSign },
+    ...(ps.totalFeesSbtc > 0 ? [{ label: 'Fees (sBTC)', value: `${formatSBTC(ps.totalFeesSbtc)} sBTC`, sub: feesSbtcUsd, icon: DollarSign }] : []),
     { label: 'Released', value: ps.totalReleased.toLocaleString(), icon: CheckCircle2 },
     { label: 'Refunded', value: ps.totalRefunded.toLocaleString(), icon: RotateCcw },
     { label: 'Active Disputes', value: ps.activeDisputes.toLocaleString(), icon: ShieldAlert, warn: ps.activeDisputes > 0 },
     { label: 'Resolved Disputes', value: ps.resolvedDisputes.toLocaleString(), icon: ShieldCheck },
-  ];
+  ] as Array<{ label: string; value: string; icon: typeof ArrowRightLeft; sub?: string | null; warn?: boolean }>;
 
   return (
     <div className="p-4 sm:p-6 pb-8 max-w-5xl mx-auto space-y-6">
@@ -86,6 +97,7 @@ export default function AdminDashboard() {
                     <div>
                       <p className="text-xs text-muted-foreground">{s.label}</p>
                       <p className="font-mono text-lg font-bold mt-0.5">{s.value}</p>
+                      {s.sub && <p className="text-xs text-muted-foreground mt-0.5">{s.sub}</p>}
                     </div>
                   </CardContent>
                 </Card>
@@ -99,13 +111,13 @@ export default function AdminDashboard() {
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">Revenue Summary</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Revenue (STX)', value: `${formatSTX(ps.totalFeesStx)} STX`, icon: TrendingUp },
-            ...(ps.totalFeesSbtc > 0 ? [{ label: 'Total Revenue (sBTC)', value: `${formatSBTC(ps.totalFeesSbtc)} sBTC`, icon: TrendingUp }] : []),
-            { label: 'Avg Fee / Escrow (STX)', value: ps.totalEscrows > 0 ? `${formatSTX(Math.round(ps.totalFeesStx / ps.totalEscrows))} STX` : '—', icon: DollarSign },
+          {([
+            { label: 'Total Revenue (STX)', value: `${formatSTX(ps.totalFeesStx)} STX`, sub: feesStxUsd, icon: TrendingUp },
+            ...(ps.totalFeesSbtc > 0 ? [{ label: 'Total Revenue (sBTC)', value: `${formatSBTC(ps.totalFeesSbtc)} sBTC`, sub: feesSbtcUsd, icon: TrendingUp }] : []),
+            { label: 'Avg Fee / Escrow (STX)', value: ps.totalEscrows > 0 ? `${formatSTX(Math.round(ps.totalFeesStx / ps.totalEscrows))} STX` : '—', sub: avgFeeStxUsd, icon: DollarSign },
             { label: 'Release Rate', value: ps.totalEscrows > 0 ? `${((ps.totalReleased / ps.totalEscrows) * 100).toFixed(1)}%` : '—', icon: CheckCircle2 },
             { label: 'Refund Rate', value: ps.totalEscrows > 0 ? `${((ps.totalRefunded / ps.totalEscrows) * 100).toFixed(1)}%` : '—', icon: RotateCcw },
-          ].map((r, i) => {
+          ] as Array<{ label: string; value: string; icon: typeof TrendingUp; sub?: string | null }>).map((r, i) => {
             const Icon = r.icon;
             return (
               <motion.div key={r.label} custom={i + 6} variants={cardVariants} initial="hidden" animate="visible">
@@ -116,6 +128,7 @@ export default function AdminDashboard() {
                       <span className="text-xs text-muted-foreground">{r.label}</span>
                     </div>
                     <p className="font-mono text-lg font-bold">{r.value}</p>
+                    {r.sub && <p className="text-xs text-muted-foreground mt-0.5">{r.sub}</p>}
                   </CardContent>
                 </Card>
               </motion.div>
