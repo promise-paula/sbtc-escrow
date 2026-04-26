@@ -4,6 +4,9 @@ import { Cl } from '@stacks/transactions';
 import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
 import { TokenType } from './types';
 import { contractSendPc, userSendPc } from './post-conditions';
+import { categorizeTxError } from './tx-errors';
+
+const PENDING_HINT = 'Confirms on Stacks in 1–2 minutes.';
 
 /** Fee = amount * platformFeeBps / 10_000. Default platformFeeBps = 50 (0.5%). */
 function estimateFee(amount: number, feeBps = 50): number {
@@ -37,10 +40,11 @@ export async function createEscrow(params: {
       ],
       network: STACKS_NETWORK,
     });
-    toast.success('Escrow created', { description: 'Transaction submitted.' });
+    toast.success('Escrow submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
-    toast.error('Escrow creation failed', { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    const e = categorizeTxError(err, 'create the escrow');
+    toast.error(e.title, { description: e.description });
     throw err;
   }
 }
@@ -57,10 +61,11 @@ export async function releaseEscrow(escrowId: number, amount: number, feeAmount:
       ],
       network: STACKS_NETWORK,
     });
-    toast.success('Payment released', { description: 'Transaction submitted.' });
+    toast.success('Release submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
-    toast.error('Release failed', { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    const e = categorizeTxError(err, 'release the funds');
+    toast.error(e.title, { description: e.description });
     throw err;
   }
 }
@@ -77,10 +82,11 @@ export async function refundEscrow(escrowId: number, amount: number, feeAmount: 
       ],
       network: STACKS_NETWORK,
     });
-    toast.success('Escrow refunded', { description: 'Transaction submitted.' });
+    toast.success('Refund submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
-    toast.error('Refund failed', { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    const e = categorizeTxError(err, 'refund the escrow');
+    toast.error(e.title, { description: e.description });
     throw err;
   }
 }
@@ -93,10 +99,11 @@ export async function disputeEscrow(escrowId: number): Promise<string> {
       functionArgs: [Cl.uint(escrowId)],
       network: STACKS_NETWORK,
     });
-    toast.success('Dispute filed', { description: 'Transaction submitted.' });
+    toast.success('Dispute submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
-    toast.error('Dispute failed', { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    const e = categorizeTxError(err, 'open the dispute');
+    toast.error(e.title, { description: e.description });
     throw err;
   }
 }
@@ -109,10 +116,11 @@ export async function extendEscrow(escrowId: number, additionalBlocks: number): 
       functionArgs: [Cl.uint(escrowId), Cl.uint(additionalBlocks)],
       network: STACKS_NETWORK,
     });
-    toast.success('Escrow extended', { description: 'Transaction submitted.' });
+    toast.success('Deadline extension submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
-    toast.error('Extension failed', { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    const e = categorizeTxError(err, 'extend the deadline');
+    toast.error(e.title, { description: e.description });
     throw err;
   }
 }
@@ -129,10 +137,11 @@ export async function resolveExpiredDispute(escrowId: number, amount: number, fe
       ],
       network: STACKS_NETWORK,
     });
-    toast.success('Disputed funds recovered', { description: 'Transaction submitted.' });
+    toast.success('Recovery submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
-    toast.error('Dispute resolution failed', { description: err instanceof Error ? err.message : 'Transaction rejected or network error.' });
+    const e = categorizeTxError(err, 'recover your funds');
+    toast.error(e.title, { description: e.description });
     throw err;
   }
 }
