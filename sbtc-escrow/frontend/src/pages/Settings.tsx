@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -29,14 +28,11 @@ import {
   ExternalLink,
   LogOut,
   RotateCcw,
-  HelpCircle,
   BookUser,
   Download,
   AlertTriangle,
   Plus,
   Trash2,
-  MessageCircle,
-  ArrowRight,
 } from 'lucide-react';
 import {
   blocksToTime,
@@ -299,29 +295,8 @@ export default function SettingsPage() {
         </Card>
       </motion.div>
 
-      {/* ── Help & Support ─────────────────────────────────────── */}
-      <motion.div custom={3} initial="hidden" animate="visible" variants={cardVariants}>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <HelpCircle className="h-4 w-4 text-muted-foreground" /> Help & Support
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <SupportLink to="/how-it-works" title="How sBTC Escrow works" subtitle="Plain-language guide for first-time users" />
-            <SupportLink to="/docs" title="Developer Documentation" subtitle="Contract reference, SDK, integration guides" />
-            <SupportLink
-              href="https://github.com/promise-paula/sbtc-escrow/issues"
-              title="Report an issue"
-              subtitle="Open a GitHub issue"
-              icon={<MessageCircle className="h-3.5 w-3.5" />}
-            />
-          </CardContent>
-        </Card>
-      </motion.div>
-
       {/* ── About ──────────────────────────────────────────────── */}
-      <motion.div custom={4} initial="hidden" animate="visible" variants={cardVariants}>
+      <motion.div custom={3} initial="hidden" animate="visible" variants={cardVariants}>
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -456,49 +431,6 @@ function AddContactForm({ onAdd }: { onAdd: (name: string, address: string) => v
         <Plus className="h-3.5 w-3.5" /> Add Contact
       </Button>
     </form>
-  );
-}
-
-function SupportLink({
-  to,
-  href,
-  title,
-  subtitle,
-  icon,
-}: {
-  to?: string;
-  href?: string;
-  title: string;
-  subtitle: string;
-  icon?: React.ReactNode;
-}) {
-  const content = (
-    <div className="flex items-center justify-between rounded-md border border-border p-3 hover:bg-muted/50 transition-colors group">
-      <div className="min-w-0">
-        <p className="text-sm font-medium flex items-center gap-1.5">
-          {icon}
-          {title}
-        </p>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
-      </div>
-      {href ? (
-        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-      ) : (
-        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-      )}
-    </div>
-  );
-  if (to) {
-    return (
-      <Link to={to} className="block">
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="block">
-      {content}
-    </a>
   );
 }
 
