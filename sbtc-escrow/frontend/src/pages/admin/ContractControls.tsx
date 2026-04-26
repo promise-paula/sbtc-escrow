@@ -82,8 +82,8 @@ export default function ContractControls() {
         <Card className={`border-l-4 ${isPaused ? 'border-l-destructive' : 'border-l-success'}`}>
           <CardContent className="p-4 space-y-4">
             {!isPaused && (
-              <div className="rounded-md border border-warning/30 bg-warning/5 p-3 flex items-start gap-2 text-xs text-warning">
-                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <div className="rounded-md border border-warning/30 bg-warning/5 p-3 flex items-start gap-2 text-xs text-foreground">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-foreground" />
                 Pausing the contract will prevent all new escrows and actions.
               </div>
             )}
@@ -206,8 +206,8 @@ export default function ContractControls() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Contract Controls</h1>
+    <div className="p-4 sm:p-6 pb-8 max-w-2xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Contract Controls</h1>
 
       {isError && <ErrorBanner message="Failed to load configuration. Showing cached data." />}
 
