@@ -12,6 +12,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PlusCircle, ArrowRight, Inbox, Lock, Clock, CheckCircle, ShoppingCart, Store, List, Activity } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 import { formatSTX, relativeTime, truncateAddress } from '@/lib/utils';
+import { useUsdEstimate } from '@/hooks/use-usd-estimate';
+import { TokenType } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants } from '@/lib/motion';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -80,18 +82,7 @@ export default function Dashboard() {
                 <span className="text-xs text-muted-foreground">Total Locked</span>
               </div>
               {stats && (stats.totalLockedStx > 0 || stats.totalLockedSbtc > 0) ? (
-                <div className="space-y-1">
-                  {stats.totalLockedStx > 0 && (
-                    <p className="text-2xl font-mono font-bold text-accent-warm">
-                      {formatSTX(stats.totalLockedStx)} <span className="text-sm font-normal text-muted-foreground">STX</span>
-                    </p>
-                  )}
-                  {stats.totalLockedSbtc > 0 && (
-                    <p className={`font-mono font-bold text-accent-warm ${stats.totalLockedStx > 0 ? 'text-base' : 'text-2xl'}`}>
-                      {(stats.totalLockedSbtc / 1e8).toFixed(4)} <span className="text-sm font-normal text-muted-foreground">sBTC</span>
-                    </p>
-                  )}
-                </div>
+                <TotalLockedAmounts stx={stats.totalLockedStx} sbtc={stats.totalLockedSbtc} />
               ) : (
                 <p className="text-2xl font-mono font-bold text-muted-foreground">—</p>
               )}
@@ -254,6 +245,27 @@ export default function Dashboard() {
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+function TotalLockedAmounts({ stx, sbtc }: { stx: number; sbtc: number }) {
+  const stxUsd = useUsdEstimate(stx, TokenType.STX);
+  const sbtcUsd = useUsdEstimate(sbtc, TokenType.SBTC);
+  return (
+    <div className="space-y-1">
+      {stx > 0 && (
+        <p className="text-2xl font-mono font-bold text-accent-warm">
+          {formatSTX(stx)} <span className="text-sm font-normal text-muted-foreground">STX</span>
+          {stxUsd && <span className="text-sm font-normal text-muted-foreground ml-1">({stxUsd})</span>}
+        </p>
+      )}
+      {sbtc > 0 && (
+        <p className={`font-mono font-bold text-accent-warm ${stx > 0 ? 'text-base' : 'text-2xl'}`}>
+          {(sbtc / 1e8).toFixed(4)} <span className="text-sm font-normal text-muted-foreground">sBTC</span>
+          {sbtcUsd && <span className="text-sm font-normal text-muted-foreground ml-1">({sbtcUsd})</span>}
+        </p>
+      )}
     </div>
   );
 }
