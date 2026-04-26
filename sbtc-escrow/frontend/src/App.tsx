@@ -9,7 +9,13 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AdminGuard } from "@/components/shared/AdminGuard";
 import { WalletGuard } from "@/components/shared/WalletGuard";
+import { useEscrowNotifications } from "@/hooks/use-escrow-notifications";
 import Landing from "@/pages/Landing";
+
+function NotificationsListener() {
+  useEscrowNotifications();
+  return null;
+}
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const CreateEscrow = lazy(() => import("@/pages/CreateEscrow"));
@@ -31,6 +37,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <WalletProvider>
+        <NotificationsListener />
         <TooltipProvider>
           <Toaster />
           <Sonner />
