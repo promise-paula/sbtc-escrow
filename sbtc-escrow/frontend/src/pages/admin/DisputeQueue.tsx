@@ -63,8 +63,8 @@ export default function DisputeQueue() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Dispute Resolution</h1>
+    <div className="p-4 sm:p-6 pb-8 max-w-5xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Dispute Resolution</h1>
 
       {isError && <ErrorBanner message="Failed to load disputes. Showing cached data." />}
 
@@ -76,7 +76,7 @@ export default function DisputeQueue() {
             <motion.div key={s.label} custom={i} variants={cardVariants} initial="hidden" animate="visible">
               <Card className={s.warn ? 'border-warning/50' : ''}>
                 <CardContent className="p-4 flex items-center gap-3">
-                  <div className={`rounded-lg p-2.5 ${s.warn ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground'}`}>
+                  <div className={`rounded-lg p-2.5 ${s.warn ? 'bg-warning/10 text-foreground' : 'bg-muted text-muted-foreground'}`}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <div>
@@ -117,7 +117,7 @@ export default function DisputeQueue() {
                               <span className="font-mono text-sm font-medium">#{e.id}</span>
                               <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
                               {isNearTimeout && (
-                                <span className="text-xs font-medium text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">URGENT</span>
+                                <span className="text-xs font-medium text-destructive-foreground bg-destructive px-1.5 py-0.5 rounded">URGENT</span>
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">{e.description}</p>
@@ -145,7 +145,7 @@ export default function DisputeQueue() {
                         {isConfirming ? (
                           <motion.div variants={slideDown} initial="initial" animate="animate" exit="exit" className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-2">
                               <div className="flex items-center gap-2 text-sm font-medium">
-                                <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                                <AlertTriangle className="h-3.5 w-3.5 text-foreground" />
                                 Resolve escrow #{e.id} for <span className="font-semibold">{confirmAction.type}</span>?
                               </div>
                               <div className="flex gap-2">
