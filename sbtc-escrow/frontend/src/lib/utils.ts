@@ -87,7 +87,20 @@ export function calculateFee(amount: number, feeBps: number): number {
 }
 
 export function isValidStacksAddress(address: string): boolean {
-  return /^S[TPM][A-Z0-9]{38,40}$/.test(address);
+  return /^S[TPMN][A-Z0-9]{38,40}$/.test(address);
+}
+
+/**
+ * Detect which Stacks network an address belongs to from its prefix.
+ *   SP, SM → mainnet
+ *   ST, SN → testnet
+ * Returns null for malformed input.
+ */
+export function getAddressNetwork(address: string | null | undefined): 'mainnet' | 'testnet' | null {
+  if (!address) return null;
+  if (address.startsWith('SP') || address.startsWith('SM')) return 'mainnet';
+  if (address.startsWith('ST') || address.startsWith('SN')) return 'testnet';
+  return null;
 }
 
 export function getStatusColor(status: EscrowStatus): string {
