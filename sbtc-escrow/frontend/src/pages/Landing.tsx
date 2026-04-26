@@ -209,9 +209,9 @@ export default function Landing() {
           </div>
 
           <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
+            <button onClick={() => navigate('/how-it-works')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">How it Works</button>
             <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Features</button>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Security</button>
-            <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">How it Works</button>
             <button onClick={() => navigate('/docs')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Docs</button>
           </div>
 
@@ -244,7 +244,7 @@ export default function Landing() {
               Bitcoin escrow at&nbsp;0.5%.
             </h1>
             <p className="mt-4 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
-              10× cheaper than traditional escrow. Non-custodial smart contracts on Stacks, built for freelancers, P2P traders, and small businesses.
+              A fraction of what marketplaces charge and we never hold your money. It sits in code on the Stacks blockchain until both sides agree the deal is done.
             </p>
 
             {/* Inline social proof */}
