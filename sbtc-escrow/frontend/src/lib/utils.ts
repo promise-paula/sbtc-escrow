@@ -104,21 +104,29 @@ export function getExplorerUrl(type: 'tx' | 'address' | 'block', value: string):
   return `${EXPLORER_BASE}/${pathSegment}/${value}?chain=${STACKS_NETWORK}`;
 }
 
+// Mapped to escrow-v5.clar error constants. Keep in sync with the contract.
 export const CONTRACT_ERRORS: Record<number, string> = {
-  1001: 'Not authorized',
-  1002: 'Contract is paused',
-  1003: 'Invalid fee configuration',
-  2001: 'Invalid amount',
-  2002: 'Invalid duration',
-  2003: 'Cannot escrow to yourself',
-  2004: 'Description cannot be empty',
-  2005: 'Escrow not found',
-  2006: 'Escrow already completed',
-  2007: 'Not a party to this escrow',
-  2008: 'Escrow not expired',
-  2009: 'Escrow has expired',
-  2010: 'Escrow not in dispute',
-  2011: 'Dispute timeout not reached',
+  // Authorization
+  1001: 'Not authorized for this action',
+  1002: 'Contract is paused — try again later',
+  1003: 'No pending ownership transfer',
+  1004: 'You are not the pending owner',
+
+  // Escrow lifecycle
+  2001: 'Escrow not found',
+  2002: 'Escrow already completed',
+  2003: 'Escrow has expired',
+  2004: 'Escrow has not yet expired',
+  2005: 'Amount is outside the allowed range',
+  2006: 'Duration is outside the allowed range',
+  2007: 'Cannot create an escrow with yourself',
+  2008: 'Dispute timeout not yet reached',
+  2009: 'Escrow is not in dispute',
+  2010: 'Extension would exceed the maximum duration',
+  2011: 'Dispute timeout is outside the allowed range',
+  2012: 'Invalid token type',
+
+  // Transfer
   3001: 'Transfer failed',
-  3002: 'Already disputed',
+  3002: 'Insufficient balance',
 };
