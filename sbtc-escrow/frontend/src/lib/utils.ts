@@ -45,11 +45,6 @@ export function toSmallestUnit(human: number, tokenType: TokenType): number {
   return Math.floor(human * (10 ** tokenDecimals(tokenType)));
 }
 
-export function formatUSD(micro: number, price = 0.85): string {
-  const usd = microToSTX(micro) * price;
-  return `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 export function relativeTime(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime();
   const mins = Math.floor(diff / 60_000);
