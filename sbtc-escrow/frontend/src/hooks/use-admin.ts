@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '@/lib/types';
-import { DEFAULT_DISPUTE_TIMEOUT, MAX_DURATION_BLOCKS } from '@/lib/stacks-config';
+import {
+  DEFAULT_DISPUTE_TIMEOUT,
+  MAX_DURATION_BLOCKS,
+  MIN_AMOUNT_STX,
+  MAX_AMOUNT_STX,
+  MIN_AMOUNT_SBTC,
+  MAX_AMOUNT_SBTC,
+} from '@/lib/stacks-config';
 
 const EMPTY_STATS: PlatformStats = {
   totalEscrows: 0,
@@ -20,10 +27,10 @@ const DEFAULT_CONFIG: PlatformConfig = {
   feeRecipient: '',
   platformFeeBps: 50,
   isPaused: false,
-  minAmount: 1_000_000,
-  maxAmount: 100_000_000_000,
-  minAmountSbtc: 10_000,
-  maxAmountSbtc: 10_000_000_000,
+  minAmount: MIN_AMOUNT_STX,
+  maxAmount: MAX_AMOUNT_STX,
+  minAmountSbtc: MIN_AMOUNT_SBTC,
+  maxAmountSbtc: MAX_AMOUNT_SBTC,
   maxDuration: MAX_DURATION_BLOCKS,
   disputeTimeout: DEFAULT_DISPUTE_TIMEOUT,
 };
@@ -74,10 +81,10 @@ export function usePlatformConfig() {
         feeRecipient: data.fee_recipient ?? '',
         platformFeeBps: data.fee_bps ?? 50,
         isPaused: data.contract_paused ?? false,
-        minAmount: 1_000_000,
-        maxAmount: 100_000_000_000,
-        minAmountSbtc: 10_000,
-        maxAmountSbtc: 10_000_000_000,
+        minAmount: MIN_AMOUNT_STX,
+        maxAmount: MAX_AMOUNT_STX,
+        minAmountSbtc: MIN_AMOUNT_SBTC,
+        maxAmountSbtc: MAX_AMOUNT_SBTC,
         maxDuration: MAX_DURATION_BLOCKS,
         disputeTimeout: data.dispute_timeout ?? DEFAULT_DISPUTE_TIMEOUT,
       };
