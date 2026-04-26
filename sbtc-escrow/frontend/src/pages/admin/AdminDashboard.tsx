@@ -38,8 +38,8 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl space-y-6">
-      <h1 className="text-xl font-bold text-foreground tracking-tight">Admin Dashboard</h1>
+    <div className="p-4 sm:p-6 pb-8 max-w-5xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Admin Dashboard</h1>
 
       {(statsError || configError) && <ErrorBanner message="Failed to load platform data. Showing cached data." />}
 
@@ -80,7 +80,7 @@ export default function AdminDashboard() {
               <motion.div key={s.label} custom={i + 1} variants={cardVariants} initial="hidden" animate="visible">
                 <Card className={s.warn ? 'border-warning/50' : ''}>
                   <CardContent className="p-5 flex items-start gap-3">
-                    <div className={`rounded-lg p-2.5 ${s.warn ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground'}`}>
+                    <div className={`rounded-lg p-2.5 ${s.warn ? 'bg-warning/10 text-foreground' : 'bg-muted text-muted-foreground'}`}>
                       <Icon className="h-5 w-5" />
                     </div>
                     <div>
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
               onClick={() => navigate('/admin/disputes')}
             >
               <CardContent className="p-4 flex items-center gap-3">
-                <div className={`rounded-lg p-2 ${ps.activeDisputes > 0 ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground'}`}>
+                <div className={`rounded-lg p-2 ${ps.activeDisputes > 0 ? 'bg-warning/10 text-foreground' : 'bg-muted text-muted-foreground'}`}>
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <div>
