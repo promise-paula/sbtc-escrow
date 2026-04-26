@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { DocsLayout } from "./DocsLayout";
-import { getAdjacentPages, getAllPages } from "./docs-config";
+import { getAdjacentPages } from "./docs-config";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
 
@@ -57,7 +57,6 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
 
 function DocsMarkdown({ content }: { content: string }) {
   return (
-    <div className="docs-prose">
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw]}
@@ -65,10 +64,20 @@ function DocsMarkdown({ content }: { content: string }) {
         code: CodeBlock,
         a: ({ href, children, ...props }) => {
           if (href?.startsWith("/")) {
+            const to = href.startsWith("/docs/") || href === "/docs"
+              ? href
+              : `/docs${href}`;
             return (
-              <Link to={href.replace(/^\//, "/docs/")} className="text-primary hover:underline" {...props}>
+              <Link to={to} className="text-primary hover:underline" {...props}>
                 {children}
               </Link>
+            );
+          }
+          if (href?.startsWith("#")) {
+            return (
+              <a href={href} className="text-primary hover:underline" {...props}>
+                {children}
+              </a>
             );
           }
           return (
@@ -102,7 +111,7 @@ function DocsMarkdown({ content }: { content: string }) {
         ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1 text-foreground">{children}</ol>,
         li: ({ children }) => <li className="leading-7">{children}</li>,
         pre: ({ children }) => (
-          <pre className="bg-[#1a1a2e] text-gray-200 rounded-lg p-4 my-4 overflow-x-auto text-sm leading-relaxed">
+          <pre className="bg-muted text-foreground border border-border rounded-lg p-4 my-4 overflow-x-auto text-sm leading-relaxed">
             {children}
           </pre>
         ),
@@ -112,7 +121,6 @@ function DocsMarkdown({ content }: { content: string }) {
     >
       {content}
     </ReactMarkdown>
-    </div>
   );
 }
 
@@ -149,7 +157,6 @@ export default function DocsPage() {
     window.scrollTo(0, 0);
   }, [currentSlug]);
 
-  const currentPage = getAllPages().find((p) => p.slug === currentSlug);
   const { prev, next } = getAdjacentPages(currentSlug);
 
   return (
