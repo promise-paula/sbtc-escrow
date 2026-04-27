@@ -22,19 +22,24 @@ export default function AdminDashboard() {
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
 
+  // USD estimate hooks must be called unconditionally before any early return.
+  // Pass 0 as a safe fallback while data loads — the values aren't rendered
+  // anyway until the early-return below has fallen through.
+  const volumeStxUsd = useUsdEstimate(platformStats?.totalVolumeStx ?? 0, TokenType.STX);
+  const volumeSbtcUsd = useUsdEstimate(platformStats?.totalVolumeSbtc ?? 0, TokenType.SBTC);
+  const feesStxUsd = useUsdEstimate(platformStats?.totalFeesStx ?? 0, TokenType.STX);
+  const feesSbtcUsd = useUsdEstimate(platformStats?.totalFeesSbtc ?? 0, TokenType.SBTC);
+  const avgFeeStxUsd = useUsdEstimate(
+    platformStats && platformStats.totalEscrows > 0
+      ? Math.round(platformStats.totalFeesStx / platformStats.totalEscrows)
+      : 0,
+    TokenType.STX,
+  );
+
   if (statsLoading || configLoading) return <DashboardSkeleton />;
 
   const ps = platformStats!;
   const cfg = config!;
-
-  const volumeStxUsd = useUsdEstimate(ps.totalVolumeStx, TokenType.STX);
-  const volumeSbtcUsd = useUsdEstimate(ps.totalVolumeSbtc, TokenType.SBTC);
-  const feesStxUsd = useUsdEstimate(ps.totalFeesStx, TokenType.STX);
-  const feesSbtcUsd = useUsdEstimate(ps.totalFeesSbtc, TokenType.SBTC);
-  const avgFeeStxUsd = useUsdEstimate(
-    ps.totalEscrows > 0 ? Math.round(ps.totalFeesStx / ps.totalEscrows) : 0,
-    TokenType.STX,
-  );
 
   const stats = [
     { label: 'Total Escrows', value: ps.totalEscrows.toLocaleString(), icon: ArrowRightLeft },
