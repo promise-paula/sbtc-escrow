@@ -170,7 +170,7 @@ export default function EscrowDetail() {
               }} className="gap-2">
                 <Link className="h-3.5 w-3.5" /> Copy Link
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => generateEscrowReceipt(escrow, escrowEvents)} className="gap-2">
+              <DropdownMenuItem onClick={() => generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock })} className="gap-2">
                 <Download className="h-3.5 w-3.5" /> Download Receipt
               </DropdownMenuItem>
             </DropdownMenuContent>
