@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
-import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -411,8 +411,8 @@ export default function Landing() {
           <div className="flex flex-wrap justify-center sm:justify-end gap-4">
             <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Explorer</a>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
-            <a href="https://github.com/promise-paula/sbtc-escrow#readme" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Docs</a>
-            <a href="https://github.com/promise-paula/sbtc-escrow" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
+            <a href={`${REPO_URL}#readme`} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Docs</a>
+            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
           </div>
         </div>
       </footer>
