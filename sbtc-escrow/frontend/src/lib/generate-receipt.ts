@@ -1,14 +1,36 @@
 import { jsPDF } from 'jspdf';
 import { Escrow, EscrowEvent, STATUS_LABELS } from '@/lib/types';
-import { STACKS_NETWORK } from '@/lib/stacks-config';
+import { STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { formatAmount, tokenLabel, blockToEstimatedDate } from '@/lib/utils';
 
-export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
+interface ReceiptOptions {
+  /** Current block height — required to compute approximate dates from block heights. */
+  currentBlock?: number;
+  /** Live or fallback block rate in minutes/block. */
+  minutesPerBlock?: number;
+}
+
+export function generateEscrowReceipt(
+  escrow: Escrow,
+  events: EscrowEvent[],
+  options: ReceiptOptions = {},
+) {
+  const { currentBlock, minutesPerBlock = DEFAULT_MINUTES_PER_BLOCK } = options;
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
   const margin = 20;
+  const contentWidth = w - margin * 2;
   let y = 25;
 
-  const orange = [249, 115, 22] as const; // #f97316
+  const orange = [249, 115, 22] as const;
+  const PAGE_BOTTOM = 270;
+
+  const formatBlockWithDate = (block: number): string => {
+    if (!currentBlock) return `Block ${block.toLocaleString()}`;
+    const date = blockToEstimatedDate(block, currentBlock, minutesPerBlock);
+    return `Block ${block.toLocaleString()} (~${date.toLocaleDateString()})`;
+  };
 
   // Header bar
   doc.setFillColor(...orange);
@@ -35,12 +57,12 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
   doc.text(`Status: ${statusLabel}`, margin, y);
   y += 12;
 
-  // Amount
+  // Amount (token-aware)
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  const stx = (escrow.amount / 1_000_000).toFixed(6);
-  doc.text(`Amount: ${stx} STX`, margin, y);
+  const tokenSym = tokenLabel(escrow.tokenType);
+  doc.text(`Amount: ${formatAmount(escrow.amount, escrow.tokenType)} ${tokenSym}`, margin, y);
   y += 10;
 
   // Divider
@@ -48,9 +70,27 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
   doc.line(margin, y, w - margin, y);
   y += 8;
 
+  // Description
+  if (escrow.description) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Description', margin, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const descLines = doc.splitTextToSize(escrow.description, contentWidth) as string[];
+    for (const line of descLines) {
+      if (y > PAGE_BOTTOM) break;
+      doc.text(line, margin, y);
+      y += 5;
+    }
+    y += 5;
+  }
+
   // Parties
-  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
   doc.text('Parties', margin, y);
   y += 6;
 
@@ -70,28 +110,54 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   const details: [string, string][] = [
-    ['Created', `Block ${escrow.createdAt.toLocaleString()}`],
-    ['Expires', `Block ${escrow.expiresAt.toLocaleString()}`],
-    ['Platform Fee', `${(escrow.feeAmount / 1_000_000).toFixed(6)} STX`],
+    ['Created', formatBlockWithDate(escrow.createdAt)],
+    ['Expires', formatBlockWithDate(escrow.expiresAt)],
+    ['Platform Fee', `${formatAmount(escrow.feeAmount, escrow.tokenType)} ${tokenSym}`],
   ];
   if (escrow.completedAt) {
-    details.push(['Completed', `Block ${escrow.completedAt.toLocaleString()}`]);
+    details.push(['Completed', formatBlockWithDate(escrow.completedAt)]);
   }
-  if (escrow.txHash) {
-    details.push(['TX Hash', escrow.txHash]);
+  if (escrow.disputedAt) {
+    details.push(['Disputed', formatBlockWithDate(escrow.disputedAt)]);
+  }
+  if (escrow.disputedBy) {
+    details.push(['Disputed By', escrow.disputedBy]);
   }
 
   for (const [label, value] of details) {
+    if (y > PAGE_BOTTOM) break;
     doc.setFont('helvetica', 'bold');
     doc.text(`${label}:`, margin, y);
     doc.setFont('helvetica', 'normal');
-    doc.text(value, margin + 30, y);
+    const valueLines = doc.splitTextToSize(value, contentWidth - 32) as string[];
+    for (let i = 0; i < valueLines.length; i++) {
+      if (y > PAGE_BOTTOM) break;
+      doc.text(valueLines[i], margin + 30, y);
+      if (i < valueLines.length - 1) y += 5;
+    }
     y += 5;
   }
-  y += 5;
+  y += 3;
+
+  // Tx hash on its own line so it can wrap cleanly
+  if (escrow.txHash && y < PAGE_BOTTOM - 10) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Transaction Hash:', margin, y);
+    y += 5;
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(8);
+    const hashLines = doc.splitTextToSize(escrow.txHash, contentWidth) as string[];
+    for (const line of hashLines) {
+      if (y > PAGE_BOTTOM) break;
+      doc.text(line, margin, y);
+      y += 4;
+    }
+    y += 5;
+  }
 
   // Timeline
-  if (events.length > 0) {
+  if (events.length > 0 && y < 250) {
     doc.setDrawColor(220, 220, 220);
     doc.line(margin, y, w - margin, y);
     y += 8;
@@ -103,12 +169,21 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
 
     doc.setFontSize(9);
     const sorted = [...events].sort((a, b) => b.blockHeight - a.blockHeight);
-    for (const event of sorted) {
-      if (y > 270) break; // prevent overflow
+    for (let i = 0; i < sorted.length; i++) {
+      const event = sorted[i];
+      if (y > PAGE_BOTTOM) {
+        const remaining = sorted.length - i;
+        if (remaining > 0) {
+          doc.setFont('helvetica', 'italic');
+          doc.text(`+ ${remaining} more event${remaining === 1 ? '' : 's'} not shown`, margin, y);
+        }
+        break;
+      }
       doc.setFont('helvetica', 'bold');
-      doc.text(event.eventType.replace(/^escrow-/, '').toUpperCase(), margin, y);
+      const label = event.eventType.replace(/^escrow-/, '').replace(/-/g, ' ').toUpperCase();
+      doc.text(label, margin, y);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Block ${event.blockHeight.toLocaleString()}`, margin + 40, y);
+      doc.text(formatBlockWithDate(event.blockHeight), margin + 55, y);
       y += 5;
     }
   }
@@ -119,7 +194,8 @@ export function generateEscrowReceipt(escrow: Escrow, events: EscrowEvent[]) {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(150, 150, 150);
-  doc.text(`Generated on ${new Date().toLocaleDateString()} — ${STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}`, margin, 285);
+  const network = STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet';
+  doc.text(`Generated ${new Date().toISOString()} — ${network}`, margin, 285);
 
   doc.save(`escrow-${escrow.id}-receipt.pdf`);
 }
