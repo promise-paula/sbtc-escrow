@@ -112,7 +112,7 @@ export function getExplorerUrl(type: 'tx' | 'address' | 'block', value: string):
   return `${EXPLORER_BASE}/${pathSegment}/${value}?chain=${STACKS_NETWORK}`;
 }
 
-// Mapped to escrow-v5.clar error constants. Keep in sync with the contract.
+// Mapped to escrow-v6.clar error constants. Keep in sync with the contract.
 export const CONTRACT_ERRORS: Record<number, string> = {
   // Authorization
   1001: 'Not authorized for this action',
