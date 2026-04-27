@@ -11,6 +11,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { dur, revealVariants, staggerContainer } from '@/lib/motion';
+import { REPO_URL } from '@/lib/stacks-config';
 import {
   ArrowRight, Wallet, Lock, CheckCircle2, Scale,
   Bitcoin, Shield, ExternalLink,
@@ -359,7 +360,7 @@ export default function HowItWorks() {
               Developer Docs
             </button>
             <a
-              href="https://github.com/promise-paula/sbtc-escrow"
+              href={REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors"
