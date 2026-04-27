@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { PlatformConfig } from '@/lib/types';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
@@ -38,6 +38,7 @@ export default function ContractControls() {
   const [newOwner, setNewOwner] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [acknowledgeUnsafeTimeout, setAcknowledgeUnsafeTimeout] = useState(false);
 
   if (config && !initialized) {
     setIsPaused(config.isPaused);
@@ -141,16 +142,69 @@ export default function ContractControls() {
           <CardContent className="p-4 space-y-4">
             <div className="flex gap-2 flex-wrap">
               {timeoutPresets.map(p => (
-                <Button key={p.label} variant={timeoutValue === p.blocks ? 'default' : 'outline'} size="sm" onClick={() => setTimeoutVal(p.blocks.toString())} className="text-xs">
+                <Button
+                  key={p.label}
+                  variant={timeoutValue === p.blocks ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => { setTimeoutVal(p.blocks.toString()); setAcknowledgeUnsafeTimeout(false); }}
+                  className="text-xs"
+                >
                   {p.label}
                 </Button>
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <Input type="number" value={timeout} onChange={e => setTimeoutVal(e.target.value)} className="font-mono text-sm w-40" min={MIN_DISPUTE_TIMEOUT} max={MAX_DISPUTE_TIMEOUT} />
+              <Input
+                type="number"
+                value={timeout}
+                onChange={e => { setTimeoutVal(e.target.value); setAcknowledgeUnsafeTimeout(false); }}
+                className="font-mono text-sm w-40"
+                min={MIN_DISPUTE_TIMEOUT}
+                max={MAX_DISPUTE_TIMEOUT}
+              />
               <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue)})</span>
             </div>
-            <Button size="sm" disabled={timeoutValue < MIN_DISPUTE_TIMEOUT || timeoutValue > MAX_DISPUTE_TIMEOUT || loading === 'timeout'} onClick={async () => { setLoading('timeout'); try { await setDisputeTimeout(timeoutValue); patchConfig({ disputeTimeout: timeoutValue }); } finally { setLoading(null); } }}>
+            {timeoutValue >= MIN_DISPUTE_TIMEOUT && timeoutValue < SAFE_MIN_DISPUTE_TIMEOUT && (
+              <div className="rounded-md border border-warning/40 bg-warning/5 p-3 space-y-2">
+                <div className="flex items-start gap-2 text-xs text-foreground">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Very short dispute window</p>
+                    <p className="text-muted-foreground mt-0.5">
+                      {timeoutValue} block{timeoutValue === 1 ? '' : 's'} (~{blocksToTime(timeoutValue, minutesPerBlock)}) is below {SAFE_MIN_DISPUTE_TIMEOUT} blocks. On mainnet this can let buyers self-recover before an admin can review a dispute. Use only for testing.
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acknowledgeUnsafeTimeout}
+                    onChange={e => setAcknowledgeUnsafeTimeout(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>I understand and want to set this anyway.</span>
+                </label>
+              </div>
+            )}
+            <Button
+              size="sm"
+              disabled={
+                timeoutValue < MIN_DISPUTE_TIMEOUT ||
+                timeoutValue > MAX_DISPUTE_TIMEOUT ||
+                loading === 'timeout' ||
+                (timeoutValue < SAFE_MIN_DISPUTE_TIMEOUT && !acknowledgeUnsafeTimeout)
+              }
+              onClick={async () => {
+                setLoading('timeout');
+                try {
+                  await setDisputeTimeout(timeoutValue);
+                  patchConfig({ disputeTimeout: timeoutValue });
+                  setAcknowledgeUnsafeTimeout(false);
+                } finally {
+                  setLoading(null);
+                }
+              }}
+            >
               Update Timeout
             </Button>
           </CardContent>
