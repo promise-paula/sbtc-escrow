@@ -4,6 +4,7 @@ import { docsNavigation, type DocSection} from "./docs-config";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Menu, X, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { REPO_URL } from "@/lib/stacks-config";
 
 function SidebarSection({ section, currentSlug, onNavigate }: { section: DocSection; currentSlug: string; onNavigate?: () => void }) {
   const isActive = section.pages.some((p) => p.slug === currentSlug);
@@ -96,7 +97,7 @@ export function DocsLayout({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
 
           <a
-            href="https://github.com/promise-paula/sbtc-escrow"
+            href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
