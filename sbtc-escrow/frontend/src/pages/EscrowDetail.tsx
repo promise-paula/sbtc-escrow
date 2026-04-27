@@ -17,15 +17,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } from '@/lib/escrow-service';
-import { blocksToTime, relativeTime, getExplorerUrl } from '@/lib/utils';
+import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
+import { useAddressBook } from '@/hooks/use-address-book';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, listItemVariants, pageVariants, slideDown } from '@/lib/motion';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Shield,
-  Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download
+  Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download,
+  BookUser, Plus, ExternalLink
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { generateEscrowReceipt } from '@/lib/generate-receipt';
 import { toast } from 'sonner';
 
@@ -52,6 +55,9 @@ export default function EscrowDetail() {
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { findByAddress, add: addContact } = useAddressBook();
+  const [savingFor, setSavingFor] = useState<'buyer' | 'seller' | null>(null);
+  const [contactName, setContactName] = useState('');
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
   const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
@@ -118,6 +124,27 @@ export default function EscrowDetail() {
   );
 
   const sortedEvents = [...escrowEvents].sort((a, b) => b.blockHeight - a.blockHeight);
+  const isSettled = escrow.status === EscrowStatus.Released || escrow.status === EscrowStatus.Refunded;
+
+  const buyerContact = findByAddress(escrow.buyer);
+  const sellerContact = findByAddress(escrow.seller);
+
+  const blockToHumanTime = (block: number): string => {
+    const diff = block - currentBlock;
+    if (diff > 0) return `in ${blocksToTime(diff, minutesPerBlock)}`;
+    if (diff < 0) return `${blocksToTime(-diff, minutesPerBlock)} ago`;
+    return 'now';
+  };
+
+  const handleSaveContact = (role: 'buyer' | 'seller') => {
+    const name = contactName.trim();
+    if (!name) return;
+    const addr = role === 'buyer' ? escrow.buyer : escrow.seller;
+    addContact(name, addr);
+    setSavingFor(null);
+    setContactName('');
+    toast.success('Contact saved');
+  };
 
   const handleAction = async (action: string) => {
     setLoading(true);
@@ -232,13 +259,43 @@ export default function EscrowDetail() {
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                   Buyer {isBuyer && <span className="text-primary font-medium">(you)</span>}
                 </p>
+                {buyerContact && (
+                  <p className="text-sm font-medium text-foreground mb-1">{buyerContact.name}</p>
+                )}
                 <AddressDisplay address={escrow.buyer} showExplorer />
+                {!isBuyer && !buyerContact && (
+                  <SaveContactInline
+                    role="buyer"
+                    address={escrow.buyer}
+                    isOpen={savingFor === 'buyer'}
+                    onOpen={() => { setSavingFor('buyer'); setContactName(''); }}
+                    onCancel={() => setSavingFor(null)}
+                    onSave={() => handleSaveContact('buyer')}
+                    name={contactName}
+                    onNameChange={setContactName}
+                  />
+                )}
               </div>
               <div className={`rounded-lg border p-3 ${isSeller ? 'border-accent-warm/40 bg-accent-warm/5' : 'border-border'}`}>
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                   Seller {isSeller && <span className="text-primary font-medium">(you)</span>}
                 </p>
+                {sellerContact && (
+                  <p className="text-sm font-medium text-foreground mb-1">{sellerContact.name}</p>
+                )}
                 <AddressDisplay address={escrow.seller} showExplorer />
+                {!isSeller && !sellerContact && (
+                  <SaveContactInline
+                    role="seller"
+                    address={escrow.seller}
+                    isOpen={savingFor === 'seller'}
+                    onOpen={() => { setSavingFor('seller'); setContactName(''); }}
+                    onCancel={() => setSavingFor(null)}
+                    onSave={() => handleSaveContact('seller')}
+                    name={contactName}
+                    onNameChange={setContactName}
+                  />
+                )}
               </div>
             </div>
           </CardContent>
@@ -256,22 +313,28 @@ export default function EscrowDetail() {
           </CardHeader>
           <CardContent>
             <div className="divide-y divide-border">
-              <div className="flex items-center justify-between py-2.5 first:pt-0">
-                <span className="text-xs text-muted-foreground">Created</span>
-                <span className="font-mono text-xs text-foreground">Block {escrow.createdAt}</span>
+              <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
+                <span className="text-xs text-muted-foreground shrink-0">Created</span>
+                <span className="font-mono text-xs text-foreground text-right">
+                  Block {escrow.createdAt.toLocaleString()}
+                  <span className="text-muted-foreground"> · {blockToHumanTime(escrow.createdAt)}</span>
+                </span>
               </div>
               <div className="flex items-center justify-between gap-3 py-2.5">
                 <span className="text-xs text-muted-foreground shrink-0">Expires</span>
-                <span className="font-mono text-xs text-foreground truncate text-right">
-                  Block {escrow.expiresAt}
-                  {blocksToExpiry > 0 && ` (${blocksToTime(blocksToExpiry, minutesPerBlock)})`}
-                  {blocksToExpiry <= 0 && ' (Expired)'}
+                <span className="font-mono text-xs text-foreground text-right">
+                  Block {escrow.expiresAt.toLocaleString()}
+                  <span className="text-muted-foreground"> · {blockToHumanTime(escrow.expiresAt)}</span>
+                  {blocksToExpiry <= 0 && <span className="text-destructive"> (Expired)</span>}
                 </span>
               </div>
               {escrow.completedAt && (
-                <div className="flex items-center justify-between py-2.5">
-                  <span className="text-xs text-muted-foreground">Completed</span>
-                  <span className="font-mono text-xs text-foreground">Block {escrow.completedAt}</span>
+                <div className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="text-xs text-muted-foreground shrink-0">Completed</span>
+                  <span className="font-mono text-xs text-foreground text-right">
+                    Block {escrow.completedAt.toLocaleString()}
+                    <span className="text-muted-foreground"> · {blockToHumanTime(escrow.completedAt)}</span>
+                  </span>
                 </div>
               )}
               <div className="flex items-center justify-between py-2.5">
@@ -279,15 +342,17 @@ export default function EscrowDetail() {
                 <AmountDisplay micro={escrow.feeAmount} tokenType={escrow.tokenType} showUsd={false} />
               </div>
               {(escrow.status === EscrowStatus.Released || escrow.status === EscrowStatus.Refunded) && escrow.txHash && (
-                <div className="flex items-center justify-between py-2.5 last:pb-0">
-                  <span className="text-xs text-muted-foreground">TX Hash</span>
+                <div className="flex items-center justify-between gap-3 py-2.5 last:pb-0">
+                  <span className="text-xs text-muted-foreground shrink-0">Transaction</span>
                   <a
                     href={getExplorerUrl('tx', escrow.txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-xs text-primary hover:underline"
+                    className="font-mono text-xs text-primary hover:underline inline-flex items-center gap-1.5"
+                    aria-label="View transaction on Stacks Explorer"
                   >
                     {escrow.txHash.slice(0, 12)}…{escrow.txHash.slice(-8)}
+                    <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
               )}
@@ -296,8 +361,39 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
+      {/* Settled callout — primary "Download Receipt" affordance for completed escrows */}
+      {isSettled && (
+        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+          <Card className="border-l-4 border-l-success">
+            <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-success/10 p-2 shrink-0">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {escrow.status === EscrowStatus.Released ? 'Escrow released' : 'Escrow refunded'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Settled. No further actions are needed.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock })}
+                className="gap-1.5 shrink-0 self-start sm:self-auto"
+              >
+                <Download className="h-3.5 w-3.5" /> Download Receipt
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Timeline */}
-      <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+      <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -348,7 +444,7 @@ export default function EscrowDetail() {
 
       {/* Actions */}
       {isParty && (isPending || isDisputed) && !isPaused && (hasActions || confirmAction) && (
-        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -428,5 +524,52 @@ export default function EscrowDetail() {
         </motion.div>
       )}
     </div>
+  );
+}
+
+interface SaveContactInlineProps {
+  role: 'buyer' | 'seller';
+  address: string;
+  isOpen: boolean;
+  onOpen: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+  name: string;
+  onNameChange: (value: string) => void;
+}
+
+function SaveContactInline({ role, address, isOpen, onOpen, onCancel, onSave, name, onNameChange }: SaveContactInlineProps) {
+  if (isOpen) {
+    return (
+      <div className="mt-2 space-y-2">
+        <p className="text-[11px] text-muted-foreground font-mono truncate">{truncateAddress(address, 8)}</p>
+        <div className="flex gap-2">
+          <Input
+            placeholder={`Name this ${role}`}
+            value={name}
+            onChange={(e) => onNameChange(e.target.value)}
+            className="text-xs h-8"
+            maxLength={64}
+            autoFocus
+          />
+          <Button size="sm" onClick={onSave} disabled={!name.trim()} className="gap-1.5 h-8 shrink-0">
+            <BookUser className="h-3 w-3" /> Save
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancel} className="h-8 shrink-0">
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onOpen}
+      className="mt-2 h-7 text-xs text-muted-foreground hover:text-foreground gap-1.5 -ml-2"
+    >
+      <Plus className="h-3 w-3" /> Save to contacts
+    </Button>
   );
 }
