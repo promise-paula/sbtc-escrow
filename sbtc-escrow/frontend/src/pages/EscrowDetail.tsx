@@ -215,6 +215,18 @@ export default function EscrowDetail() {
             {/* Row 2: Status + badges */}
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={escrow.status} />
+              {(() => {
+                const txBlock =
+                  escrow.status === EscrowStatus.Released || escrow.status === EscrowStatus.Refunded
+                    ? escrow.completedAt
+                    : escrow.status === EscrowStatus.Disputed
+                      ? escrow.disputedAt
+                      : escrow.createdAt;
+                if (!txBlock) return null;
+                return (
+                  <span className="text-xs text-muted-foreground">{blockToHumanTime(txBlock)}</span>
+                );
+              })()}
               {isExpired && isPending && (
                 <Badge variant="destructive" className="text-xs">Expired</Badge>
               )}
