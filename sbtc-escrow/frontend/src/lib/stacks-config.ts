@@ -12,6 +12,25 @@ export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
     ? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'  // mainnet sBTC
     : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
 
+// ── Mainnet build safety ───────────────────────────────────────────
+// A misconfigured CI could ship a "mainnet" build that silently falls back to
+// testnet defaults (a tx pointing at the wrong contract is the worst-case
+// silent failure). Hard-fail at module load if the address prefix doesn't
+// match the configured network.
+if (STACKS_NETWORK === 'mainnet') {
+  if (!import.meta.env.VITE_CONTRACT_ADDRESS) {
+    throw new Error(
+      'sBTC Escrow misconfigured: VITE_CONTRACT_ADDRESS must be set explicitly for mainnet builds. ' +
+        'See README for the deployed mainnet address.',
+    );
+  }
+  if (!CONTRACT_ADDRESS.startsWith('SP') && !CONTRACT_ADDRESS.startsWith('SM')) {
+    throw new Error(
+      `sBTC Escrow misconfigured: VITE_STACKS_NETWORK=mainnet but VITE_CONTRACT_ADDRESS="${CONTRACT_ADDRESS}" is not a mainnet address (must start with SP or SM).`,
+    );
+  }
+}
+
 // Post-Nakamoto: Stacks blocks target ~5s but actual rate varies.
 // useBlockRate() provides a live estimate — this is the conservative fallback
 // used when the API is unavailable (pre-Nakamoto = ~10 min, current observed ~1.5 min).
@@ -23,6 +42,11 @@ export const MAX_FEE_BPS = 500; // 5%
 export const MIN_DURATION_BLOCKS = 4; // ~5 min at post-Nakamoto block times (enough for tx confirmation)
 export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day (post-Nakamoto)
 
+// Below this, an admin is almost certainly making a mistake — surface a
+// confirmation in the UI before letting them set a dispute window of less
+// than ~3.5 hours on production.
+export const SAFE_MIN_DISPUTE_TIMEOUT = 144;
+
 // Per-token amount bounds (from V5 contract constants)
 export const MIN_AMOUNT_STX = 1_000; // 0.001 STX
 export const MAX_AMOUNT_STX = 100_000_000_000_000; // 100M STX
@@ -30,3 +54,6 @@ export const MIN_AMOUNT_SBTC = 10_000; // 0.0001 BTC
 export const MAX_AMOUNT_SBTC = 10_000_000_000; // 100 BTC
 
 export const EXPLORER_BASE = 'https://explorer.hiro.so';
+
+// Project repository — single source of truth so org/repo changes are one edit.
+export const REPO_URL = 'https://github.com/promise-paula/sbtc-escrow';
