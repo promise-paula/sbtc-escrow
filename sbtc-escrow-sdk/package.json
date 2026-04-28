@@ -1,0 +1,51 @@
+{
+  "name": "sbtc-escrow-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the sBTC Escrow smart contract on Stacks (STX + sBTC, testnet and mainnet)",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "stacks",
+    "sbtc",
+    "escrow",
+    "blockchain",
+    "smart-contract",
+    "bitcoin",
+    "clarity"
+  ],
+  "author": "Paula Promise <paula.promise2@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/promise-paula/sbtc-escrow.git",
+    "directory": "sbtc-escrow-sdk"
+  },
+  "homepage": "https://github.com/promise-paula/sbtc-escrow/tree/main/sbtc-escrow-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/promise-paula/sbtc-escrow/issues"
+  },
+  "peerDependencies": {
+    "@stacks/transactions": "^7.0.0",
+    "@stacks/network": "^7.0.0"
+  },
+  "devDependencies": {
+    "@stacks/transactions": "^7.4.0",
+    "@stacks/network": "^7.3.1",
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
