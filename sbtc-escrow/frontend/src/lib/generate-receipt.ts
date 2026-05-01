@@ -31,10 +31,10 @@ export async function generateEscrowReceipt(
   const stripe     = [247, 248, 250] as const;   // gray-50  (row fill)
   const borderClr  = [229, 231, 235] as const;   // gray-200 (borders)
   const white      = [255, 255, 255] as const;
-  const successGrn = [22,  163, 74]  as const;   // green-600
-  const disputeRed = [220, 38,  38]  as const;   // red-600
-  const pendingBlue= [59,  130, 246] as const;   // blue-500
-  const slateGray  = [100, 116, 139] as const;   // slate-500
+  const successGrn = [22,  101, 52]  as const;   // green-800 — white on bg ≈ 6.3:1 (AA+)
+  const disputeRed = [220, 38,  38]  as const;   // red-600   — white on bg ≈ 4.6:1 (AA)
+  const pendingBlue= [29,  78,  216] as const;   // blue-700  — white on bg ≈ 6.2:1 (AA+)
+  const slateGray  = [71,  85,  105] as const;   // slate-600 — white on bg ≈ 6.8:1 (AA+)
 
   const isSettled = escrow.status === EscrowStatus.Released || escrow.status === EscrowStatus.Refunded;
   const tokenSym  = tokenLabel(escrow.tokenType);
