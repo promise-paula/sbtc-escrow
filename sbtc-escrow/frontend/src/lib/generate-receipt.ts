@@ -41,6 +41,23 @@ export async function generateEscrowReceipt(
   const dateStr   = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 
+  // Load logo for header branding — graceful fallback if unavailable
+  let logoDataUrl: string | null = null;
+  try {
+    if (typeof window !== 'undefined') {
+      const _res = await fetch('/android-chrome-192x192.png');
+      if (_res.ok) {
+        const _blob = await _res.blob();
+        logoDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload  = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(_blob);
+        });
+      }
+    }
+  } catch { /* decorative — PDF proceeds without logo */ }
+
   const fmtBlock = (block: number): string => {
     if (!currentBlock) return `Block ${block.toLocaleString()}`;
     const date = blockToEstimatedDate(block, currentBlock, minutesPerBlock);
@@ -67,16 +84,22 @@ export async function generateEscrowReceipt(
   doc.setFillColor(...orange);
   doc.rect(0, HEADER_H, w, 1.5, 'F');
 
+  // Logo — 10×10 mm, vertically centred in the upper half of the header
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, 'PNG', margin, 6.5, 10, 10);
+  }
+  const wordmarkX = logoDataUrl ? margin + 12.5 : margin;
+
   // Wordmark: "sBTC" orange + " Escrow" white
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(...orange);
   const sbtcW = doc.getTextWidth('sBTC');
-  doc.text('sBTC', margin, 13);
+  doc.text('sBTC', wordmarkX, 13);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(13);
   doc.setTextColor(...white);
-  doc.text(' Escrow', margin + sbtcW, 13);
+  doc.text(' Escrow', wordmarkX + sbtcW, 13);
 
   // "RECEIPT" micro-label — top-right
   doc.setFont('helvetica', 'bold');
@@ -127,7 +150,7 @@ export async function generateEscrowReceipt(
   const drawHeading = (title: string) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.setTextColor(...orange);
+    doc.setTextColor(...ink);                  // ink on white ≈ 14:1 — WCAG AAA; orange underline below signals the tier
     const titleW = doc.getTextWidth(title.toUpperCase());
     doc.text(title.toUpperCase(), margin, y);
     // Short orange underline anchors the heading
