@@ -312,100 +312,43 @@ export async function generateEscrowReceipt(
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  VERIFY — QR codes: only what matters for independent verification
-  //  · Settled + txHash → two codes: Explorer TX + app page
-  //  · No txHash → one code: app page only
+  //  VERIFY — Explorer TX QR only (app page omitted: requires auth)
   // ════════════════════════════════════════════════════════════════
-  {
-    const escrowPageUrl = appOrigin ? `${appOrigin}/escrows/${escrow.id}` : '';
-    const explorerTxUrl = escrow.txHash ? getExplorerUrl('tx', escrow.txHash) : '';
-    const hasExplorerQR = Boolean(explorerTxUrl);
-    const hasEscrowQR   = Boolean(escrowPageUrl);
+  if (escrow.txHash) {
+    const explorerTxUrl = getExplorerUrl('tx', escrow.txHash);
 
-    if (hasEscrowQR || hasExplorerQR) {
-      const QR_SIZE      = 22;                          // mm
-      const BOX_PAD      = 4;
-      const BOX_SIZE     = QR_SIZE + BOX_PAD * 2;       // 30 mm
-      const QR_SECTION_H = 8 + BOX_SIZE + 12;           // heading + box + labels ≈ 50 mm
+    const QR_SIZE      = 22;
+    const BOX_PAD      = 4;
+    const BOX_SIZE     = QR_SIZE + BOX_PAD * 2;       // 30 mm
+    const QR_SECTION_H = 8 + BOX_SIZE + 12;
 
-      // New page only if there genuinely isn't space; with compact layout this rarely triggers
-      if (y + 5 + QR_SECTION_H > PAGE_BOTTOM) {
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 5; // breathing room
-      }
-
-      drawHeading('Verify');
-
-      const qrOpts     = { margin: 1, width: 180, color: { dark: '#12141E', light: '#FFFFFF' } };
-      const LABEL_OFF  = BOX_SIZE + 4;
-
-      if (hasExplorerQR && hasEscrowQR) {
-        const gap    = 10;
-        const totalW = BOX_SIZE * 2 + gap;
-        const startX = margin + (contentWidth - totalW) / 2;
-
-        const [explorerData, escrowData] = await Promise.all([
-          QRCode.toDataURL(explorerTxUrl, qrOpts),
-          QRCode.toDataURL(escrowPageUrl, qrOpts),
-        ]);
-
-        // QR 1 — Explorer TX
-        doc.setFillColor(...stripe);
-        doc.setDrawColor(...borderClr);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(startX, y, BOX_SIZE, BOX_SIZE, 2, 2, 'FD');
-        doc.addImage(explorerData, 'PNG', startX + BOX_PAD, y + BOX_PAD, QR_SIZE, QR_SIZE);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...ink);
-        doc.text(isSettled ? 'Verify settlement' : 'View transaction', startX + BOX_SIZE / 2, y + LABEL_OFF, { align: 'center' });
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(...mutedText);
-        doc.text('Stacks Explorer', startX + BOX_SIZE / 2, y + LABEL_OFF + 4, { align: 'center' });
-
-        // QR 2 — App page
-        const x2 = startX + BOX_SIZE + gap;
-        doc.setFillColor(...stripe);
-        doc.setDrawColor(...borderClr);
-        doc.roundedRect(x2, y, BOX_SIZE, BOX_SIZE, 2, 2, 'FD');
-        doc.addImage(escrowData, 'PNG', x2 + BOX_PAD, y + BOX_PAD, QR_SIZE, QR_SIZE);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...ink);
-        doc.text(isSettled ? 'View escrow record' : 'View live status', x2 + BOX_SIZE / 2, y + LABEL_OFF, { align: 'center' });
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(...mutedText);
-        doc.text(escrowPageUrl.replace(/^https?:\/\//, ''), x2 + BOX_SIZE / 2, y + LABEL_OFF + 4, { align: 'center' });
-      } else {
-        const singleUrl   = hasExplorerQR ? explorerTxUrl : escrowPageUrl;
-        const singleLabel = hasExplorerQR
-          ? (isSettled ? 'Verify settlement' : 'View transaction')
-          : (isSettled ? 'View escrow record' : 'View live status');
-        const singleSub   = hasExplorerQR
-          ? 'Stacks Explorer'
-          : escrowPageUrl.replace(/^https?:\/\//, '');
-        const startX      = margin + (contentWidth - BOX_SIZE) / 2;
-        const qrData      = await QRCode.toDataURL(singleUrl, qrOpts);
-
-        doc.setFillColor(...stripe);
-        doc.setDrawColor(...borderClr);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(startX, y, BOX_SIZE, BOX_SIZE, 2, 2, 'FD');
-        doc.addImage(qrData, 'PNG', startX + BOX_PAD, y + BOX_PAD, QR_SIZE, QR_SIZE);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...ink);
-        doc.text(singleLabel, startX + BOX_SIZE / 2, y + LABEL_OFF, { align: 'center' });
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(...mutedText);
-        doc.text(singleSub, startX + BOX_SIZE / 2, y + LABEL_OFF + 4, { align: 'center' });
-      }
+    if (y + 5 + QR_SECTION_H > PAGE_BOTTOM) {
+      doc.addPage();
+      y = 20;
+    } else {
+      y += 5;
     }
+
+    drawHeading('Verify');
+
+    const qrOpts    = { margin: 1, width: 180, color: { dark: '#12141E', light: '#FFFFFF' } };
+    const LABEL_OFF = BOX_SIZE + 4;
+    const startX    = margin + (contentWidth - BOX_SIZE) / 2;
+    const qrData    = await QRCode.toDataURL(explorerTxUrl, qrOpts);
+
+    doc.setFillColor(...stripe);
+    doc.setDrawColor(...borderClr);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(startX, y, BOX_SIZE, BOX_SIZE, 2, 2, 'FD');
+    doc.addImage(qrData, 'PNG', startX + BOX_PAD, y + BOX_PAD, QR_SIZE, QR_SIZE);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...ink);
+    doc.text(isSettled ? 'Verify settlement' : 'View transaction', startX + BOX_SIZE / 2, y + LABEL_OFF, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...mutedText);
+    doc.text('Stacks Explorer', startX + BOX_SIZE / 2, y + LABEL_OFF + 4, { align: 'center' });
   }
 
   // ════════════════════════════════════════════════════════════════
