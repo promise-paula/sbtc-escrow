@@ -55,6 +55,7 @@ export default function EscrowDetail() {
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [receiptLoading, setReceiptLoading] = useState(false);
   const { findByAddress, add: addContact } = useAddressBook();
   const [savingFor, setSavingFor] = useState<'buyer' | 'seller' | null>(null);
   const [contactName, setContactName] = useState('');
@@ -161,6 +162,18 @@ export default function EscrowDetail() {
     }
   };
 
+  const handleDownloadReceipt = async () => {
+    setReceiptLoading(true);
+    try {
+      generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock });
+      toast.success('Receipt downloaded');
+    } catch {
+      toast.error('Failed to generate receipt. Please try again.');
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-8">
       {/* Breadcrumb */}
@@ -197,8 +210,8 @@ export default function EscrowDetail() {
               }} className="gap-2">
                 <Link className="h-3.5 w-3.5" /> Copy Link
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock })} className="gap-2">
-                <Download className="h-3.5 w-3.5" /> Download Receipt
+              <DropdownMenuItem onClick={handleDownloadReceipt} className="gap-2" disabled={receiptLoading}>
+                <Download className="h-3.5 w-3.5" /> {isSettled ? 'Download Receipt' : 'Download Summary'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -387,17 +400,18 @@ export default function EscrowDetail() {
                     {escrow.status === EscrowStatus.Released ? 'Escrow released' : 'Escrow refunded'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Settled. No further actions are needed.
+                    {escrow.status === EscrowStatus.Released ? 'Funds have been successfully released to the seller.' : 'Funds have been successfully returned to the buyer.'}
                   </p>
                 </div>
               </div>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock })}
+                onClick={handleDownloadReceipt}
+                disabled={receiptLoading}
                 className="gap-1.5 shrink-0 self-start sm:self-auto"
               >
-                <Download className="h-3.5 w-3.5" /> Download Receipt
+                <Download className="h-3.5 w-3.5" /> {receiptLoading ? 'Generating…' : 'Download Receipt'}
               </Button>
             </CardContent>
           </Card>
