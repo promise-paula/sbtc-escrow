@@ -314,7 +314,7 @@ export default function HowItWorks() {
               </p>
               <div className="mt-8 grid sm:grid-cols-2 gap-4 max-w-md mx-auto">
                 <a
-                  href="https://leather.io"
+                  href="https://chromewebstore.google.com/detail/leather/ldinpeekobnhjjdofggfgjlcehhmanlj"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-lg border border-border/60 bg-card p-5 hover:border-primary hover:shadow-glow-sm transition-all group text-left"
@@ -326,7 +326,7 @@ export default function HowItWorks() {
                   <p className="mt-1 text-xs text-muted-foreground">Browser extension</p>
                 </a>
                 <a
-                  href="https://www.xverse.app"
+                  href="https://chromewebstore.google.com/detail/xverse-bitcoin-crypto-wal/idnnbdplmphpflfnlkomgpfbpcgelopg"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-lg border border-border/60 bg-card p-5 hover:border-primary hover:shadow-glow-sm transition-all group text-left"
