@@ -1,5 +1,6 @@
 /**
- * sBTC Escrow SDK Types — V5 (Dual-Token)
+ * sBTC Escrow SDK — public types.
+ * Mirrors the on-chain shape of escrow-v6 (testnet) / escrow-mainnet (mainnet).
  */
 
 /** Escrow status enum matching contract constants */
@@ -19,7 +20,7 @@ export enum TokenType {
 /** Network type for contract interactions */
 export type NetworkType = 'mainnet' | 'testnet';
 
-/** Contract configuration from get-config (V5 shape) */
+/** Contract configuration returned by `get-config` (per-token amount bounds). */
 export interface EscrowConfig {
   owner: string;
   feeRecipient: string;
@@ -33,7 +34,7 @@ export interface EscrowConfig {
   disputeTimeout: number;
 }
 
-/** Escrow data from get-escrow (V5 shape — includes tokenType & disputedAt) */
+/** Escrow data returned by `get-escrow`. */
 export interface Escrow {
   id: number;
   buyer: string;
@@ -49,7 +50,7 @@ export interface Escrow {
   disputedAt: number | null;
 }
 
-/** User statistics from get-user-stats (V5 per-token) */
+/** Per-user statistics returned by `get-user-stats` (counts + per-token totals). */
 export interface UserStats {
   escrowsCreated: number;
   escrowsReceived: number;
@@ -59,7 +60,7 @@ export interface UserStats {
   totalReceivedSbtc: number;
 }
 
-/** Platform statistics from get-platform-stats (V5 per-token) */
+/** Platform-wide statistics returned by `get-platform-stats` (per-token volumes & fees). */
 export interface PlatformStats {
   totalEscrows: number;
   totalVolumeStx: number;
@@ -71,7 +72,7 @@ export interface PlatformStats {
   activeDisputes: number;
 }
 
-/** Options for creating an escrow (V5 — includes tokenType) */
+/** Options for `EscrowClient.createEscrow`. */
 export interface CreateEscrowOptions {
   seller: string;
   amount: number;
