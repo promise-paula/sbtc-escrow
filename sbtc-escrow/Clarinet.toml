@@ -8,17 +8,17 @@ cache_dir = './.cache'
 [[project.requirements]]
 contract_id = 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'
 
-[contracts.escrow]
-#path = 'contracts/escrow.clar'
-#clarity_version = 4
-#epoch = 'latest'
-
-[contracts.escrow-v4]
-path = 'contracts/escrow-v4.clar'
+[contracts.escrow-mainnet]
+path = 'contracts/escrow-mainnet.clar'
 clarity_version = 4
 epoch = 'latest'
-[repl.analysis]
-passes = ['check_checker']
+
+#[contracts.escrow-v6]
+#path = 'contracts/escrow-v6.clar'
+#clarity_version = 4
+#epoch = 'latest'
+#[repl.analysis]
+#passes = ['check_checker']
 
 [repl.analysis.lints]
 
