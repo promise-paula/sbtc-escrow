@@ -140,7 +140,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
         {!collapsed && (
           <p className="text-xs text-muted-foreground">
-            v5.0.0 · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
+            {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
           </p>
         )}
       </SidebarFooter>
