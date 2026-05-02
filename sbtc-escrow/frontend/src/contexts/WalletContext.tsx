@@ -114,9 +114,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     try {
       const response = await stacksConnect();
-      const stxAddr = response.addresses.find(
-        (a) => a.symbol === 'STX',
-      )?.address ?? null;
+
+      // Wallet-agnostic: identify the Stacks address by prefix rather than
+      // relying on a wallet-specific `symbol` field. Leather puts symbol:'STX'
+      // on each entry; Xverse uses different shapes (purpose:'stacks' or no
+      // marker at all). Either way, every Stacks address starts with ST/SP/SM/SN.
+      const addresses = (response?.addresses ?? []) as Array<{ address?: string }>;
+      const stxAddr =
+        addresses.find((a) => typeof a?.address === 'string' && getAddressNetwork(a.address) !== null)
+          ?.address ?? getPersistedAddress();
 
       if (isWrongNetwork(stxAddr)) {
         stacksDisconnect();
