@@ -14,7 +14,7 @@ import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, 
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
-import { useUsdEstimate } from '@/hooks/use-usd-estimate';
+import { useUsdEstimate, useUsdValue } from '@/hooks/use-usd-estimate';
 import { MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
@@ -97,6 +97,11 @@ export default function CreateEscrow() {
   const amountUsd = useUsdEstimate(smallestUnit, tokenType);
   const feeUsd = useUsdEstimate(fee, tokenType);
   const totalUsd = useUsdEstimate(total, tokenType);
+  // Contextual USD on the amount input — shown regardless of the global
+  // "Show USD" toggle so the buyer always knows the value of what they're entering.
+  const amountUsdInput = useUsdValue(smallestUnit, tokenType);
+  const feeUsdInput = useUsdValue(fee, tokenType);
+  const totalUsdInput = useUsdValue(total, tokenType);
 
   const recipientValid = isValidStacksAddress(recipient);
   const selfEscrow = recipient === address;
@@ -352,7 +357,12 @@ export default function CreateEscrow() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Amount ({token})</Label>
+                  <div className="flex items-baseline justify-between">
+                    <Label className="text-xs">Amount ({token})</Label>
+                    {amountValid && amountUsdInput && (
+                      <span className="text-xs text-muted-foreground tabular-nums">≈ {amountUsdInput}</span>
+                    )}
+                  </div>
                   <Input
                     type="number"
                     placeholder="0.00"
@@ -369,8 +379,14 @@ export default function CreateEscrow() {
                   )}
                   {amountValid && (
                     <div className="text-xs text-muted-foreground space-y-0.5">
-                      <p>Fee: {formatAmount(fee, tokenType)} {token} ({cfg.platformFeeBps / 100}%)</p>
-                      <p>Total: {formatAmount(total, tokenType)} {token}</p>
+                      <p>
+                        Fee: {formatAmount(fee, tokenType)} {token} ({cfg.platformFeeBps / 100}%)
+                        {feeUsdInput && <span className="ml-1">· ≈ {feeUsdInput}</span>}
+                      </p>
+                      <p>
+                        Total: {formatAmount(total, tokenType)} {token}
+                        {totalUsdInput && <span className="ml-1">· ≈ {totalUsdInput}</span>}
+                      </p>
                     </div>
                   )}
                 </div>
