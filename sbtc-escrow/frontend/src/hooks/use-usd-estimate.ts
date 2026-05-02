@@ -50,10 +50,21 @@ function formatUsd(value: number): string {
  */
 export function useUsdEstimate(micro: number, tokenType: TokenType): string | null {
   const showUsd = useShowUsdSetting();
+  const value = useUsdValue(micro, tokenType);
+  return showUsd ? value : null;
+}
+
+/**
+ * Same conversion as `useUsdEstimate` but always returns the USD string when
+ * a price is available, regardless of the user's "Show USD" preference.
+ *
+ * Use for *contextual* surfaces where the USD value is the point of the UI
+ * (e.g. an amount input — a buyer typing 1 STX deserves to see ≈ $X
+ * whether or not they've toggled the global setting).
+ */
+export function useUsdValue(micro: number, tokenType: TokenType): string | null {
   const { data: stxPrice } = useStxPrice();
   const { data: btcPrice } = useBtcPrice();
-
-  if (!showUsd) return null;
 
   if (tokenType === TokenType.STX) {
     if (!stxPrice || stxPrice <= 0) return null;
