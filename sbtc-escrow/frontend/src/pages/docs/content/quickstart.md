@@ -4,7 +4,7 @@ This guide walks you through creating, releasing, and refunding an escrow on tes
 
 ## Prerequisites
 
-1. **Install a Stacks wallet** — Install [Leather](https://leather.io/) or [Xverse](https://www.xverse.app/) browser extension. Create or import an account and **switch to Testnet**.
+1. **Install a Stacks wallet** — Install [Leather](https://chromewebstore.google.com/detail/leather/ldinpeekobnhjjdofggfgjlcehhmanlj) or [Xverse](https://chromewebstore.google.com/detail/xverse-bitcoin-crypto-wal/idnnbdplmphpflfnlkomgpfbpcgelopg) browser extension. Create or import an account and **switch to Testnet**.
 
 2. **Get testnet STX** — Visit the [Stacks Testnet Faucet](https://explorer.hiro.so/sandbox/faucet?chain=testnet) and request STX tokens. You'll need at least 1 STX to create an escrow.
 
