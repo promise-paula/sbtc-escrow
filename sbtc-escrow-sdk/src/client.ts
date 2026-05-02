@@ -50,14 +50,15 @@ const DEFAULT_CONTRACTS = {
 /** Default sBTC SIP-010 contract principals */
 const DEFAULT_SBTC_CONTRACTS = {
   testnet: 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token',
-  mainnet: 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-sbtc',
+  mainnet: 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token',
 };
 
 /**
- * sBTC Escrow Client (V5 — Dual-Token)
+ * sBTC Escrow Client
  *
- * Provides typed methods for interacting with the sBTC Escrow V5 smart contract,
- * supporting both STX and sBTC escrows.
+ * Provides typed methods for interacting with the sBTC Escrow smart contract
+ * (escrow-v6 on testnet, escrow-mainnet on mainnet). Supports both STX
+ * (native) and sBTC (SIP-010 fungible token) escrows.
  *
  * @example
  * ```typescript
