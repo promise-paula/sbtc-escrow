@@ -67,7 +67,7 @@ import { Pc } from "@stacks/transactions";
 // Example: Release an escrow
 openContractCall({
   contractAddress: "ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N",
-  contractName: "escrow-v5",
+  contractName: "escrow-v6",
   functionName: "release",
   functionArgs: [uintCV(escrowId)],
   postConditions: [

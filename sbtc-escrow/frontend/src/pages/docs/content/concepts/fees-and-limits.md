@@ -38,7 +38,7 @@ total = 100,000,000 + 500,000 = 100,500,000 µSTX (100.5 STX)
 The fee recipient is configurable and defaults to the contract owner. It can be changed:
 
 ```clarity
-(contract-call? .escrow-v5 set-fee-recipient 'ST_NEW_FEE_ADDRESS)
+(contract-call? .escrow-v6 set-fee-recipient 'ST_NEW_FEE_ADDRESS)
 ```
 
 ## Amount Limits
@@ -100,7 +100,7 @@ The contract owner can adjust the fee rate:
 
 ```clarity
 ;; Set fee to 1% (100 BPS)
-(contract-call? .escrow-v5 set-fee-bps u100)
+(contract-call? .escrow-v6 set-fee-bps u100)
 ```
 
 > ⚠️ **Warning:** The fee cannot exceed `MAX_FEE_BPS` (500 = 5%). Attempting to set a higher fee will fail with `ERR_INVALID_FEE`.

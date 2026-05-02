@@ -37,7 +37,7 @@ Returns escrow record or `ERR_ESCROW_NOT_FOUND` (2001).
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 get-escrow u1)
+(contract-call? .escrow-v6 get-escrow u1)
 ;; → (ok { id: u1, buyer: 'ST1..., seller: 'ST2..., ... })
 ```
 
@@ -55,7 +55,7 @@ Returns the total number of escrows created.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 get-escrow-count)
+(contract-call? .escrow-v6 get-escrow-count)
 ;; → (ok u42)
 ```
 
@@ -79,7 +79,7 @@ Returns statistics for a specific user.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 get-user-stats 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
+(contract-call? .escrow-v6 get-user-stats 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
 ```
 
 ---
@@ -103,7 +103,7 @@ Returns platform-wide statistics.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 get-platform-stats)
+(contract-call? .escrow-v6 get-platform-stats)
 ```
 
 ---
@@ -127,7 +127,7 @@ Returns the current contract configuration.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 get-config)
+(contract-call? .escrow-v6 get-config)
 ;; → (ok { owner: 'ST1..., fee-bps: u50, is-paused: false, ... })
 ```
 
@@ -145,7 +145,7 @@ Calculates the fee for a given amount.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 calculate-fee u1000000)
+(contract-call? .escrow-v6 calculate-fee u1000000)
 ;; → (ok u5000) ;; 0.5% of 1 STX = 5000 µSTX
 ```
 
@@ -163,6 +163,6 @@ Checks whether an escrow has passed its deadline.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 is-expired u1)
+(contract-call? .escrow-v6 is-expired u1)
 ;; → (ok false)
 ```

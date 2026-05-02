@@ -61,7 +61,7 @@ The frontend is configured for Vercel deployment.
 ```
 VITE_STACKS_NETWORK=mainnet
 VITE_CONTRACT_ADDRESS=SP...
-VITE_CONTRACT_NAME=escrow-v5
+VITE_CONTRACT_NAME=escrow-v6
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 ```
@@ -132,7 +132,7 @@ npx ts-node scripts/register-chainhook.ts
 ```
 
 This registers a predicate that watches for:
-- Contract calls to escrow-v5
+- Contract calls to escrow-v6
 - Print events from the contract
 
 ### Chainhook Configuration
@@ -146,7 +146,7 @@ The registration script sends a predicate like:
     "mainnet": {
       "if_this": {
         "scope": "contract_call",
-        "contract_identifier": "SP.../escrow-v5"
+        "contract_identifier": "SP.../escrow-v6"
       },
       "then_that": {
         "http_post": {

@@ -31,7 +31,7 @@ VITE_STACKS_NETWORK=testnet
 
 # Contract Address
 VITE_CONTRACT_ADDRESS=ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N
-VITE_CONTRACT_NAME=escrow-v5
+VITE_CONTRACT_NAME=escrow-v6
 ```
 
 > ⚠️ **Warning:** Never commit `.env` files with real keys. The anon key is public, but still keep it in env vars for flexibility.

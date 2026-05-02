@@ -23,7 +23,7 @@ Resolves a disputed escrow in the buyer's favor, refunding all funds.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 resolve-dispute-for-buyer u5)
+(contract-call? .escrow-v6 resolve-dispute-for-buyer u5)
 ;; → (ok true)
 ```
 
@@ -51,7 +51,7 @@ Resolves a disputed escrow in the seller's favor, releasing funds.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 resolve-dispute-for-seller u5)
+(contract-call? .escrow-v6 resolve-dispute-for-seller u5)
 ;; → (ok true)
 ```
 
@@ -97,10 +97,10 @@ Pauses or unpauses new escrow creation.
 
 ```clarity
 ;; Pause the contract
-(contract-call? .escrow-v5 set-paused true)
+(contract-call? .escrow-v6 set-paused true)
 
 ;; Unpause
-(contract-call? .escrow-v5 set-paused false)
+(contract-call? .escrow-v6 set-paused false)
 ```
 
 ---
@@ -120,7 +120,7 @@ Updates the platform fee rate.
 
 ```clarity
 ;; Set fee to 1%
-(contract-call? .escrow-v5 set-fee-bps u100)
+(contract-call? .escrow-v6 set-fee-bps u100)
 ```
 
 ---
@@ -153,7 +153,7 @@ Updates the dispute timeout period.
 
 ```clarity
 ;; Set timeout to ~60 days
-(contract-call? .escrow-v5 set-dispute-timeout u57600)
+(contract-call? .escrow-v6 set-dispute-timeout u57600)
 ```
 
 ---
@@ -186,9 +186,9 @@ Accepts a pending ownership transfer.
 
 ```clarity
 ;; Step 1: Current owner initiates transfer
-(contract-call? .escrow-v5 set-pending-owner 'ST_NEW_OWNER)
+(contract-call? .escrow-v6 set-pending-owner 'ST_NEW_OWNER)
 
 ;; Step 2: New owner accepts
 ;; (called by ST_NEW_OWNER)
-(contract-call? .escrow-v5 confirm-owner)
+(contract-call? .escrow-v6 confirm-owner)
 ```

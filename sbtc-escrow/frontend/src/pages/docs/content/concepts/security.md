@@ -37,7 +37,7 @@ If the actual transfer differs from the post-condition, the entire transaction i
 The contract owner can pause all new escrow creation in case of emergency:
 
 ```clarity
-(contract-call? .escrow-v5 set-paused true)
+(contract-call? .escrow-v6 set-paused true)
 ```
 
 > ℹ️ **Info:** Pausing only blocks `create-escrow`. Existing escrows can still be released, refunded, and disputed. This ensures funds are never locked by a pause.

@@ -20,7 +20,7 @@ sBTC Escrow is a multi-layer system with on-chain smart contracts at the core, a
 <div style="border:2px solid #F7931A;border-radius:8px;padding:16px;background:rgba(247,147,26,0.05)">
 <div style="text-align:center;font-weight:700;color:#F7931A;margin-bottom:12px">STACKS BLOCKCHAIN</div>
 <div style="border:1px solid #d4d4d8;border-radius:6px;padding:12px;margin-bottom:10px">
-<div style="text-align:center;font-weight:600;margin-bottom:10px">escrow-v5.clar</div>
+<div style="text-align:center;font-weight:600;margin-bottom:10px">escrow-v6.clar</div>
 <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px">
 <div style="border:1px solid #d4d4d8;border-radius:4px;padding:6px 10px;text-align:center;font-size:12px">Create Escrow</div>
 <div style="border:1px solid #d4d4d8;border-radius:4px;padding:6px 10px;text-align:center;font-size:12px">Release Funds</div>
@@ -52,7 +52,7 @@ sBTC Escrow is a multi-layer system with on-chain smart contracts at the core, a
 
 ## Components
 
-### Smart Contract (`escrow-v5.clar`)
+### Smart Contract (`escrow-v6.clar`)
 
 The on-chain Clarity v4 contract is the source of truth. It:
 
@@ -100,7 +100,7 @@ Off-chain indexing layer for fast queries:
 
 [Chainhook](https://docs.hiro.so/chainhook) is a Stacks event observer that:
 
-1. Monitors the `escrow-v5` contract for transaction events
+1. Monitors the `escrow-v6` contract for transaction events
 2. Extracts `print` event data from contract calls
 3. POSTs structured JSON to the Supabase edge function
 4. The edge function parses events and writes to the database
@@ -112,7 +112,7 @@ This enables the frontend to display data without polling the blockchain directl
 ### Creating an Escrow
 
 <div style="font-family:ui-monospace,monospace;font-size:13px;line-height:1.8;padding:16px;border:1px solid #d4d4d8;border-radius:8px;background:rgba(247,147,26,0.03);overflow-x:auto">
-<strong>User</strong> → <strong>Wallet</strong> → <strong>Stacks Node</strong> → <code>escrow-v5.create-escrow()</code><br/>
+<strong>User</strong> → <strong>Wallet</strong> → <strong>Stacks Node</strong> → <code>escrow-v6.create-escrow()</code><br/>
 &nbsp;&nbsp;&nbsp;&nbsp;├── STX/sBTC transferred to contract<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;├── Escrow record written to map<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;├── User stats updated<br/>
@@ -140,7 +140,7 @@ This enables the frontend to display data without polling the blockchain directl
 <div style="font-family:ui-monospace,monospace;font-size:13px;line-height:1.7;padding:16px;border:1px solid #d4d4d8;border-radius:8px;background:rgba(247,147,26,0.03);overflow-x:auto">
 <code>sbtc-escrow/</code><br/>
 <span style="opacity:0.5">├─</span> <strong>contracts/</strong> <span style="opacity:0.5">— Clarity smart contracts</span><br/>
-<span style="opacity:0.5">&nbsp;&nbsp;├─</span> <code>escrow-v5.clar</code> <span style="opacity:0.5">— Primary V4 dual-token contract</span><br/>
+<span style="opacity:0.5">&nbsp;&nbsp;├─</span> <code>escrow-v6.clar</code> <span style="opacity:0.5">— Primary V4 dual-token contract</span><br/>
 <span style="opacity:0.5">&nbsp;&nbsp;└─</span> <code>escrow.clar</code> <span style="opacity:0.5">— Legacy V3 STX-only contract</span><br/>
 <span style="opacity:0.5">├─</span> <strong>tests/</strong> <span style="opacity:0.5">— Clarinet + Vitest contract tests</span><br/>
 <span style="opacity:0.5">├─</span> <strong>scripts/</strong> <span style="opacity:0.5">— Deployment and testnet scripts</span><br/>

@@ -15,7 +15,7 @@ npm test
 
 ### Test Structure
 
-Tests are in `tests/escrow-v5.test.ts`:
+Tests are in `tests/escrow-v6.test.ts`:
 
 ```typescript
 import { describe, it, expect } from "vitest";
@@ -24,7 +24,7 @@ import { Cl } from "@stacks/transactions";
 describe("Escrow V5 Contract", () => {
   it("should create an escrow", () => {
     const result = simnet.callPublicFn(
-      "escrow-v5",
+      "escrow-v6",
       "create-escrow",
       [
         Cl.standardPrincipal(recipient),

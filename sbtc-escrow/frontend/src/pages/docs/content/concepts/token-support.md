@@ -13,10 +13,10 @@ The `token-type` parameter is passed when creating an escrow and determines how 
 
 ```clarity
 ;; STX escrow
-(contract-call? .escrow-v5 create-escrow seller u1000000 u"Payment" u960 u0)
+(contract-call? .escrow-v6 create-escrow seller u1000000 u"Payment" u960 u0)
 
 ;; sBTC escrow
-(contract-call? .escrow-v5 create-escrow seller u100000 u"Payment" u960 u1)
+(contract-call? .escrow-v6 create-escrow seller u100000 u"Payment" u960 u1)
 ```
 
 ## Amount Limits

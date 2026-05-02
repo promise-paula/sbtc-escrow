@@ -14,7 +14,7 @@ const client = new EscrowClient(options: EscrowClientOptions);
 |----------|------|:--------:|-------------|
 | `network` | `'testnet' \| 'mainnet'` | ✅ | Target Stacks network |
 | `contractAddress` | `string` | ❌ | Override the default contract address |
-| `contractName` | `string` | ❌ | Override the default contract name (default: `escrow-v5`) |
+| `contractName` | `string` | ❌ | Override the default contract name (default: `escrow-v6`) |
 | `apiUrl` | `string` | ❌ | Override the Stacks API URL |
 
 ### Examples

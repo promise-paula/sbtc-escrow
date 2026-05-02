@@ -1,14 +1,14 @@
 # Smart Contract Overview
 
-The sBTC Escrow smart contract (`escrow-v5.clar`) is a Clarity v4 contract deployed on the Stacks blockchain. It serves as the trustless, on-chain core of the escrow protocol.
+The sBTC Escrow smart contract (`escrow-v6.clar`) is a Clarity v4 contract deployed on the Stacks blockchain. It serves as the trustless, on-chain core of the escrow protocol.
 
 ## Contract Identity
 
 | Property | Value |
 |----------|-------|
-| **Name** | `escrow-v5` |
+| **Name** | `escrow-v6` |
 | **Language** | Clarity v4 |
-| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v5` |
+| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v6` |
 | **Mainnet** | TBD |
 
 ## Constants

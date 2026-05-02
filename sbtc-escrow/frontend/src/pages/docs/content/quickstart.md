@@ -109,7 +109,7 @@ clarinet console
 
 ```clarity
 ;; Create an escrow (as wallet_1 → wallet_2)
-(contract-call? .escrow-v5 create-escrow
+(contract-call? .escrow-v6 create-escrow
   'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG  ;; seller
   u1000000                                         ;; 1 STX
   u"Test escrow"                                   ;; description
@@ -118,7 +118,7 @@ clarinet console
 )
 
 ;; Check it
-(contract-call? .escrow-v5 get-escrow u1)
+(contract-call? .escrow-v6 get-escrow u1)
 ```
 
 ## Next Steps

@@ -57,7 +57,7 @@ The buyer calls `release` to send funds to the seller:
 - Works **even after the escrow has expired** — the buyer can always release
 
 ```clarity
-(contract-call? .escrow-v5 release u1)
+(contract-call? .escrow-v6 release u1)
 ```
 
 ### Pending → Refunded
@@ -70,7 +70,7 @@ The buyer calls `release` to send funds to the seller:
 Full amount (principal + fee) is returned to the buyer.
 
 ```clarity
-(contract-call? .escrow-v5 refund u1)
+(contract-call? .escrow-v6 refund u1)
 ```
 
 ### Pending → Disputed
@@ -84,7 +84,7 @@ Either party can raise a dispute at any time while the escrow is pending. Disput
 - Freezes the escrow — no release or refund until resolved
 
 ```clarity
-(contract-call? .escrow-v5 dispute u1)
+(contract-call? .escrow-v6 dispute u1)
 ```
 
 ### Disputed → Released (admin resolves for seller)
@@ -92,7 +92,7 @@ Either party can raise a dispute at any time while the escrow is pending. Disput
 **Who:** Contract owner only
 
 ```clarity
-(contract-call? .escrow-v5 resolve-dispute-for-seller u1)
+(contract-call? .escrow-v6 resolve-dispute-for-seller u1)
 ```
 
 Releases funds to seller + fee to platform, same as a normal release.
@@ -102,7 +102,7 @@ Releases funds to seller + fee to platform, same as a normal release.
 **Who:** Contract owner only
 
 ```clarity
-(contract-call? .escrow-v5 resolve-dispute-for-buyer u1)
+(contract-call? .escrow-v6 resolve-dispute-for-buyer u1)
 ```
 
 Full refund (principal + fee) to the buyer.
@@ -114,7 +114,7 @@ Full refund (principal + fee) to the buyer.
 If the admin doesn't resolve the dispute within the timeout period (~30 days), the buyer can self-recover:
 
 ```clarity
-(contract-call? .escrow-v5 resolve-expired-dispute u1)
+(contract-call? .escrow-v6 resolve-expired-dispute u1)
 ```
 
 > ℹ️ **Info:** This ensures buyers are never permanently locked out of their funds, even if the admin is unresponsive.
@@ -163,7 +163,7 @@ On refund:
 
 ```clarity
 ;; Extend by 960 blocks (~1 day)
-(contract-call? .escrow-v5 extend-escrow u1 u960)
+(contract-call? .escrow-v6 extend-escrow u1 u960)
 ```
 
 The new `expires-at` = current `expires-at` + additional blocks. Extensions cannot exceed the `MAX_DURATION` from the original creation time.

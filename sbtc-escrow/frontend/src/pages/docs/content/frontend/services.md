@@ -110,7 +110,7 @@ Configuration is determined by `VITE_STACKS_NETWORK` environment variable:
 |----------|--------|
 | `VITE_STACKS_NETWORK` | `mainnet`, `testnet`, `devnet` |
 | `VITE_CONTRACT_ADDRESS` | Deployer address |
-| `VITE_CONTRACT_NAME` | Contract name (default: `escrow-v5`) |
+| `VITE_CONTRACT_NAME` | Contract name (default: `escrow-v6`) |
 
 ---
 

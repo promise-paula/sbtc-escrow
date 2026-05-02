@@ -56,10 +56,10 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 
 ## Networks
 
-| Network | Contract | Status |
-|---------|----------|--------|
-| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v5` | Live |
-| **Mainnet** | TBD | Coming Soon |
+| Network     | Contract                                                   | Status |
+|-------------|------------------------------------------------------------|--------|
+| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v6`      | Live   |
+| **Mainnet** | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet` | Live   |
 
 ## Architecture at a Glance
 

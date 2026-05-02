@@ -46,7 +46,7 @@ Creates a new escrow and transfers funds from the buyer into the contract.
 
 ```clarity
 ;; Create a 10 STX escrow lasting ~7 days
-(contract-call? .escrow-v5 create-escrow
+(contract-call? .escrow-v6 create-escrow
   'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG  ;; seller
   u10000000                                       ;; 10 STX
   u"Website redesign - milestone 1"               ;; description
@@ -98,7 +98,7 @@ Releases escrowed funds to the seller and platform fee to the fee recipient.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 release u1)
+(contract-call? .escrow-v6 release u1)
 ;; → (ok true)
 ```
 
@@ -149,11 +149,11 @@ Returns the full deposit (amount + fee) to the buyer.
 
 ```clarity
 ;; Seller refunds before expiry
-(contract-call? .escrow-v5 refund u1)
+(contract-call? .escrow-v6 refund u1)
 ;; → (ok true)
 
 ;; Anyone refunds after expiry
-(contract-call? .escrow-v5 refund u1)
+(contract-call? .escrow-v6 refund u1)
 ;; → (ok true)
 ```
 
@@ -196,7 +196,7 @@ Raises a dispute on a pending escrow, freezing it until resolution.
 ### Example
 
 ```clarity
-(contract-call? .escrow-v5 dispute u1)
+(contract-call? .escrow-v6 dispute u1)
 ;; → (ok true)
 ```
 
@@ -246,6 +246,6 @@ Extends the deadline of a pending escrow.
 
 ```clarity
 ;; Add ~1 week to the deadline
-(contract-call? .escrow-v5 extend-escrow u1 u6720)
+(contract-call? .escrow-v6 extend-escrow u1 u6720)
 ;; → (ok true)
 ```

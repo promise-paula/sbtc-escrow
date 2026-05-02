@@ -1,6 +1,6 @@
 # Error Codes
 
-Reference for all error codes returned by the escrow-v5 smart contract.
+Reference for all error codes returned by the escrow-v6 smart contract.
 
 ## Authentication Errors (1xxx)
 
