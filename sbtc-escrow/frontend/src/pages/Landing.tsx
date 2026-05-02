@@ -407,7 +407,7 @@ export default function Landing() {
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="text-center sm:text-left">sBTC Escrow v5.0.0 · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
+          <span className="text-center sm:text-left">sBTC Escrow {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
           <div className="flex flex-wrap justify-center sm:justify-end gap-4">
             <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Explorer</a>
             <button onClick={() => scrollTo('security')} className="hover:text-foreground transition-colors">Security</button>
