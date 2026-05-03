@@ -77,6 +77,19 @@ export function blockToEstimatedDate(blockHeight: number, currentBlock: number, 
   return new Date(Date.now() + blockDiff * minutesPerBlock * 60 * 1000);
 }
 
+/**
+ * Relative time string ("3m ago") derived from an on-chain block height.
+ * Use this in lieu of the indexer's `indexed_at` timestamp so the UI reflects
+ * when the event actually happened on-chain, not when our indexer wrote the row.
+ *
+ * Returns an empty string if `currentBlock` isn't loaded yet (avoids the
+ * "in 53 years" nonsense that comes from `currentBlock = 0`).
+ */
+export function blockToRelativeTime(blockHeight: number, currentBlock: number, minutesPerBlock = DEFAULT_MINUTES_PER_BLOCK): string {
+  if (!blockHeight || !currentBlock) return '';
+  return relativeTime(blockToEstimatedDate(blockHeight, currentBlock, minutesPerBlock).toISOString());
+}
+
 export function calculateFee(amount: number, feeBps: number): number {
   return Math.floor((amount * feeBps) / 10_000);
 }
