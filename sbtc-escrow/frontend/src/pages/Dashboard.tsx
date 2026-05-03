@@ -11,8 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PlusCircle, ArrowRight, Inbox, Lock, Clock, CheckCircle, ShoppingCart, Store, List, Activity } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
-import { formatSTX, relativeTime, truncateAddress } from '@/lib/utils';
+import { formatSTX, blockToRelativeTime, truncateAddress } from '@/lib/utils';
 import { useUsdEstimate } from '@/hooks/use-usd-estimate';
+import { useBlockHeight } from '@/hooks/use-block-height';
+import { useBlockRate } from '@/hooks/use-block-rate';
+import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { TokenType } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants } from '@/lib/motion';
@@ -38,6 +41,9 @@ export default function Dashboard() {
   const { address } = useWallet();
   const { data: escrows, isLoading: escrowsLoading, isError: escrowsError } = useEscrows(address);
   const { data: stats, isLoading: statsLoading } = useUserStats(address);
+  const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
 
   if (escrowsLoading || statsLoading) return <DashboardSkeleton />;
 
@@ -231,7 +237,7 @@ export default function Dashboard() {
                         Escrow <span className="font-mono">#{e.id}</span> {role}{' '}
                         <span className="font-mono text-muted-foreground">{truncateAddress(counterparty)}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground">{e.indexedAt ? relativeTime(e.indexedAt) : ''}</p>
+                      <p className="text-xs text-muted-foreground">{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
