@@ -15,7 +15,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Inbox } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
-import { relativeTime } from '@/lib/utils';
+import { blockToRelativeTime } from '@/lib/utils';
+import { useBlockHeight } from '@/hooks/use-block-height';
+import { useBlockRate } from '@/hooks/use-block-rate';
+import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { listItemVariants, fadeInOut } from '@/lib/motion';
 
@@ -33,6 +36,9 @@ export default function MyEscrows() {
   const navigate = useNavigate();
   const { address } = useWallet();
   const { data: allEscrows, isLoading, isError } = useEscrows(address);
+  const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: blockRate } = useBlockRate();
+  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [roleFilter, setRoleFilter] = useState<'all' | 'buyer' | 'seller'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -185,7 +191,7 @@ export default function MyEscrows() {
                     <Badge variant="outline" className="text-xs font-normal">
                       {isBuyer ? 'Buyer' : 'Seller'}
                     </Badge>
-                    <span>{e.indexedAt ? relativeTime(e.indexedAt) : ''}</span>
+                    <span>{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</span>
                   </div>
                 </Card>
               </motion.div>
