@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
@@ -182,13 +182,16 @@ export default function Landing() {
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? 1.5;
 
+  const location = useLocation();
+  const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+
   const handleGetStarted = async () => {
     if (isConnected) {
-      navigate('/dashboard');
+      navigate(destination);
     } else {
       try {
         await connect();
-        navigate('/dashboard');
+        navigate(destination);
       } catch {
         // User cancelled or connection failed — stay on landing
       }
