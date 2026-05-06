@@ -47,9 +47,10 @@ export default function EscrowDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { address } = useWallet();
-  const { data: escrow, isLoading, isError: escrowError } = useEscrow(parseInt(id || '0'));
+  const escrowId = id && /^\d+$/.test(id) ? parseInt(id, 10) : NaN;
+  const { data: escrow, isLoading, isError: escrowError } = useEscrow(isNaN(escrowId) ? 0 : escrowId);
   const { data: config, isError: configError } = usePlatformConfig();
-  const { data: escrowEvents = [] } = useEscrowEvents(parseInt(id || '0'));
+  const { data: escrowEvents = [] } = useEscrowEvents(isNaN(escrowId) ? 0 : escrowId);
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
@@ -92,6 +93,15 @@ export default function EscrowDetail() {
   };
 
   if (isLoading) return <EscrowDetailSkeleton />;
+
+  if (isNaN(escrowId)) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-sm text-muted-foreground">Invalid escrow ID.</p>
+        <Button variant="outline" size="sm" onClick={() => navigate('/escrows')} className="mt-4">Back to Escrows</Button>
+      </div>
+    );
+  }
 
   if (!escrow) {
     return (
@@ -156,6 +166,17 @@ export default function EscrowDetail() {
         case 'dispute': await disputeEscrow(escrow.id); break;
         case 'recover': await resolveExpiredDispute(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      if (msg.includes('reject') || msg.includes('denied') || msg.includes('cancel') || msg.includes('dismiss')) {
+        toast.error('Transaction cancelled', { description: 'You declined the wallet prompt.' });
+      } else if (msg.includes('insufficient') || msg.includes('balance')) {
+        toast.error('Insufficient balance', { description: 'Not enough funds to complete this action.' });
+      } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
+        toast.error('Network error', { description: 'Could not reach the Stacks network. Try again.' });
+      } else {
+        toast.error('Action failed', { description: 'The transaction could not be submitted. Please try again.' });
+      }
     } finally {
       setLoading(false);
       setConfirmAction(null);
@@ -165,7 +186,7 @@ export default function EscrowDetail() {
   const handleDownloadReceipt = async () => {
     setReceiptLoading(true);
     try {
-      generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock });
+      await generateEscrowReceipt(escrow, escrowEvents, { currentBlock, minutesPerBlock });
       toast.success('Receipt downloaded');
     } catch {
       toast.error('Failed to generate receipt. Please try again.');
@@ -570,7 +591,9 @@ function SaveContactInline({ role, address, isOpen, onOpen, onCancel, onSave, na
       <div className="mt-2 space-y-2">
         <p className="text-[11px] text-muted-foreground font-mono truncate">{truncateAddress(address, 8)}</p>
         <div className="flex gap-2">
+          <label htmlFor={`contact-name-${role}`} className="sr-only">Name for {role}</label>
           <Input
+            id={`contact-name-${role}`}
             placeholder={`Name this ${role}`}
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
