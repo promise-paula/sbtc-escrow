@@ -2,7 +2,6 @@ import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WalletProvider } from "@/contexts/WalletContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -39,10 +38,14 @@ const App = () => (
       <WalletProvider>
         <NotificationsListener />
         <TooltipProvider>
-          <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+            <Suspense fallback={
+              <div role="status" aria-label="Loading" className="flex items-center justify-center h-screen">
+                <span className="sr-only">Loading…</span>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              </div>
+            }>
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
