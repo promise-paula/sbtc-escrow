@@ -158,14 +158,16 @@ export default function ActivityPage() {
                     const Icon = cfg.icon;
 
                     return (
-                      <motion.div
+                      <motion.button
                         key={evt.id}
+                        type="button"
                         custom={i}
                         variants={listItemVariants}
                         initial="hidden"
                         animate="visible"
-                        className="relative flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer"
+                        className="relative flex w-full items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                         onClick={() => navigate(`/escrow/${evt.escrowId}`)}
+                        aria-label={`${cfg.label} — escrow #${evt.escrowId}`}
                       >
                         <div className="relative z-10 flex items-center justify-center h-7 w-7 rounded-full bg-card border border-border shrink-0">
                           <Icon className={`h-3 w-3 ${cfg.color}`} />
@@ -186,7 +188,7 @@ export default function ActivityPage() {
                             <span className="text-xs text-muted-foreground">· {relativeTime(evt.timestamp)}</span>
                           </div>
                         </div>
-                      </motion.div>
+                      </motion.button>
                     );
                   })}
                 </div>
