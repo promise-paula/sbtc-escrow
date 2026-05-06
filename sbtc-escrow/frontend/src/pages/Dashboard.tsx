@@ -178,9 +178,10 @@ export default function Dashboard() {
               {QUICK_ACTIONS.map((a) => {
                 const Icon = a.icon;
                 return (
-                  <div
+                  <button
                     key={a.label}
-                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm hover:border-primary/20 transition-all"
+                    type="button"
+                    className="flex w-full items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm hover:border-primary/20 transition-all text-left"
                     onClick={() => navigate(a.path)}
                   >
                     <div className="rounded-md bg-muted p-2">
@@ -188,7 +189,7 @@ export default function Dashboard() {
                     </div>
                     <span className="text-sm font-medium text-foreground">{a.label}</span>
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
-                  </div>
+                  </button>
                 );
               })}
             </CardContent>
@@ -222,14 +223,16 @@ export default function Dashboard() {
                 const counterparty = e.buyer === address ? e.seller : e.buyer;
                 const role = e.buyer === address ? 'to' : 'from';
                 return (
-                  <motion.div
+                  <motion.button
                     key={e.id}
+                    type="button"
                     custom={i}
                     variants={listItemVariants}
                     initial="hidden"
                     animate="visible"
-                    className="flex items-center gap-3 sm:gap-4 px-4 py-3 cursor-pointer hover:bg-muted/50 hover:shadow-glow-sm transition-all"
+                    className="flex w-full items-center gap-3 sm:gap-4 px-4 py-3 hover:bg-muted/50 hover:shadow-glow-sm transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                     onClick={() => navigate(`/escrow/${e.id}`)}
+                    aria-label={`Escrow #${e.id} — view details`}
                   >
                     <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_CLASSES[e.status]}`} />
                     <div className="flex-1 min-w-0">
@@ -244,7 +247,7 @@ export default function Dashboard() {
                     </div>
                     <StatusBadge status={e.status} />
                     <ArrowRight className="hidden sm:block h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  </motion.div>
+                  </motion.button>
                 );
               })}
             </CardContent>
