@@ -80,9 +80,36 @@ export function useEscrowNotifications() {
       )
       .subscribe();
 
+    // Second channel: delivery signals (server-side filtered to this buyer)
+    const deliveryChannel = supabase
+      .channel('delivery-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'deliveries',
+          filter: `buyer_address=eq.${address}`,
+        },
+        (payload) => {
+          if (!settings.notifyConfirmations) return;
+          const row = payload.new as { escrow_id: number; message: string | null };
+          fireNotification('Work marked as delivered', {
+            body: row.message
+              ? `Escrow #${row.escrow_id}: "${row.message}"`
+              : `Escrow #${row.escrow_id} — seller says work is done. Review and release when ready.`,
+            tag: `delivery-${row.escrow_id}-${Date.now()}`,
+            url: `/escrow/${row.escrow_id}`,
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       channel.unsubscribe();
       supabase.removeChannel(channel);
+      deliveryChannel.unsubscribe();
+      supabase.removeChannel(deliveryChannel);
     };
   }, [address, settings.notifyConfirmations, settings.notifyDisputes]);
 }
