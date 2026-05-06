@@ -25,6 +25,7 @@ export function MobileNav() {
             end
             className="flex flex-1 flex-col items-center gap-0.5 py-2 text-muted-foreground transition-colors"
             activeClassName="text-primary"
+            aria-current={active ? 'page' : undefined}
           >
             <item.icon className="h-5 w-5" />
             <span className="text-xs font-medium">{item.title}</span>
