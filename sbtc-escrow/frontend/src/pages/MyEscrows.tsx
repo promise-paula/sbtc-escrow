@@ -9,7 +9,6 @@ import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { EscrowListSkeleton } from '@/components/shared/PageSkeletons';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -124,7 +123,7 @@ export default function MyEscrows() {
       {/* Status Tabs */}
       <Tabs value={statusFilter} onValueChange={setStatusFilter}>
         <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
-          {STATUS_TABS.map(tab => (
+          {STATUS_TABS.filter(tab => tab.value === 'all' || (statusCounts[tab.value] ?? 0) > 0 || statusFilter === tab.value).map(tab => (
             <TabsTrigger key={tab.value} value={tab.value} className="text-xs gap-1.5 px-3 py-1.5 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               {tab.label}
               {(statusCounts[tab.value] ?? 0) > 0 && (
@@ -174,9 +173,11 @@ export default function MyEscrows() {
                 initial="hidden"
                 animate="visible"
               >
-                <Card
-                  className="p-4 cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3"
+                <button
+                  type="button"
+                  className="w-full text-left p-4 rounded-lg border border-border cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3 bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => navigate(`/escrow/${e.id}`)}
+                  aria-label={`Escrow #${e.id}: ${e.description}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs text-muted-foreground">#{e.id}</span>
@@ -193,7 +194,7 @@ export default function MyEscrows() {
                     </Badge>
                     <span>{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</span>
                   </div>
-                </Card>
+                </button>
               </motion.div>
             );
           })}
