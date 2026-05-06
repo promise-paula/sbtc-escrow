@@ -358,7 +358,7 @@ export default function SettingsPage() {
 function PermissionBadge({ permission }: { permission: NotificationPermissionState }) {
   if (permission === 'granted') {
     return (
-      <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+      <span className="text-[10px] font-medium text-success bg-success/10 px-1.5 py-0.5 rounded">
         Allowed
       </span>
     );
