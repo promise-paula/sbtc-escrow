@@ -31,6 +31,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input';
 import { generateEscrowReceipt } from '@/lib/generate-receipt';
 import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { PackageCheck } from 'lucide-react';
+import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 const EVENT_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   'escrow-created': { label: 'Created', color: 'bg-primary', icon: PlusCircle },
@@ -60,6 +64,9 @@ export default function EscrowDetail() {
   const { findByAddress, add: addContact } = useAddressBook();
   const [savingFor, setSavingFor] = useState<'buyer' | 'seller' | null>(null);
   const [contactName, setContactName] = useState('');
+  const [deliveryMessage, setDeliveryMessage] = useState('');
+  const { data: deliveries = [] } = useDeliveries(isNaN(escrowId) ? 0 : escrowId);
+  const markDelivered = useMarkDelivered();
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
   const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
@@ -192,6 +199,25 @@ export default function EscrowDetail() {
       toast.error('Failed to generate receipt. Please try again.');
     } finally {
       setReceiptLoading(false);
+    }
+  };
+
+  const handleMarkDelivered = async () => {
+    try {
+      await markDelivered.mutateAsync({
+        escrowId: escrow.id,
+        sellerAddress: escrow.seller,
+        buyerAddress: escrow.buyer,
+        message: deliveryMessage,
+      });
+      setDeliveryMessage('');
+      toast.success('Marked as delivered', {
+        description: 'The buyer has been notified and can now review and release payment.',
+      });
+    } catch {
+      toast.error('Failed to send delivery signal', {
+        description: 'Please try again.',
+      });
     }
   };
 
@@ -407,9 +433,66 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
+      {/* Delivery Card — visible to seller (mark as done) and buyer (view signals) */}
+      {isSupabaseConfigured && isPending && (isSeller || (isBuyer && deliveries.length > 0)) && (
+        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+          <Card className="border-l-4 border-l-primary/40">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <PackageCheck className="h-4 w-4 text-muted-foreground" />
+                Delivery
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {deliveries.length > 0 && (
+                <div className="space-y-2">
+                  {deliveries.map((d) => (
+                    <div key={d.id} className="rounded-md bg-muted/40 px-3 py-2 text-sm space-y-0.5">
+                      <p className="text-xs font-medium text-foreground">
+                        Seller marked as delivered
+                        <span className="text-muted-foreground font-normal"> · {relativeTime(d.createdAt)}</span>
+                      </p>
+                      {d.message && (
+                        <p className="text-xs text-muted-foreground italic">"{d.message}"</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isSeller && (
+                <div className="space-y-2">
+                  {deliveries.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Let the buyer know you've completed the work. This sends them a browser notification.
+                    </p>
+                  )}
+                  <Textarea
+                    placeholder="Optional note to buyer (e.g. 'Delivered to your email')"
+                    value={deliveryMessage}
+                    onChange={(e) => setDeliveryMessage(e.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleMarkDelivered}
+                    disabled={markDelivered.isPending}
+                    className="gap-1.5"
+                  >
+                    <PackageCheck className="h-3.5 w-3.5" />
+                    {markDelivered.isPending ? 'Sending…' : 'Mark as Delivered'}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Settled callout — primary "Download Receipt" affordance for completed escrows */}
       {isSettled && (
-        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
           <Card className="border-l-4 border-l-success">
             <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -440,7 +523,7 @@ export default function EscrowDetail() {
       )}
 
       {/* Timeline */}
-      <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+      <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -449,49 +532,96 @@ export default function EscrowDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {sortedEvents.length === 0 ? (
+            {sortedEvents.length === 0 && deliveries.length === 0 ? (
               <p className="text-sm text-muted-foreground">No events recorded.</p>
-            ) : (
-              <div className="relative space-y-0">
-                {sortedEvents.map((event, i) => {
-                  const cfg = EVENT_CONFIG[event.eventType] || { label: event.eventType, color: 'bg-muted-foreground', icon: Clock };
-                  const Icon = cfg.icon;
-                  const isLast = i === sortedEvents.length - 1;
-                  return (
-                    <motion.div
-                      key={event.id}
-                      custom={i}
-                      variants={listItemVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="flex gap-3 relative group"
-                    >
-                      <div className="flex flex-col items-center">
-                        <div className={`h-7 w-7 rounded-full ${cfg.color} flex items-center justify-center shrink-0 z-10`}>
-                          <Icon className="h-3.5 w-3.5 text-white" />
+            ) : (() => {
+              // Merge on-chain events and off-chain delivery signals, sorted newest-first
+              type TLItem =
+                | { kind: 'event'; data: typeof sortedEvents[0] }
+                | { kind: 'delivery'; data: typeof deliveries[0] };
+              const merged: TLItem[] = [
+                ...sortedEvents.map((e) => ({ kind: 'event' as const, data: e })),
+                ...deliveries.map((d) => ({ kind: 'delivery' as const, data: d })),
+              ].sort((a, b) => {
+                const tA = a.kind === 'event' ? a.data.timestamp : a.data.createdAt;
+                const tB = b.kind === 'event' ? b.data.timestamp : b.data.createdAt;
+                return tB.localeCompare(tA);
+              });
+              return (
+                <div className="relative space-y-0">
+                  {merged.map((item, i) => {
+                    const isLast = i === merged.length - 1;
+                    if (item.kind === 'delivery') {
+                      const d = item.data;
+                      return (
+                        <motion.div
+                          key={`delivery-${d.id}`}
+                          custom={i}
+                          variants={listItemVariants}
+                          initial="hidden"
+                          animate="visible"
+                          className="flex gap-3 relative group"
+                        >
+                          <div className="flex flex-col items-center">
+                            <div className="h-7 w-7 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center shrink-0 z-10">
+                              <PackageCheck className="h-3.5 w-3.5 text-primary" />
+                            </div>
+                            {!isLast && <div className="w-px flex-1 bg-border min-h-[20px]" />}
+                          </div>
+                          <div className={`pb-5 ${isLast ? 'pb-0' : ''}`}>
+                            <p className="text-sm font-medium">
+                              Work marked as delivered
+                              <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 font-normal">Off-chain</Badge>
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{relativeTime(d.createdAt)}</span>
+                            </div>
+                            {d.message && (
+                              <p className="mt-1 text-xs text-muted-foreground italic">"{d.message}"</p>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    }
+                    const event = item.data;
+                    const cfg = EVENT_CONFIG[event.eventType] || { label: event.eventType, color: 'bg-muted-foreground', icon: Clock };
+                    const Icon = cfg.icon;
+                    return (
+                      <motion.div
+                        key={event.id}
+                        custom={i}
+                        variants={listItemVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="flex gap-3 relative group"
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className={`h-7 w-7 rounded-full ${cfg.color} flex items-center justify-center shrink-0 z-10`}>
+                            <Icon className="h-3.5 w-3.5 text-white" />
+                          </div>
+                          {!isLast && <div className="w-px flex-1 bg-border min-h-[20px]" />}
                         </div>
-                        {!isLast && <div className="w-px flex-1 bg-border min-h-[20px]" />}
-                      </div>
-                      <div className={`pb-5 ${isLast ? 'pb-0' : ''}`}>
-                        <p className="text-sm font-medium">{cfg.label}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="font-mono">Block {event.blockHeight}</span>
-                          <span>·</span>
-                          <span>{relativeTime(event.timestamp)}</span>
+                        <div className={`pb-5 ${isLast ? 'pb-0' : ''}`}>
+                          <p className="text-sm font-medium">{cfg.label}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-mono">Block {event.blockHeight}</span>
+                            <span>·</span>
+                            <span>{relativeTime(event.timestamp)}</span>
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </motion.div>
 
       {/* Actions */}
       {isParty && (isPending || isDisputed) && !isPaused && (hasActions || confirmAction) && (
-        <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
