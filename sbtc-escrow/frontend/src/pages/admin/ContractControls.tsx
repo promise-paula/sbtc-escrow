@@ -58,8 +58,8 @@ export default function ContractControls() {
   };
 
   const cfg = config!;
-  const feeValue = parseInt(feeBps) || 0;
-  const timeoutValue = parseInt(timeout) || 0;
+  const feeValue = parseInt(feeBps, 10) || 0;
+  const timeoutValue = parseInt(timeout, 10) || 0;
   const feeOnHundred = (100 * feeValue / 10000).toFixed(2);
 
   const handleTogglePause = async () => {
