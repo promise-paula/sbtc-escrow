@@ -7,6 +7,7 @@ import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { blockToEstimatedDate, blocksToTime } from '@/lib/utils';
 import { extendEscrow } from '@/lib/escrow-service';
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ExtendEscrowPanelProps {
   escrowId: number;
@@ -30,7 +31,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
 
   const blocks = selectedMinutes
     ? timeToBlocks(selectedMinutes, minutesPerBlock)
-    : (customBlocks ? parseInt(customBlocks) : 0);
+    : (customBlocks ? parseInt(customBlocks, 10) : 0);
   const newExpiry = currentExpiresAt + blocks;
   const maxAdditional = Math.max(0, currentBlock + MAX_DURATION_BLOCKS - currentExpiresAt);
   const valid = blocks > 0 && blocks <= maxAdditional;
@@ -40,9 +41,17 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
     setLoading(true);
     try {
       await extendEscrow(escrowId, blocks);
+      toast.success('Deadline extended', { description: `Added ${blocksToTime(blocks, minutesPerBlock)} to this escrow.` });
+      setOpen(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      if (msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
+        toast.error('Transaction cancelled', { description: 'You declined the wallet prompt.' });
+      } else {
+        toast.error('Failed to extend deadline', { description: 'Please try again.' });
+      }
     } finally {
       setLoading(false);
-      setOpen(false);
     }
   };
 
