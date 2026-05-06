@@ -90,7 +90,7 @@ export default function CreateEscrow() {
   const fee = calculateFee(smallestUnit, cfg.platformFeeBps);
   const total = smallestUnit + fee;
   const duration = customDuration
-    ? parseInt(customDuration)
+    ? parseInt(customDuration, 10)
     : timeToBlocks(durationMinutes, minutesPerBlock);
   const token = tokenLabel(tokenType);
 
@@ -402,7 +402,7 @@ export default function CreateEscrow() {
                     aria-describedby="desc-counter"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground" id="desc-counter">
-                    <span>{!descValid && description.length === 0 ? 'Required' : ''}</span>
+                    <span>{!descValid && description.trim().length === 0 ? 'Required' : ''}</span>
                     <span>{description.length}/256</span>
                   </div>
                 </div>
