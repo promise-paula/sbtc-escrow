@@ -38,6 +38,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { PackageCheck } from 'lucide-react';
 import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import {
+  useDisputeReason,
+  useSubmitDisputeReason,
+  DISPUTE_REASON_CATEGORIES,
+  type DisputeReasonCategory,
+} from '@/hooks/use-dispute-reason';
 
 const EVENT_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   'escrow-created': { label: 'Created', color: 'bg-primary', icon: PlusCircle },
@@ -73,6 +79,10 @@ export default function EscrowDetail() {
   const [deliveryMessage, setDeliveryMessage] = useState('');
   const { data: deliveries = [] } = useDeliveries(isNaN(escrowId) ? 0 : escrowId);
   const markDelivered = useMarkDelivered();
+  const submitDisputeReason = useSubmitDisputeReason();
+  const { data: existingDisputeReason } = useDisputeReason(isNaN(escrowId) ? 0 : escrowId);
+  const [disputeReason, setDisputeReason] = useState<DisputeReasonCategory | ''>('');
+  const [disputeDetails, setDisputeDetails] = useState('');
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
   const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
@@ -186,7 +196,18 @@ export default function EscrowDetail() {
       switch (action) {
         case 'release': await releaseEscrow(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
         case 'refund': await refundEscrow(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
-        case 'dispute': await disputeEscrow(escrow.id); break;
+        case 'dispute':
+          await disputeEscrow(escrow.id);
+          // Save reason off-chain — best-effort, don't block the UX on failure
+          if (address && disputeReason) {
+            submitDisputeReason.mutate(
+              { escrowId: escrow.id, reasonCategory: disputeReason, details: disputeDetails, submittedBy: address },
+              { onError: () => toast.warning('Dispute submitted, but reason could not be saved. Contact support if needed.') }
+            );
+          }
+          setDisputeReason('');
+          setDisputeDetails('');
+          break;
         case 'recover': await resolveExpiredDispute(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
       }
     } catch (err) {
@@ -678,27 +699,104 @@ export default function EscrowDetail() {
                 <DisputeTimeoutProgress disputedAt={escrow.disputedAt} />
               )}
 
+              {isDisputed && existingDisputeReason && (
+                <div className="rounded-lg border border-warning/20 bg-warning/5 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-foreground">Dispute reason: {existingDisputeReason.reasonLabel}</p>
+                  {existingDisputeReason.details && (
+                    <p className="text-xs text-muted-foreground italic">"{existingDisputeReason.details}"</p>
+                  )}
+                </div>
+              )}
+
               <AnimatePresence>
               {confirmAction && (
                 <motion.div variants={slideDown} initial="initial" animate="animate" exit="exit" className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium">Confirm {confirmAction}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {confirmAction === 'release' && 'This will release funds to the seller. This action cannot be undone.'}
-                        {confirmAction === 'refund' && 'This will return the escrowed funds to the buyer.'}
-                        {confirmAction === 'dispute' && 'This will flag the escrow for admin review. A dispute timeout will begin.'}
-                        {confirmAction === 'recover' && 'The dispute timeout has expired. You can recover your funds.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setConfirmAction(null)} disabled={loading}>Cancel</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleAction(confirmAction)} disabled={loading}>
-                      {loading ? 'Processing…' : 'Confirm'}
-                    </Button>
-                  </div>
+                  {confirmAction === 'dispute' ? (
+                    <>
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium">Raise a Dispute</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Select a reason so the admin can resolve this efficiently. A dispute timeout will begin.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-foreground">
+                          Reason <span className="text-destructive">*</span>
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {DISPUTE_REASON_CATEGORIES.map((cat) => (
+                            <button
+                              key={cat.value}
+                              type="button"
+                              onClick={() => setDisputeReason(cat.value)}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                                disputeReason === cat.value
+                                  ? 'bg-destructive text-destructive-foreground border-destructive'
+                                  : 'border-border bg-background text-foreground hover:border-destructive/50'
+                              }`}
+                            >
+                              {cat.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-foreground">
+                          Additional details <span className="text-muted-foreground font-normal">(optional)</span>
+                        </p>
+                        <Textarea
+                          placeholder="Describe the issue in more detail…"
+                          value={disputeDetails}
+                          onChange={(e) => setDisputeDetails(e.target.value)}
+                          maxLength={1000}
+                          rows={3}
+                          className="text-sm resize-none"
+                        />
+                        {disputeDetails.length > 800 && (
+                          <p className="text-xs text-muted-foreground text-right">{disputeDetails.length}/1000</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => { setConfirmAction(null); setDisputeReason(''); setDisputeDetails(''); }}
+                          disabled={loading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm" variant="destructive"
+                          onClick={() => handleAction('dispute')}
+                          disabled={loading || !disputeReason}
+                        >
+                          {loading ? 'Submitting…' : 'Submit Dispute'}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium">Confirm {confirmAction}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {confirmAction === 'release' && 'This will release funds to the seller. This action cannot be undone.'}
+                            {confirmAction === 'refund' && 'This will return the escrowed funds to the buyer.'}
+                            {confirmAction === 'recover' && 'The dispute timeout has expired. You can recover your funds.'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setConfirmAction(null)} disabled={loading}>Cancel</Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleAction(confirmAction)} disabled={loading}>
+                          {loading ? 'Processing…' : 'Confirm'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </motion.div>
               )}
               </AnimatePresence>
