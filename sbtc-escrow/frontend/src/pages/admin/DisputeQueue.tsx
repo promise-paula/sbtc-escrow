@@ -16,9 +16,10 @@ import { EscrowStatus } from '@/lib/types';
 import { blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { cardVariants, listItemVariants, slideDown } from '@/lib/motion';
-import { CheckCircle2, Shield, Clock, AlertTriangle, Timer } from 'lucide-react';
+import { CheckCircle2, Shield, Clock, AlertTriangle, Timer, MessageSquare } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useDisputeReasons } from '@/hooks/use-dispute-reason';
 
 export default function DisputeQueue() {
   const { data: disputed, isLoading, isError } = useDisputedEscrows();
@@ -29,6 +30,7 @@ export default function DisputeQueue() {
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
   const [confirmAction, setConfirmAction] = useState<{ escrowId: number; type: 'buyer' | 'seller'; amount: number; feeAmount: number; tokenType: number } | null>(null);
   const [loading, setLoading] = useState(false);
+  const { data: disputeReasonMap = {} } = useDisputeReasons((disputed || []).map(e => e.id));
 
   if (isLoading) return <EscrowListSkeleton />;
 
@@ -133,6 +135,21 @@ export default function DisputeQueue() {
                                 <AddressDisplay address={e.disputedBy} showCopy={false} truncateChars={3} />
                               </div>
                             )}
+                            {(() => {
+                              const dr = disputeReasonMap[e.id];
+                              if (!dr) return null;
+                              return (
+                                <div className="mt-1.5 rounded-md border border-warning/25 bg-warning/5 px-3 py-2 space-y-0.5">
+                                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                    <MessageSquare className="h-3 w-3 shrink-0" />
+                                    {dr.reasonLabel}
+                                  </p>
+                                  {dr.details && (
+                                    <p className="text-xs text-muted-foreground italic pl-4">"{dr.details}"</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <p className="text-xs text-muted-foreground">
                               Disputed {blocksToTime(elapsed, minutesPerBlock)} ago · Block {e.disputedAt?.toLocaleString()}
                             </p>
