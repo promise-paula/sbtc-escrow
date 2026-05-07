@@ -57,7 +57,7 @@ const App = () => (
                   <Route path="/escrows" element={<WalletGuard><MyEscrows /></WalletGuard>} />
                   <Route path="/escrow/:id" element={<WalletGuard><EscrowDetail /></WalletGuard>} />
                   <Route path="/activity" element={<WalletGuard><Activity /></WalletGuard>} />
-                  <Route path="/analytics" element={<WalletGuard><Analytics /></WalletGuard>} />
+                  <Route path="/analytics" element={<AdminGuard><Analytics /></AdminGuard>} />
                   <Route path="/settings" element={<WalletGuard><Settings /></WalletGuard>} />
                   <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
                   <Route path="/admin/disputes" element={<AdminGuard><DisputeQueue /></AdminGuard>} />
