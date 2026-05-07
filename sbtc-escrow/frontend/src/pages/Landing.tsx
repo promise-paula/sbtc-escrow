@@ -218,8 +218,18 @@ export default function Landing() {
             <button onClick={() => navigate('/docs')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Docs</button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/docs')} className="sm:hidden text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md">Docs</button>
+          <div className="sm:hidden flex items-center gap-2">
+            <button onClick={() => navigate('/docs')} className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md">Docs</button>
+            <ThemeToggle />
+            {isConnected ? (
+              <Button size="sm" onClick={() => navigate('/dashboard')}>Dashboard</Button>
+            ) : (
+              <Button size="sm" onClick={connect} className="gap-1.5">
+                <Wallet className="h-3.5 w-3.5" /> Connect
+              </Button>
+            )}
+          </div>
+          <div className="hidden sm:flex items-center gap-2">
             <ThemeToggle />
             {isConnected ? (
               <Button size="sm" onClick={() => navigate('/dashboard')}>Dashboard</Button>
@@ -250,10 +260,12 @@ export default function Landing() {
               A fraction of what marketplaces charge and we never hold your money. It sits in code on the Stacks blockchain until both sides agree the deal is done.
             </p>
 
-            {/* Inline social proof */}
-            <p className="mt-3 text-sm text-muted-foreground/70 font-mono">
-              {ps?.totalEscrows ?? 0} escrows created · {formatSTX(ps?.totalVolumeStx ?? 0)} STX{(ps?.totalVolumeSbtc ?? 0) > 0 ? ` + ${formatSBTC(ps.totalVolumeSbtc)} sBTC` : ''} secured
-            </p>
+            {/* Inline social proof — only show once we have data */}
+            {(ps?.totalEscrows ?? 0) > 0 && (
+              <p className="mt-3 text-sm text-muted-foreground/70 font-mono">
+                {ps!.totalEscrows.toLocaleString()} escrows created · {formatSTX(ps!.totalVolumeStx)} STX{(ps!.totalVolumeSbtc ?? 0) > 0 ? ` + ${formatSBTC(ps!.totalVolumeSbtc)} sBTC` : ''} secured
+              </p>
+            )}
 
             <div className="mt-6 flex flex-wrap gap-3">
               <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: dur(100) }}>
@@ -349,10 +361,12 @@ export default function Landing() {
             <p className="mt-3 text-muted-foreground">Live on-chain activity, updated every block.</p>
           </motion.div>
 
+          {/* ── Stats — only render when there is data ── */}
+          {(ps?.totalEscrows ?? 0) > 0 && (
           <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5">
             {[
               { value: (ps?.totalEscrows ?? 0).toLocaleString(), value2: null, label: 'Escrows Created' },
-              { value: formatSTX(ps?.totalVolumeStx ?? 0) + ' STX', value2: (ps?.totalVolumeSbtc ?? 0) > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, label: 'Total Volume' },
+              { value: formatSTX(ps?.totalVolumeStx ?? 0) + ' STX', value2: (ps?.totalVolumeSbtc ?? 0) > 0 ? formatSBTC(ps!.totalVolumeSbtc) + ' sBTC' : null, label: 'Total Volume' },
             ].map((s) => (
               <motion.div key={s.label} variants={revealVariants} className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-6 sm:p-8 text-center overflow-hidden">
                 <p className="text-3xl sm:text-4xl font-bold font-mono text-foreground tracking-tight truncate">{s.value}</p>
@@ -361,6 +375,7 @@ export default function Landing() {
               </motion.div>
             ))}
           </motion.div>
+          )}
 
           {/* Contract terms — separated from social proof */}
           <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
