@@ -1,20 +1,8 @@
 -- ============================================================================
--- Clear stale escrow-v4 data after migration to escrow-v5
--- The v4 chainhook has been deleted; this removes orphaned indexed data.
+-- Originally cleared stale escrow-v4 data after migration to escrow-v5.
+-- NEUTRALIZED: The TRUNCATE has been removed to prevent accidental data loss
+-- if this migration is ever replayed (e.g. db reset). Both testnet and mainnet
+-- already have this migration recorded as applied in supabase_migrations.
 -- ============================================================================
 
--- Events first (FK references escrows)
-TRUNCATE escrow_events RESTART IDENTITY CASCADE;
-
--- Escrows
-TRUNCATE escrows RESTART IDENTITY CASCADE;
-
--- Reset platform_config to v5 defaults
-UPDATE platform_config
-SET fee_bps         = 50,
-    fee_recipient   = '',
-    contract_paused = false,
-    dispute_timeout = 28800,
-    contract_owner  = '',
-    updated_at      = now()
-WHERE id = 1;
+-- (intentional no-op)
