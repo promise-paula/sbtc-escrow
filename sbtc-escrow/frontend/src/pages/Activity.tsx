@@ -62,6 +62,8 @@ export default function ActivityPage() {
     return c;
   }, [sortedAll]);
 
+  const visibleFilters = filterTypes.filter(t => t === 'all' || (counts[t] ?? 0) > 0 || typeFilter === t);
+
   // Summary stats
   const totalEvents = sortedAll.length;
   const recentEvents = useMemo(() => {
@@ -112,7 +114,7 @@ export default function ActivityPage() {
       {/* Filter tabs */}
       <Tabs value={typeFilter} onValueChange={setTypeFilter}>
         <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
-          {filterTypes.map(t => (
+          {visibleFilters.map(t => (
             <TabsTrigger
               key={t}
               value={t}
