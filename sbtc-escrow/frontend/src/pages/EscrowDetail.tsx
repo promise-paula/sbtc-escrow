@@ -12,6 +12,7 @@ import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import { DisputeTimeoutProgress } from '@/components/shared/DisputeTimeoutProgress';
 import { ExtendEscrowPanel } from '@/components/shared/ExtendEscrowPanel';
 import { EscrowDetailSkeleton } from '@/components/shared/PageSkeletons';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,12 +21,14 @@ import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } fro
 import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
+import { useSettings } from '@/hooks/use-settings';
+import { getNotificationPermission, requestNotificationPermission } from '@/lib/notifications';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, listItemVariants, pageVariants, slideDown } from '@/lib/motion';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Shield,
   Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download,
-  BookUser, Plus, ExternalLink
+  BookUser, Plus, ExternalLink, Bell
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -62,6 +65,9 @@ export default function EscrowDetail() {
   const [loading, setLoading] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const { findByAddress, add: addContact } = useAddressBook();
+  const { settings, update: updateSettings } = useSettings();
+  const [notifPerm, setNotifPerm] = useState(() => getNotificationPermission());
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [savingFor, setSavingFor] = useState<'buyer' | 'seller' | null>(null);
   const [contactName, setContactName] = useState('');
   const [deliveryMessage, setDeliveryMessage] = useState('');
@@ -103,18 +109,28 @@ export default function EscrowDetail() {
 
   if (isNaN(escrowId)) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-sm text-muted-foreground">Invalid escrow ID.</p>
-        <Button variant="outline" size="sm" onClick={() => navigate('/escrows')} className="mt-4">Back to Escrows</Button>
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Invalid escrow ID"
+          description="The URL does not contain a valid escrow ID."
+          actionLabel="Back to Escrows"
+          onAction={() => navigate('/escrows')}
+        />
       </div>
     );
   }
 
   if (!escrow) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-sm text-muted-foreground">Escrow not found.</p>
-        <Button variant="outline" size="sm" onClick={() => navigate('/escrows')} className="mt-4">Back to Escrows</Button>
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+        <EmptyState
+          icon={Info}
+          title="Escrow not found"
+          description="This escrow doesn’t exist or hasn’t been indexed yet."
+          actionLabel="Back to Escrows"
+          onAction={() => navigate('/escrows')}
+        />
       </div>
     );
   }
@@ -218,6 +234,17 @@ export default function EscrowDetail() {
       toast.error('Failed to send delivery signal', {
         description: 'Please try again.',
       });
+    }
+  };
+
+  const handleEnableDeliveryNotifs = async () => {
+    const result = await requestNotificationPermission();
+    setNotifPerm(result);
+    if (result === 'granted') {
+      updateSettings('notifyDeliveries', true);
+      toast.success('Delivery notifications enabled');
+    } else {
+      toast.error('Notifications blocked', { description: 'Enable notifications for this site in your browser settings.' });
     }
   };
 
@@ -433,8 +460,8 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
-      {/* Delivery Card — visible to seller (mark as done) and buyer (view signals) */}
-      {isSupabaseConfigured && isPending && (isSeller || (isBuyer && deliveries.length > 0)) && (
+      {/* Delivery Card — visible to seller (mark as done) and buyer (view signals or enable notifs) */}
+      {isSupabaseConfigured && isPending && (isSeller || isBuyer) && (isSeller || deliveries.length > 0 || notifPerm === 'default') && (
         <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
           <Card className="border-l-4 border-l-primary/40">
             <CardHeader className="pb-3">
@@ -483,6 +510,23 @@ export default function EscrowDetail() {
                     <PackageCheck className="h-3.5 w-3.5" />
                     {markDelivered.isPending ? 'Sending…' : 'Mark as Delivered'}
                   </Button>
+                </div>
+              )}
+              {/* Contextual notification nudge — buyer only, only when permission hasn't been asked */}
+              {isBuyer && notifPerm === 'default' && !nudgeDismissed && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Bell className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <p className="text-xs text-foreground">Get notified instantly when the seller delivers</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button size="sm" variant="outline" className="text-xs h-7 gap-1" onClick={handleEnableDeliveryNotifs}>
+                      Enable
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground" onClick={() => setNudgeDismissed(true)}>
+                      Dismiss
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
