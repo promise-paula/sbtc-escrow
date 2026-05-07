@@ -92,7 +92,7 @@ export function useEscrowNotifications() {
           filter: `buyer_address=eq.${address}`,
         },
         (payload) => {
-          if (!settings.notifyConfirmations) return;
+          if (!settings.notifyDeliveries) return;
           const row = payload.new as { escrow_id: number; message: string | null };
           fireNotification('Work marked as delivered', {
             body: row.message
@@ -111,5 +111,5 @@ export function useEscrowNotifications() {
       deliveryChannel.unsubscribe();
       supabase.removeChannel(deliveryChannel);
     };
-  }, [address, settings.notifyConfirmations, settings.notifyDisputes]);
+  }, [address, settings.notifyConfirmations, settings.notifyDisputes, settings.notifyDeliveries]);
 }
