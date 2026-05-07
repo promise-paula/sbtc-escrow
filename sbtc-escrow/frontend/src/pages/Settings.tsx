@@ -66,7 +66,7 @@ export default function SettingsPage() {
   }, []);
 
   const handleNotificationToggle = async (
-    key: 'notifyConfirmations' | 'notifyDisputes',
+    key: 'notifyConfirmations' | 'notifyDisputes' | 'notifyDeliveries',
     value: boolean,
   ) => {
     if (value && permission === 'default') {
@@ -222,6 +222,17 @@ export default function SettingsPage() {
                   You blocked notifications for this site. Re-enable in your browser's site settings to use these alerts.
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">As a buyer</p>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notif-delivery" className="text-sm">Seller delivery signals</Label>
+                <Switch
+                  id="notif-delivery"
+                  checked={settings.notifyDeliveries && permission === 'granted'}
+                  disabled={permission === 'denied' || permission === 'unsupported'}
+                  onCheckedChange={(v) => handleNotificationToggle('notifyDeliveries', v)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground pt-1">As either party</p>
               <div className="flex items-center justify-between">
                 <Label htmlFor="notif-confirm" className="text-sm">Transaction confirmations</Label>
                 <Switch
