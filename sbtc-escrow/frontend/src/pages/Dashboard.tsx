@@ -19,7 +19,7 @@ import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { TokenType } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cardVariants, listItemVariants } from '@/lib/motion';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { STATUS_LABELS } from '@/lib/types';
 
 const STATUS_COLORS: Record<EscrowStatus, string> = {
@@ -81,7 +81,7 @@ export default function Dashboard() {
       {/* Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-2 border-l-accent-warm shadow-glow-sm">
+          <Card className="shadow-glow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Lock className="h-4 w-4 text-muted-foreground" />
@@ -154,6 +154,12 @@ export default function Dashboard() {
                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value">
                         {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                       </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [value, name]}
+                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                        itemStyle={{ color: 'var(--card-foreground)' }}
+                        labelStyle={{ color: 'var(--muted-foreground)' }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
