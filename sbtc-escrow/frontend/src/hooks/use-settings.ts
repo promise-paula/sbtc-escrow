@@ -5,22 +5,30 @@ export interface AppSettings {
   showUsd: boolean;
   notifyConfirmations: boolean;
   notifyDisputes: boolean;
-  notifyExpiry: boolean;
+  notifyDeliveries: boolean;
 }
 
 const STORAGE_KEY = 'sbtc-escrow-settings';
 
 const defaults: AppSettings = {
   showUsd: false,
-  notifyConfirmations: true,
-  notifyDisputes: true,
-  notifyExpiry: true,
+  notifyConfirmations: false,
+  notifyDisputes: false,
+  notifyDeliveries: false,
 };
 
 function load(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    // Strip keys that no longer exist in the schema to avoid stale data
+    const validKeys = Object.keys(defaults) as (keyof AppSettings)[];
+    const cleaned = validKeys.reduce((acc, k) => {
+      acc[k] = (k in parsed ? parsed[k] : defaults[k]) as AppSettings[typeof k];
+      return acc;
+    }, {} as AppSettings);
+    return cleaned;
   } catch {
     return defaults;
   }
