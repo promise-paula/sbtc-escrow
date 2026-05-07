@@ -37,7 +37,6 @@ const userItems = [
   { title: 'Create Escrow', url: '/create', icon: PlusCircle },
   { title: 'My Escrows', url: '/escrows', icon: List },
   { title: 'Activity', url: '/activity', icon: Activity },
-  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/settings', icon: Settings },
   { title: 'Docs', url: '/docs', icon: BookOpen },
 ];
@@ -46,6 +45,7 @@ const adminItems = [
   { title: 'Admin Dashboard', url: '/admin', icon: Shield },
   { title: 'Disputes', url: '/admin/disputes', icon: AlertTriangle },
   { title: 'Controls', url: '/admin/controls', icon: Sliders },
+  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
