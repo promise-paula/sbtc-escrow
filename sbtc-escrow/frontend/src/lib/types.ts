@@ -26,6 +26,15 @@ export interface Escrow {
   txHash?: string;
   indexedAt?: string; // ISO timestamp from DB
   disputedBy?: string; // address that triggered the dispute
+  /**
+   * True for client-side optimistic placeholders that haven't been indexed
+   * into Supabase yet. The contract hasn't confirmed the tx (or it has, but
+   * the chainhook indexer hasn't caught up). `id` is a synthetic sentinel
+   * (negative number) until the real row arrives and replaces this entry.
+   */
+  isPending?: boolean;
+  /** When `isPending`, the on-chain status of the submitted tx. */
+  pendingTxStatus?: 'submitted' | 'confirmed' | 'failed';
 }
 
 export interface EscrowEvent {
