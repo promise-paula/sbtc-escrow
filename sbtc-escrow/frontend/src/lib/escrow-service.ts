@@ -5,6 +5,7 @@ import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
 import { TokenType } from './types';
 import { contractSendPc, userSendPc } from './post-conditions';
 import { categorizeTxError } from './tx-errors';
+import { addPending } from './pending-escrows';
 
 const PENDING_HINT = 'Confirms on Stacks in 1–2 minutes.';
 
@@ -40,6 +41,25 @@ export async function createEscrow(params: {
       ],
       network: STACKS_NETWORK,
     });
+
+    // Optimistic placeholder — the chain takes ~1.5 min to confirm and the
+    // chainhook indexer adds a bit more lag on top. Without this the new
+    // escrow simply doesn't appear in /escrows for a few minutes after the
+    // user signs. The placeholder is dropped automatically once the real
+    // row arrives in Supabase (see use-pending-escrows).
+    addPending({
+      txId: response.txid,
+      buyer: params.buyer,
+      seller: params.seller,
+      amount: params.amount,
+      feeAmount: fee,
+      tokenType: params.tokenType,
+      description: params.description,
+      durationBlocks: params.duration,
+      submittedAt: new Date().toISOString(),
+      txStatus: 'submitted',
+    });
+
     toast.success('Escrow submitted', { description: PENDING_HINT });
     return response.txid;
   } catch (err) {
