@@ -14,6 +14,7 @@ import { ExtendEscrowPanel } from '@/components/shared/ExtendEscrowPanel';
 import { EscrowDetailSkeleton } from '@/components/shared/PageSkeletons';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { RestrictedEscrowView } from '@/components/shared/RestrictedEscrowView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -59,7 +60,7 @@ const EVENT_CONFIG: Record<string, { label: string; color: string; icon: React.E
 export default function EscrowDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { address } = useWallet();
+  const { address, isAdmin } = useWallet();
   const escrowId = id && /^\d+$/.test(id) ? parseInt(id, 10) : NaN;
   const { data: escrow, isLoading, isError: escrowError } = useEscrow(isNaN(escrowId) ? 0 : escrowId);
   const { data: config, isError: configError } = usePlatformConfig();
@@ -150,6 +151,15 @@ export default function EscrowDetail() {
   const isBuyer = escrow.buyer === address;
   const isSeller = escrow.seller === address;
   const isParty = isBuyer || isSeller;
+
+  // Non-parties (and non-admins) get a restricted public-info view. The
+  // contract data is on-chain so anyone could read it via the explorer, but
+  // we don't surface off-chain context (description, dispute reasons,
+  // delivery messages) or action buttons to drive-by URL probing.
+  if (!isParty && !isAdmin) {
+    return <RestrictedEscrowView escrow={escrow} />;
+  }
+
   const isPending = escrow.status === EscrowStatus.Pending;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
   const isExpired = escrow.expiresAt <= currentBlock;
