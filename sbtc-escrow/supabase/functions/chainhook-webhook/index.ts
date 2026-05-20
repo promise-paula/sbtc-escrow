@@ -515,6 +515,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Warm-ping endpoint — keeps the edge function out of cold-start.
+  // Hit on a cron so the first real webhook after idle doesn't eat the
+  // Deno boot tax (1–3s). Does no work, no auth required.
+  if (req.method === "GET") {
+    return new Response(
+      JSON.stringify({ status: "warm", ts: new Date().toISOString() }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
