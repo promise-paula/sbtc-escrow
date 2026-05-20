@@ -1,14 +1,26 @@
 /**
  * sBTC Escrow SDK — public types.
- * Mirrors the on-chain shape of escrow-v6 (testnet) / escrow-mainnet (mainnet).
+ *
+ * Mirrors the on-chain shape of:
+ * - escrow-v6 (testnet, current default)
+ * - escrow-mainnet (mainnet, current default)
+ * - escrow-v7 (testnet, next iteration — adds DELIVERED status, review window,
+ *   and partial dispute splits). Methods/fields specific to v7 are marked.
  */
 
-/** Escrow status enum matching contract constants */
+/**
+ * Escrow status enum matching contract constants.
+ *
+ * `DELIVERED` (u4) is only emitted by escrow-v7+. Earlier contracts will never
+ * return this value.
+ */
 export enum EscrowStatus {
   PENDING = 0,
   RELEASED = 1,
   REFUNDED = 2,
   DISPUTED = 3,
+  /** Seller has signaled delivery on-chain. Available on escrow-v7+ only. */
+  DELIVERED = 4,
 }
 
 /** Token type enum matching contract constants (u0 = STX, u1 = sBTC) */
@@ -32,6 +44,12 @@ export interface EscrowConfig {
   maxAmountSbtc: number;
   maxDuration: number;
   disputeTimeout: number;
+  /**
+   * Post-delivery review window in blocks. While inside this window after a
+   * seller calls `deliver()`, the buyer cannot unilaterally refund.
+   * Only present on escrow-v7+; `undefined` when reading older deployments.
+   */
+  reviewPeriod?: number;
 }
 
 /** Escrow data returned by `get-escrow`. */
@@ -48,6 +66,12 @@ export interface Escrow {
   expiresAt: number;
   completedAt: number | null;
   disputedAt: number | null;
+  /**
+   * Block height when the seller signaled delivery via `deliver()`.
+   * Only set on escrow-v7+; `null` when reading older deployments or before
+   * delivery has been signaled.
+   */
+  deliveredAt: number | null;
 }
 
 /** Per-user statistics returned by `get-user-stats` (counts + per-token totals). */
