@@ -125,6 +125,10 @@ export class EscrowClient {
       maxAmountSbtc: parseInt(data['max-amount-sbtc'].value),
       maxDuration: parseInt(data['max-duration'].value),
       disputeTimeout: parseInt(data['dispute-timeout'].value),
+      // v7+ only: older deployments omit this field.
+      reviewPeriod: data['review-period']?.value
+        ? parseInt(data['review-period'].value)
+        : undefined,
     };
   }
 
@@ -169,6 +173,10 @@ export class EscrowClient {
       expiresAt: parseInt(data['expires-at'].value),
       completedAt: data['completed-at'].value ? parseInt(data['completed-at'].value) : null,
       disputedAt: data['disputed-at'].value ? parseInt(data['disputed-at'].value) : null,
+      // v7+ only: older deployments don't have this field at all.
+      deliveredAt: data['delivered-at']?.value
+        ? parseInt(data['delivered-at'].value)
+        : null,
     };
   }
 
@@ -240,6 +248,20 @@ export class EscrowClient {
     return cvToJSON(result).value;
   }
 
+  /**
+   * Check if an escrow is currently inside its post-delivery review window.
+   *
+   * Returns `true` only when the seller has called `deliver()` and the
+   * configured `REVIEW_PERIOD` has not yet fully elapsed since `delivered-at`.
+   * While true, the buyer cannot unilaterally refund.
+   *
+   * Requires escrow-v7+; returns `false` against older deployments.
+   */
+  async isInReviewPeriod(escrowId: number): Promise<boolean> {
+    const result = await this.callReadOnly('is-in-review-period', [uintCV(escrowId)]);
+    return cvToJSON(result).value;
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // WRITE METHODS (require signing)
   // ═══════════════════════════════════════════════════════════════
@@ -284,19 +306,47 @@ export class EscrowClient {
     return this.broadcast(tx);
   }
 
-  /** Release escrow funds to seller (buyer only) */
+  /**
+   * Release escrow funds to seller (buyer only).
+   *
+   * Callable from PENDING. On v7+, also callable from DELIVERED.
+   */
   async release(escrowId: number, txOptions: SignedTxOptions): Promise<BroadcastResult> {
     return this.callWrite('release', [uintCV(escrowId)], txOptions, PostConditionMode.Allow);
   }
 
-  /** Refund escrow to buyer (seller voluntarily, or anyone after expiry) */
+  /**
+   * Refund escrow to buyer.
+   *
+   * - v6 / escrow-mainnet: seller anytime, or **anyone** after `expires-at`.
+   * - v7+: seller anytime; buyer only after `expires-at` AND any post-delivery
+   *   review window has fully elapsed. Random callers can no longer refund.
+   */
   async refund(escrowId: number, txOptions: SignedTxOptions): Promise<BroadcastResult> {
     return this.callWrite('refund', [uintCV(escrowId)], txOptions, PostConditionMode.Allow);
   }
 
-  /** Dispute an escrow (buyer or seller) */
+  /**
+   * Dispute an escrow (buyer or seller).
+   *
+   * Callable from PENDING. On v7+, also callable from DELIVERED — this is the
+   * seller's recourse during the review window if the buyer is stalling.
+   */
   async dispute(escrowId: number, txOptions: SignedTxOptions): Promise<BroadcastResult> {
     return this.callWrite('dispute', [uintCV(escrowId)], txOptions, PostConditionMode.Deny);
+  }
+
+  /**
+   * Signal delivery on-chain (seller only, from PENDING).
+   *
+   * Moves the escrow into DELIVERED and starts the review window. While the
+   * window is active the buyer cannot unilaterally refund — only release or
+   * dispute. Use this once the off-chain work has been delivered.
+   *
+   * Requires escrow-v7+. Will fail against older deployments.
+   */
+  async deliver(escrowId: number, txOptions: SignedTxOptions): Promise<BroadcastResult> {
+    return this.callWrite('deliver', [uintCV(escrowId)], txOptions, PostConditionMode.Deny);
   }
 
   /** Extend escrow expiry (buyer only, pending only, before expiry) */
@@ -338,6 +388,36 @@ export class EscrowClient {
     return this.callWrite(
       'resolve-dispute-for-seller',
       [uintCV(escrowId)],
+      txOptions,
+      PostConditionMode.Allow,
+    );
+  }
+
+  /**
+   * Resolve a disputed escrow with a partial split — admin only.
+   *
+   * `buyerBps` is the buyer's share of the principal in basis points (0–10000).
+   * The seller receives the remainder. The original fee is split pro-rata:
+   * the buyer is refunded the fee on the portion they got back; the platform
+   * keeps the fee on the portion that went to the seller.
+   *
+   * At the extremes (`buyerBps = 0` or `10000`) this is equivalent to
+   * `resolveDisputeForSeller` or `resolveDisputeForBuyer` respectively;
+   * prefer the dedicated functions there for cleaner event semantics.
+   *
+   * Requires escrow-v7+.
+   */
+  async resolveDisputeSplit(
+    escrowId: number,
+    buyerBps: number,
+    txOptions: SignedTxOptions,
+  ): Promise<BroadcastResult> {
+    if (!Number.isInteger(buyerBps) || buyerBps < 0 || buyerBps > 10000) {
+      throw new Error(`buyerBps must be an integer between 0 and 10000, got ${buyerBps}`);
+    }
+    return this.callWrite(
+      'resolve-dispute-split',
+      [uintCV(escrowId), uintCV(buyerBps)],
       txOptions,
       PostConditionMode.Allow,
     );
