@@ -2,7 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows } from '@/hooks/use-escrow';
+import { useMergedEscrows } from '@/hooks/use-pending-escrows';
 import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
+import { getExplorerUrl } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
@@ -34,7 +37,11 @@ const STATUS_TABS = [
 export default function MyEscrows() {
   const navigate = useNavigate();
   const { address } = useWallet();
-  const { data: allEscrows, isLoading, isError } = useEscrows(address);
+  const { data: indexedEscrows, isLoading, isError } = useEscrows(address);
+  // Optimistic merge: pending tx placeholders appear at the top until
+  // the chainhook indexer mirrors the row into Supabase. Without this,
+  // a freshly-created escrow can be missing from this list for ~1–3 min.
+  const allEscrows = useMergedEscrows(address, indexedEscrows);
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
@@ -44,7 +51,7 @@ export default function MyEscrows() {
   const [search, setSearch] = useState('');
 
   const roleFiltered = useMemo(() => {
-    return (allEscrows || []).filter(e => {
+    return allEscrows.filter(e => {
       if (roleFilter === 'buyer') return e.buyer === address;
       if (roleFilter === 'seller') return e.seller === address;
       return true;
@@ -75,6 +82,9 @@ export default function MyEscrows() {
         );
       })
       .sort((a, b) => {
+        // Pending placeholders always pin to the top — they're the most recent action.
+        if (a.isPending && !b.isPending) return -1;
+        if (!a.isPending && b.isPending) return 1;
         switch (sortBy) {
           case 'oldest': return a.createdAt - b.createdAt;
           case 'amount-high': return b.amount - a.amount;
@@ -92,7 +102,7 @@ export default function MyEscrows() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
           My Escrows{' '}
-          <span className="text-muted-foreground font-normal">({allEscrows?.length ?? 0})</span>
+          <span className="text-muted-foreground font-normal">({allEscrows.length})</span>
         </h1>
         <div className="flex items-center gap-2">
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
@@ -167,34 +177,68 @@ export default function MyEscrows() {
             const counterparty = isBuyer ? e.seller : e.buyer;
             return (
               <motion.div
-                key={e.id}
+                key={e.isPending ? `pending-${e.txHash}` : e.id}
                 custom={i}
                 variants={listItemVariants}
                 initial="hidden"
                 animate="visible"
               >
-                <button
-                  type="button"
-                  className="w-full text-left p-4 rounded-lg border border-border cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3 bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => navigate(`/escrow/${e.id}`)}
-                  aria-label={`Escrow #${e.id}: ${e.description}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-muted-foreground">#{e.id}</span>
-                    <StatusBadge status={e.status} />
+                {e.isPending ? (
+                  // Pending placeholder — no navigation (no real id yet); link to explorer instead.
+                  <div className="w-full text-left p-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 space-y-3 relative">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Awaiting confirmation
+                      </span>
+                      <Badge variant="outline" className="text-xs font-normal">Submitting</Badge>
+                    </div>
+                    <p className="text-sm font-medium text-foreground line-clamp-2">{e.description}</p>
+                    <div className="flex items-center justify-between">
+                      <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
+                      <AddressDisplay address={counterparty} showCopy={false} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-xs font-normal">
+                        {isBuyer ? 'Buyer' : 'Seller'}
+                      </Badge>
+                      {e.txHash && (
+                        <a
+                          href={getExplorerUrl('tx', e.txHash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs underline hover:text-foreground"
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
+                          View tx
+                        </a>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm font-medium text-foreground line-clamp-2">{e.description}</p>
-                  <div className="flex items-center justify-between">
-                    <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
-                    <AddressDisplay address={counterparty} showCopy={false} />
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-xs font-normal">
-                      {isBuyer ? 'Buyer' : 'Seller'}
-                    </Badge>
-                    <span>{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</span>
-                  </div>
-                </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-left p-4 rounded-lg border border-border cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3 bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => navigate(`/escrow/${e.id}`)}
+                    aria-label={`Escrow #${e.id}: ${e.description}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-muted-foreground">#{e.id}</span>
+                      <StatusBadge status={e.status} />
+                    </div>
+                    <p className="text-sm font-medium text-foreground line-clamp-2">{e.description}</p>
+                    <div className="flex items-center justify-between">
+                      <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
+                      <AddressDisplay address={counterparty} showCopy={false} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-xs font-normal">
+                        {isBuyer ? 'Buyer' : 'Seller'}
+                      </Badge>
+                      <span>{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</span>
+                    </div>
+                  </button>
+                )}
               </motion.div>
             );
           })}
