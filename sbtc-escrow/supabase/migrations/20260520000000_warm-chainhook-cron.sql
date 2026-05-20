@@ -1,0 +1,71 @@
+-- Enable pg_cron + pg_net so we can keep the chainhook-webhook edge function
+-- warm via a periodic ping.
+--
+-- WHY: Edge functions cold-start after ~5–15 min idle. The first webhook hit
+--      after idle adds 1–3s of Deno boot time, which shows up as
+--      "my escrow took forever to appear" after a quiet period. A 4-minute
+--      heartbeat keeps the runtime hot 24/7.
+--
+-- This migration handles the SCHEMA-LEVEL prerequisites only (the extensions).
+-- The actual cron job is per-environment because Supabase managed Postgres
+-- doesn't permit setting custom database-level GUCs (`ALTER DATABASE ... SET
+-- app.<...>` is denied), so the project URL has to be baked directly into
+-- each schedule.
+--
+-- ============================================================================
+-- Extensions
+-- ============================================================================
+-- pg_cron — schedule periodic jobs (lives in its own `cron` schema)
+-- pg_net  — async HTTP from SQL (provides net.http_get / net.http_post)
+--
+-- Both ship with Supabase managed Postgres. Do NOT pin a schema — Supabase
+-- installs pg_cron into the `cron` schema regardless of what you specify.
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+-- ============================================================================
+-- Scheduling the warm-ping job — RUN MANUALLY PER ENVIRONMENT
+-- ============================================================================
+-- After applying this migration, schedule the cron job once per project.
+-- Substitute <PROJECT_REF> with the actual ref for the target environment:
+--
+--   Testnet: hscqcrdngqpiniyvwpxj
+--   Mainnet: siihjlwnyhzfxtxcsdkz
+--
+-- ┌─────────────────────────────────────────────────────────────────────┐
+-- │ DO $$                                                               │
+-- │ DECLARE jid bigint;                                                 │
+-- │ BEGIN                                                               │
+-- │   SELECT jobid INTO jid FROM cron.job                               │
+-- │     WHERE jobname = 'warm-chainhook-webhook';                       │
+-- │   IF jid IS NOT NULL THEN PERFORM cron.unschedule(jid); END IF;     │
+-- │ END $$;                                                             │
+-- │                                                                     │
+-- │ SELECT cron.schedule(                                               │
+-- │   'warm-chainhook-webhook',                                         │
+-- │   '*/4 * * * *',                                                    │
+-- │   $job$                                                             │
+-- │   SELECT net.http_get(                                              │
+-- │     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/chainhook-webhook',
+-- │     timeout_milliseconds := 5000                                    │
+-- │   );                                                                │
+-- │   $job$                                                             │
+-- │ );                                                                  │
+-- └─────────────────────────────────────────────────────────────────────┘
+--
+-- Verify with:
+--   SELECT jobid, schedule, jobname, active FROM cron.job
+--    WHERE jobname = 'warm-chainhook-webhook';
+--
+-- See recent run history:
+--   SELECT * FROM cron.job_run_details
+--    WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'warm-chainhook-webhook')
+--    ORDER BY start_time DESC LIMIT 10;
+--
+-- See recent HTTP responses (should be status_code = 200 with the "warm" body):
+--   SELECT id, status_code, content, created FROM net._http_response
+--    ORDER BY created DESC LIMIT 5;
+--
+-- To remove the job:
+--   SELECT cron.unschedule('warm-chainhook-webhook');
