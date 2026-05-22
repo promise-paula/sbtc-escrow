@@ -15,7 +15,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Environment-driven contract IDs — no hardcoded values for mainnet
 const CONTRACT_IDS = new Set(
   (Deno.env.get("ESCROW_CONTRACT_IDS") ||
-    "ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v6"
+    "ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7"
   ).split(",").map((s) => s.trim()),
 );
 
@@ -169,6 +169,7 @@ async function withRetry<T>(
 }
 
 async function insertEvent(
+  contractId: string,
   escrowId: number | null,
   eventType: string,
   blockHeight: number,
@@ -177,6 +178,7 @@ async function insertEvent(
 ): Promise<void> {
   await withRetry(`insertEvent(${eventType})`, () =>
     supabase.from("escrow_events").insert({
+      contract_id: contractId,
       escrow_id: escrowId,
       event_type: eventType,
       block_height: blockHeight,
@@ -187,23 +189,33 @@ async function insertEvent(
 }
 
 async function upsertEscrow(
+  contractId: string,
   escrowId: number,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  await withRetry(`upsertEscrow(${escrowId})`, () =>
-    supabase.from("escrows").upsert({
-      id: escrowId,
-      ...fields,
-    }),
+  await withRetry(`upsertEscrow(${contractId}/${escrowId})`, () =>
+    supabase.from("escrows").upsert(
+      {
+        contract_id: contractId,
+        id: escrowId,
+        ...fields,
+      },
+      { onConflict: "contract_id,id" },
+    ),
   );
 }
 
 async function updateEscrow(
+  contractId: string,
   escrowId: number,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  await withRetry(`updateEscrow(${escrowId})`, () =>
-    supabase.from("escrows").update(fields).eq("id", escrowId),
+  await withRetry(`updateEscrow(${contractId}/${escrowId})`, () =>
+    supabase
+      .from("escrows")
+      .update(fields)
+      .eq("contract_id", contractId)
+      .eq("id", escrowId),
   );
 }
 
@@ -314,7 +326,7 @@ async function routeEvent(
       } catch (descErr) {
         console.warn(`[escrow-created] Description fetch failed for #${escrowId}, proceeding without:`, descErr);
       }
-      await upsertEscrow(escrowId!, {
+      await upsertEscrow(contractId, escrowId!, {
         buyer: data.buyer,
         seller: data.seller,
         amount: data.amount,
@@ -326,100 +338,120 @@ async function routeEvent(
         expires_at_block: data["expires-at"],
         tx_id: txId,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
     }
 
+    // v7+: seller signaled delivery on-chain
+    case "escrow-delivered":
+      await updateEscrow(contractId, escrowId!, {
+        status: 4, // DELIVERED
+        delivered_at_block: data["delivered-at"] ?? blockHeight,
+      });
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      break;
+
     case "escrow-released":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         status: 1,
         completed_at_block: blockHeight,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     case "escrow-refunded":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         status: 2,
         completed_at_block: blockHeight,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     case "escrow-disputed":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         status: 3,
         disputed_at_block: data["disputed-at"] ?? blockHeight,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     case "escrow-extended":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         expires_at_block: data["new-expires-at"],
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     // ----- Dispute resolution -----
     case "dispute-resolved-for-buyer":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         status: 2, // refunded
         completed_at_block: blockHeight,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     case "dispute-resolved-for-seller":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         status: 1, // released
         completed_at_block: blockHeight,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     case "dispute-expired-resolved":
-      await updateEscrow(escrowId!, {
+      await updateEscrow(contractId, escrowId!, {
         status: 2, // refunded
         completed_at_block: blockHeight,
       });
-      await insertEvent(escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      break;
+
+    // v7+: admin/arbiter resolved a dispute with a partial split. Treated as a
+    // final RELEASED state; the split breakdown lives in the event's data field
+    // (buyer-bps, buyer-payout, seller-payout, platform-fee).
+    case "dispute-resolved-split":
+      await updateEscrow(contractId, escrowId!, {
+        status: 1, // released (final)
+        completed_at_block: blockHeight,
+      });
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
       break;
 
     // ----- Platform config events (no escrow_id) -----
     case "contract-paused":
       await updateConfig({ contract_paused: true });
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     case "contract-unpaused":
       await updateConfig({ contract_paused: false });
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     case "platform-fee-updated":
       await updateConfig({ fee_bps: data["fee-bps"] });
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     case "fee-recipient-updated":
       await updateConfig({ fee_recipient: data.recipient });
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     case "dispute-timeout-updated":
       await updateConfig({ dispute_timeout: data.timeout });
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     case "ownership-transfer-initiated":
       // No state change yet — just log it
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     case "ownership-transferred":
       await updateConfig({ contract_owner: data["new-owner"] });
-      await insertEvent(null, event, blockHeight, txId, data);
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     default:
@@ -448,9 +480,10 @@ async function handleRollback(block: BlockPayload): Promise<void> {
   console.log(`Rolling back block ${blockHeight}`);
 
   // 1. Find escrows that had status changes at this block (not just created)
+  //    — scope by contract_id too so v6 and v7 don't get mixed up
   const { data: affectedEscrows } = await supabase
     .from("escrow_events")
-    .select("escrow_id, event_type")
+    .select("contract_id, escrow_id, event_type")
     .eq("block_height", blockHeight);
 
   // 2. Remove events indexed from this block
@@ -471,12 +504,15 @@ async function handleRollback(block: BlockPayload): Promise<void> {
   // 4. Revert status of escrows that had state changes in this block
   for (const affected of affectedEscrows ?? []) {
     if (!affected.escrow_id) continue;
+    if (!affected.contract_id) continue;
     if (affected.event_type === "escrow-created") continue; // Already deleted above
 
-    // Find the most recent event before this block to restore previous state
+    // Find the most recent event before this block to restore previous state.
+    // Scope by (contract_id, escrow_id) since IDs are reused across contracts.
     const { data: priorEvent } = await supabase
       .from("escrow_events")
       .select("event_type, block_height, data")
+      .eq("contract_id", affected.contract_id)
       .eq("escrow_id", affected.escrow_id)
       .lt("block_height", blockHeight)
       .order("block_height", { ascending: false })
@@ -486,20 +522,22 @@ async function handleRollback(block: BlockPayload): Promise<void> {
     if (priorEvent) {
       const statusMap: Record<string, number> = {
         "escrow-created": 0,
+        "escrow-delivered": 4,
         "escrow-disputed": 3,
         "escrow-released": 1,
         "escrow-refunded": 2,
         "dispute-resolved-for-buyer": 2,
         "dispute-resolved-for-seller": 1,
+        "dispute-resolved-split": 1,
         "dispute-expired-resolved": 2,
       };
       const prevStatus = statusMap[priorEvent.event_type];
       if (prevStatus !== undefined) {
-        await updateEscrow(affected.escrow_id, {
+        await updateEscrow(affected.contract_id, affected.escrow_id, {
           status: prevStatus,
           completed_at_block: prevStatus >= 1 && prevStatus <= 2 ? priorEvent.block_height : null,
         });
-        console.log(`[rollback] Reverted escrow ${affected.escrow_id} to status ${prevStatus}`);
+        console.log(`[rollback] Reverted escrow ${affected.contract_id}/${affected.escrow_id} to status ${prevStatus}`);
       }
     }
   }
