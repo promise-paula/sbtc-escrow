@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '@/lib/types';
 import {
+  CONTRACT_PRINCIPAL,
   DEFAULT_DISPUTE_TIMEOUT,
   MAX_DURATION_BLOCKS,
   MIN_AMOUNT_STX,
@@ -37,19 +38,28 @@ const DEFAULT_CONFIG: PlatformConfig = {
 
 export function usePlatformStats() {
   return useQuery({
-    queryKey: ['platform-stats'],
+    queryKey: ['platform-stats', CONTRACT_PRINCIPAL],
     queryFn: async (): Promise<PlatformStats> => {
       if (!isSupabaseConfigured) return EMPTY_STATS;
-      const { data, error } = await supabase.from('escrows').select('amount, fee_amount, status, token_type');
+      const { data, error } = await supabase
+        .from('escrows')
+        .select('amount, fee_amount, status, token_type')
+        .eq('contract_id', CONTRACT_PRINCIPAL);
       if (error || !data?.length) return EMPTY_STATS;
       const stx = data.filter(r => (r.token_type ?? 0) === 0);
       const sbtc = data.filter(r => (r.token_type ?? 0) === 1);
 
-      // Count resolved disputes from events table
+      // Count resolved disputes from events table (any final dispute resolution)
       const { count: resolvedDisputes } = await supabase
         .from('escrow_events')
         .select('*', { count: 'exact', head: true })
-        .in('event_type', ['dispute-resolved-for-buyer', 'dispute-resolved-for-seller', 'dispute-expired-resolved']);
+        .eq('contract_id', CONTRACT_PRINCIPAL)
+        .in('event_type', [
+          'dispute-resolved-for-buyer',
+          'dispute-resolved-for-seller',
+          'dispute-resolved-split',
+          'dispute-expired-resolved',
+        ]);
 
       return {
         totalEscrows: data.length,
@@ -94,12 +104,13 @@ export function usePlatformConfig() {
 
 export function useDisputedEscrows() {
   return useQuery({
-    queryKey: ['disputed-escrows'],
+    queryKey: ['disputed-escrows', CONTRACT_PRINCIPAL],
     queryFn: async (): Promise<Escrow[]> => {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('escrows')
         .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .eq('status', EscrowStatus.Disputed)
         .order('disputed_at_block', { ascending: true });
       if (error || !data?.length) return [];
@@ -109,6 +120,7 @@ export function useDisputedEscrows() {
       const { data: events } = await supabase
         .from('escrow_events')
         .select('escrow_id, data')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .in('escrow_id', escrowIds)
         .eq('event_type', 'escrow-disputed');
       const disputeByMap: Record<number, string> = {};
@@ -139,12 +151,13 @@ export function useDisputedEscrows() {
 
 export function useResolvedDisputes() {
   return useQuery({
-    queryKey: ['resolved-disputes'],
+    queryKey: ['resolved-disputes', CONTRACT_PRINCIPAL],
     queryFn: async (): Promise<Escrow[]> => {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('escrows')
         .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .not('disputed_at_block', 'is', null)
         .in('status', [EscrowStatus.Released, EscrowStatus.Refunded])
         .order('completed_at_block', { ascending: false });
