@@ -3,6 +3,8 @@ export enum EscrowStatus {
   Released = 1,
   Refunded = 2,
   Disputed = 3,
+  /** Seller signaled delivery on-chain. Available on escrow-v7+. */
+  Delivered = 4,
 }
 
 export enum TokenType {
@@ -23,6 +25,8 @@ export interface Escrow {
   expiresAt: number;
   completedAt: number | null;
   disputedAt: number | null;
+  /** Block height at which the seller called deliver() (v7+). Null if never delivered. */
+  deliveredAt?: number | null;
   txHash?: string;
   indexedAt?: string; // ISO timestamp from DB
   disputedBy?: string; // address that triggered the dispute
@@ -42,12 +46,14 @@ export interface EscrowEvent {
   escrowId: number;
   eventType:
     | 'escrow-created'
+    | 'escrow-delivered'
     | 'escrow-released'
     | 'escrow-refunded'
     | 'escrow-disputed'
     | 'escrow-extended'
     | 'dispute-resolved-for-buyer'
     | 'dispute-resolved-for-seller'
+    | 'dispute-resolved-split'
     | 'dispute-expired-resolved';
   actor: string;
   blockHeight: number;
@@ -89,10 +95,11 @@ export interface UserStats {
   asSeller: number;
 }
 
-export type StatusLabel = 'Pending' | 'Released' | 'Refunded' | 'Disputed';
+export type StatusLabel = 'Pending' | 'Delivered' | 'Released' | 'Refunded' | 'Disputed';
 
 export const STATUS_LABELS: Record<EscrowStatus, StatusLabel> = {
   [EscrowStatus.Pending]: 'Pending',
+  [EscrowStatus.Delivered]: 'Delivered',
   [EscrowStatus.Released]: 'Released',
   [EscrowStatus.Refunded]: 'Refunded',
   [EscrowStatus.Disputed]: 'Disputed',
