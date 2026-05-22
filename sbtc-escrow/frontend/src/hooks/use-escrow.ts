@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { CONTRACT_PRINCIPAL } from '@/lib/stacks-config';
 import { Escrow, EscrowEvent, EscrowStatus, TokenType, UserStats } from '@/lib/types';
 
 const EMPTY_STATS: UserStats = {
@@ -13,12 +14,13 @@ const EMPTY_STATS: UserStats = {
 
 export function useEscrows(address: string | null) {
   return useQuery({
-    queryKey: ['escrows', address],
+    queryKey: ['escrows', CONTRACT_PRINCIPAL, address],
     queryFn: async (): Promise<Escrow[]> => {
       if (!isSupabaseConfigured || !address) return [];
       const { data, error } = await supabase
         .from('escrows')
         .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .or(`buyer.eq.${address},seller.eq.${address}`)
         .order('indexed_at', { ascending: false });
       if (error || !data?.length) return [];
@@ -30,12 +32,13 @@ export function useEscrows(address: string | null) {
 
 export function useEscrow(id: number) {
   return useQuery({
-    queryKey: ['escrow', id],
+    queryKey: ['escrow', CONTRACT_PRINCIPAL, id],
     queryFn: async (): Promise<Escrow | null> => {
       if (!isSupabaseConfigured) return null;
       const { data, error } = await supabase
         .from('escrows')
         .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .eq('id', id)
         .single();
       if (error || !data) return null;
@@ -47,10 +50,14 @@ export function useEscrow(id: number) {
 
 export function useEscrowEvents(escrowId?: number) {
   return useQuery({
-    queryKey: ['events', escrowId],
+    queryKey: ['events', CONTRACT_PRINCIPAL, escrowId],
     queryFn: async (): Promise<EscrowEvent[]> => {
       if (!isSupabaseConfigured) return [];
-      let query = supabase.from('escrow_events').select('*').order('block_height', { ascending: false });
+      let query = supabase
+        .from('escrow_events')
+        .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
+        .order('block_height', { ascending: false });
       if (escrowId) {
         query = query.eq('escrow_id', escrowId);
       } else {
@@ -67,13 +74,14 @@ export function useEscrowEvents(escrowId?: number) {
 /** Events scoped to escrows where the given address is buyer or seller. */
 export function useUserEscrowEvents(address: string | null) {
   return useQuery({
-    queryKey: ['user-events', address],
+    queryKey: ['user-events', CONTRACT_PRINCIPAL, address],
     queryFn: async (): Promise<EscrowEvent[]> => {
       if (!isSupabaseConfigured || !address) return [];
-      // First get the user's escrow IDs
+      // First get the user's escrow IDs (scoped to the active contract)
       const { data: escrows, error: escrowErr } = await supabase
         .from('escrows')
         .select('id')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .or(`buyer.eq.${address},seller.eq.${address}`);
       if (escrowErr || !escrows?.length) return [];
       const ids = escrows.map(e => e.id);
@@ -81,6 +89,7 @@ export function useUserEscrowEvents(address: string | null) {
       const { data, error } = await supabase
         .from('escrow_events')
         .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .in('escrow_id', ids)
         .order('block_height', { ascending: false });
       if (error || !data?.length) return [];
@@ -92,16 +101,22 @@ export function useUserEscrowEvents(address: string | null) {
 
 export function useUserStats(address: string | null) {
   return useQuery({
-    queryKey: ['user-stats', address],
+    queryKey: ['user-stats', CONTRACT_PRINCIPAL, address],
     queryFn: async (): Promise<UserStats> => {
       if (!isSupabaseConfigured || !address) return EMPTY_STATS;
       const { data, error } = await supabase
         .from('escrows')
         .select('*')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .or(`buyer.eq.${address},seller.eq.${address}`);
       if (error || !data?.length) return EMPTY_STATS;
       const escrows = data.map(mapEscrowRow);
-      const active = escrows.filter(e => e.status === EscrowStatus.Pending || e.status === EscrowStatus.Disputed);
+      // Pending, Delivered, and Disputed all keep funds locked on-chain.
+      const active = escrows.filter(e =>
+        e.status === EscrowStatus.Pending ||
+        e.status === EscrowStatus.Delivered ||
+        e.status === EscrowStatus.Disputed
+      );
       return {
         totalLockedStx: active.filter(e => e.tokenType === TokenType.STX).reduce((sum, e) => sum + e.amount + e.feeAmount, 0),
         totalLockedSbtc: active.filter(e => e.tokenType === TokenType.SBTC).reduce((sum, e) => sum + e.amount + e.feeAmount, 0),
@@ -128,6 +143,7 @@ interface SupabaseEscrowRow {
   expires_at_block: number;
   completed_at_block: number | null;
   disputed_at_block: number | null;
+  delivered_at_block: number | null;
   tx_id: string;
   indexed_at: string;
 }
@@ -146,6 +162,7 @@ function mapEscrowRow(row: SupabaseEscrowRow): Escrow {
     expiresAt: row.expires_at_block ?? 0,
     completedAt: row.completed_at_block ?? null,
     disputedAt: row.disputed_at_block ?? null,
+    deliveredAt: row.delivered_at_block ?? null,
     txHash: row.tx_id,
     indexedAt: row.indexed_at,
   };
