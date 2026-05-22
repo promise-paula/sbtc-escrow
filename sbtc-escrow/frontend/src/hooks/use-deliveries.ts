@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { CONTRACT_PRINCIPAL } from '@/lib/stacks-config';
 
 export interface Delivery {
   id: number;
@@ -12,12 +13,13 @@ export interface Delivery {
 
 export function useDeliveries(escrowId: number) {
   return useQuery({
-    queryKey: ['deliveries', escrowId],
+    queryKey: ['deliveries', CONTRACT_PRINCIPAL, escrowId],
     queryFn: async (): Promise<Delivery[]> => {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('deliveries')
         .select('id, escrow_id, seller_address, buyer_address, message, created_at')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .eq('escrow_id', escrowId)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -47,6 +49,7 @@ export function useMarkDelivered() {
     mutationFn: async ({ escrowId, sellerAddress, buyerAddress, message }: MarkDeliveredArgs) => {
       if (!isSupabaseConfigured) throw new Error('Supabase not configured');
       const { error } = await supabase.from('deliveries').insert({
+        contract_id: CONTRACT_PRINCIPAL,
         escrow_id: escrowId,
         seller_address: sellerAddress,
         buyer_address: buyerAddress,
@@ -55,7 +58,7 @@ export function useMarkDelivered() {
       if (error) throw error;
     },
     onSuccess: (_, { escrowId }) => {
-      queryClient.invalidateQueries({ queryKey: ['deliveries', escrowId] });
+      queryClient.invalidateQueries({ queryKey: ['deliveries', CONTRACT_PRINCIPAL, escrowId] });
     },
   });
 }
