@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { CONTRACT_PRINCIPAL } from '@/lib/stacks-config';
 
 export const DISPUTE_REASON_CATEGORIES = [
   { value: 'not_delivered',       label: 'Item / service not delivered' },
@@ -24,12 +25,13 @@ export interface DisputeReason {
 
 export function useDisputeReason(escrowId: number) {
   return useQuery({
-    queryKey: ['dispute-reason', escrowId],
+    queryKey: ['dispute-reason', CONTRACT_PRINCIPAL, escrowId],
     queryFn: async (): Promise<DisputeReason | null> => {
       if (!isSupabaseConfigured) return null;
       const { data, error } = await supabase
         .from('dispute_reasons')
         .select('id, escrow_id, reason_category, details, submitted_by, created_at')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .eq('escrow_id', escrowId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -54,12 +56,13 @@ export function useDisputeReason(escrowId: number) {
 /** Fetch reasons for multiple escrows at once (used by admin queue). */
 export function useDisputeReasons(escrowIds: number[]) {
   return useQuery({
-    queryKey: ['dispute-reasons', ...escrowIds.sort()],
+    queryKey: ['dispute-reasons', CONTRACT_PRINCIPAL, ...escrowIds.sort()],
     queryFn: async (): Promise<Record<number, DisputeReason>> => {
       if (!isSupabaseConfigured || escrowIds.length === 0) return {};
       const { data, error } = await supabase
         .from('dispute_reasons')
         .select('id, escrow_id, reason_category, details, submitted_by, created_at')
+        .eq('contract_id', CONTRACT_PRINCIPAL)
         .in('escrow_id', escrowIds)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -96,6 +99,7 @@ export function useSubmitDisputeReason() {
     mutationFn: async ({ escrowId, reasonCategory, details, submittedBy }: SubmitDisputeReasonArgs) => {
       if (!isSupabaseConfigured) return; // graceful no-op when Supabase not set up
       const { error } = await supabase.from('dispute_reasons').insert({
+        contract_id: CONTRACT_PRINCIPAL,
         escrow_id: escrowId,
         reason_category: reasonCategory,
         details: details?.trim() || null,
@@ -104,7 +108,7 @@ export function useSubmitDisputeReason() {
       if (error) throw error;
     },
     onSuccess: (_, { escrowId }) => {
-      queryClient.invalidateQueries({ queryKey: ['dispute-reason', escrowId] });
+      queryClient.invalidateQueries({ queryKey: ['dispute-reason', CONTRACT_PRINCIPAL, escrowId] });
     },
   });
 }
