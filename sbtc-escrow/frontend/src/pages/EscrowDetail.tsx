@@ -29,7 +29,7 @@ import { cardVariants, listItemVariants, pageVariants, slideDown } from '@/lib/m
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Shield,
   Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download,
-  BookUser, Plus, ExternalLink, Bell
+  BookUser, Plus, ExternalLink, Bell, MessageSquare, Send
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { PackageCheck } from 'lucide-react';
 import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
+import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useDisputeReason,
@@ -84,6 +85,14 @@ export default function EscrowDetail() {
   const { data: existingDisputeReason } = useDisputeReason(isNaN(escrowId) ? 0 : escrowId);
   const [disputeReason, setDisputeReason] = useState<DisputeReasonCategory | ''>('');
   const [disputeDetails, setDisputeDetails] = useState('');
+  // Message thread between buyer and seller (independent of the on-chain
+  // delivery signal; this is the conversational layer).
+  const { data: messages = [] } = useMessages(
+    escrow?.contractId ?? '',
+    isNaN(escrowId) ? 0 : escrowId,
+  );
+  const sendMessage = useSendMessage();
+  const [draftMessage, setDraftMessage] = useState('');
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
   const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
@@ -264,6 +273,25 @@ export default function EscrowDetail() {
     } catch {
       toast.error('Failed to send delivery signal', {
         description: 'Please try again.',
+      });
+    }
+  };
+
+  const handleSendMessage = async () => {
+    const trimmed = draftMessage.trim();
+    if (!trimmed || !address || !isParty) return;
+    try {
+      await sendMessage.mutateAsync({
+        contractId: escrow.contractId,
+        escrowId: escrow.id,
+        senderAddress: address,
+        senderRole: isBuyer ? 'buyer' : 'seller',
+        message: trimmed,
+      });
+      setDraftMessage('');
+    } catch (err) {
+      toast.error('Failed to send message', {
+        description: err instanceof Error ? err.message : 'Please try again.',
       });
     }
   };
@@ -560,6 +588,92 @@ export default function EscrowDetail() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Message thread — bidirectional chat between buyer and seller.
+          Always available to parties (any escrow state), so post-completion
+          context conversations still have a home. */}
+      {isSupabaseConfigured && isParty && (
+        <motion.div custom={3.5} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                Messages
+                {messages.length > 0 && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    · {messages.length}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {messages.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">
+                  Start the conversation. Both parties can post here — useful for clarifying
+                  delivery details or resolving questions before raising a dispute.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {messages.map((m) => {
+                    const mine = m.senderAddress === address;
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-md px-3 py-2 text-sm ${
+                            mine
+                              ? 'bg-primary/10 text-foreground'
+                              : 'bg-muted/40 text-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              {m.senderRole}
+                              {mine && ' (you)'}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              · {relativeTime(m.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap break-words">{m.message}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex items-end gap-2 pt-1">
+                <Textarea
+                  placeholder={`Message the ${isBuyer ? 'seller' : 'buyer'}…`}
+                  value={draftMessage}
+                  onChange={(e) => setDraftMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Cmd/Ctrl + Enter to send
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  maxLength={2000}
+                  rows={2}
+                  className="text-sm resize-none flex-1"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSendMessage}
+                  disabled={sendMessage.isPending || !draftMessage.trim()}
+                  className="gap-1.5 shrink-0"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {sendMessage.isPending ? 'Sending…' : 'Send'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
