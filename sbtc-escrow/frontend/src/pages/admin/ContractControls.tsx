@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { PlatformConfig } from '@/lib/types';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_PRINCIPAL, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
@@ -65,8 +65,11 @@ export default function ContractControls() {
   const handleTogglePause = async () => {
     setLoading('pause');
     try {
-      if (isPaused) await unpauseContract();
-      else await pauseContract();
+      // ContractControls always targets the currently active contract — admin
+      // operations on legacy contracts (if ever needed) go through a separate
+      // path that requires explicitly opting into a non-default contract.
+      if (isPaused) await unpauseContract(CONTRACT_PRINCIPAL);
+      else await pauseContract(CONTRACT_PRINCIPAL);
       setIsPaused(!isPaused);
       patchConfig({ isPaused: !isPaused });
     } finally {
@@ -119,13 +122,13 @@ export default function ContractControls() {
             <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Fee preview:</span> On a 100 STX escrow → {feeOnHundred} STX fee
             </div>
-            <Button size="sm" disabled={feeValue < 0 || feeValue > MAX_FEE_BPS || loading === 'fee'} onClick={async () => { setLoading('fee'); try { await setPlatformFee(feeValue); patchConfig({ platformFeeBps: feeValue }); } finally { setLoading(null); } }}>
+            <Button size="sm" disabled={feeValue < 0 || feeValue > MAX_FEE_BPS || loading === 'fee'} onClick={async () => { setLoading('fee'); try { await setPlatformFee(CONTRACT_PRINCIPAL, feeValue); patchConfig({ platformFeeBps: feeValue }); } finally { setLoading(null); } }}>
               Update Fee
             </Button>
             <div className="border-t border-border pt-4 space-y-1.5">
               <Label className="text-xs">Fee Recipient</Label>
               <Input placeholder="ST... or SP..." value={feeRecip} onChange={e => setFeeRecip(e.target.value)} className="font-mono text-sm" />
-              <Button size="sm" disabled={!isValidStacksAddress(feeRecip) || loading === 'recipient'} onClick={async () => { setLoading('recipient'); try { await setFeeRecipient(feeRecip); patchConfig({ feeRecipient: feeRecip }); } finally { setLoading(null); } }}>
+              <Button size="sm" disabled={!isValidStacksAddress(feeRecip) || loading === 'recipient'} onClick={async () => { setLoading('recipient'); try { await setFeeRecipient(CONTRACT_PRINCIPAL, feeRecip); patchConfig({ feeRecipient: feeRecip }); } finally { setLoading(null); } }}>
                 Update Recipient
               </Button>
             </div>
@@ -197,7 +200,7 @@ export default function ContractControls() {
               onClick={async () => {
                 setLoading('timeout');
                 try {
-                  await setDisputeTimeout(timeoutValue);
+                  await setDisputeTimeout(CONTRACT_PRINCIPAL, timeoutValue);
                   patchConfig({ disputeTimeout: timeoutValue });
                   setAcknowledgeUnsafeTimeout(false);
                 } finally {
@@ -222,7 +225,7 @@ export default function ContractControls() {
               <Label className="text-xs">New Owner Address</Label>
               <Input placeholder="ST... or SP..." value={newOwner} onChange={e => setNewOwner(e.target.value)} className="font-mono text-sm" />
             </div>
-            <Button size="sm" variant="outline" disabled={!isValidStacksAddress(newOwner) || loading === 'transfer'} onClick={async () => { setLoading('transfer'); await transferOwnership(newOwner); setLoading(null); }}>
+            <Button size="sm" variant="outline" disabled={!isValidStacksAddress(newOwner) || loading === 'transfer'} onClick={async () => { setLoading('transfer'); await transferOwnership(CONTRACT_PRINCIPAL, newOwner); setLoading(null); }}>
               Initiate Transfer
             </Button>
             <p className="text-xs text-muted-foreground">2-step process: initiate, then the new owner must accept.</p>
