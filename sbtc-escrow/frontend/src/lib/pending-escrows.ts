@@ -57,8 +57,19 @@ function write(store: Store): void {
 // Tiny pub-sub so React hooks can re-render on changes.
 const listeners = new Set<() => void>();
 function notify(): void {
+  // Bust the snapshot cache before notifying React. useSyncExternalStore
+  // demands referential stability from getSnapshot, but state HAS changed —
+  // listeners need to see the new snapshot, so clear cached refs first.
+  snapshotCache.clear();
   listeners.forEach((l) => l());
 }
+
+// Snapshot cache, keyed by lowercase address. Critical for useSyncExternalStore:
+// it requires getSnapshot to return the SAME reference when nothing has changed,
+// or React will re-render non-stop and throw "Maximum update depth exceeded"
+// (error #185). Cleared on every write() via notify().
+const snapshotCache = new Map<string, PendingEscrow[]>();
+const EMPTY_SNAPSHOT: PendingEscrow[] = [];
 
 export function subscribePending(listener: () => void): () => void {
   listeners.add(listener);
@@ -75,12 +86,21 @@ function pruneStale(entries: PendingEscrow[]): PendingEscrow[] {
 }
 
 export function getPending(address: string | null): PendingEscrow[] {
-  if (!address) return [];
+  if (!address) return EMPTY_SNAPSHOT;
+  const k = key(address);
+  const cached = snapshotCache.get(k);
+  if (cached) return cached;
+
   const all = read();
-  const own = pruneStale(all[key(address)] ?? []);
-  return [...own].sort((a, b) =>
+  const own = pruneStale(all[k] ?? []);
+  const sorted = own.slice().sort((a, b) =>
     new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
   );
+  // If there are no pending entries, return the shared EMPTY_SNAPSHOT
+  // singleton — keeps reference identity across calls for empty cases too.
+  const result = sorted.length === 0 ? EMPTY_SNAPSHOT : sorted;
+  snapshotCache.set(k, result);
+  return result;
 }
 
 export function addPending(entry: PendingEscrow): void {
