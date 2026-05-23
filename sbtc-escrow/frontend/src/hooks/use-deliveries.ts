@@ -38,6 +38,9 @@ export function useDeliveries(escrowId: number, contractId?: string) {
 }
 
 interface MarkDeliveredArgs {
+  /** Pass the escrow's own contract_id, not the active default — a legacy
+   *  escrow's delivery row must be tagged with its own contract version. */
+  contractId: string;
   escrowId: number;
   sellerAddress: string;
   buyerAddress: string;
@@ -47,10 +50,10 @@ interface MarkDeliveredArgs {
 export function useMarkDelivered() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ escrowId, sellerAddress, buyerAddress, message }: MarkDeliveredArgs) => {
+    mutationFn: async ({ contractId, escrowId, sellerAddress, buyerAddress, message }: MarkDeliveredArgs) => {
       if (!isSupabaseConfigured) throw new Error('Supabase not configured');
       const { error } = await supabase.from('deliveries').insert({
-        contract_id: CONTRACT_PRINCIPAL,
+        contract_id: contractId,
         escrow_id: escrowId,
         seller_address: sellerAddress,
         buyer_address: buyerAddress,
@@ -58,8 +61,8 @@ export function useMarkDelivered() {
       });
       if (error) throw error;
     },
-    onSuccess: (_, { escrowId }) => {
-      queryClient.invalidateQueries({ queryKey: ['deliveries', CONTRACT_PRINCIPAL, escrowId] });
+    onSuccess: (_, { contractId, escrowId }) => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries', contractId, escrowId] });
     },
   });
 }
