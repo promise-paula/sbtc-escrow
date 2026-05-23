@@ -201,7 +201,7 @@ export default function EscrowDetail() {
     ? escrow.contractId.split('.')[1] ?? escrow.contractId
     : null;
 
-  const hasActions = !isLegacyContract && (
+  const hasActions = (
     (isBuyer && (isPending || isExpired) && !isDisputed) ||
     (isBuyer && isPending && !isExpired) ||
     (isPending && !isExpired) ||
@@ -286,6 +286,7 @@ export default function EscrowDetail() {
   const handleMarkDelivered = async () => {
     try {
       await markDelivered.mutateAsync({
+        contractId: escrow.contractId,
         escrowId: escrow.id,
         sellerAddress: escrow.seller,
         buyerAddress: escrow.buyer,
