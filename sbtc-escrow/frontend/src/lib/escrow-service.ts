@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { request } from '@stacks/connect';
 import { Cl } from '@stacks/transactions';
-import { CONTRACT_PRINCIPAL, STACKS_NETWORK } from './stacks-config';
+import { STACKS_NETWORK } from './stacks-config';
 import { TokenType } from './types';
 import { contractSendPc, userSendPc } from './post-conditions';
 import { categorizeTxError } from './tx-errors';
@@ -9,12 +9,26 @@ import { addPending } from './pending-escrows';
 
 const PENDING_HINT = 'Confirms on Stacks in 1–2 minutes.';
 
+/**
+ * Action helpers dispatch to a specific contract identified by `contractId`
+ * (e.g. `ST1HK6...escrow-v7`). Every helper requires it explicitly — no
+ * hidden default — so legacy escrows transparently work from the same UI.
+ *
+ * `contractId` must come from the escrow row itself (`escrow.contractId`),
+ * NOT from `CONTRACT_PRINCIPAL`. Otherwise a refund on a legacy v6 escrow
+ * would be signed against the v7 contract and fail.
+ *
+ * `createEscrow` is the only helper that should be passed `CONTRACT_PRINCIPAL`
+ * directly — new escrows can only be created on the currently active version.
+ */
+
 /** Fee = amount * platformFeeBps / 10_000. Default platformFeeBps = 50 (0.5%). */
 function estimateFee(amount: number, feeBps = 50): number {
   return Math.floor((amount * feeBps) / 10_000);
 }
 
 export async function createEscrow(params: {
+  contractId: string;
   buyer: string;
   seller: string;
   amount: number;
@@ -27,7 +41,7 @@ export async function createEscrow(params: {
   const totalAmount = params.amount + fee;
   try {
     const response = await request('stx_callContract', {
-      contract: CONTRACT_PRINCIPAL,
+      contract: params.contractId as `${string}.${string}`,
       functionName: 'create-escrow',
       functionArgs: [
         Cl.standardPrincipal(params.seller),
@@ -69,15 +83,21 @@ export async function createEscrow(params: {
   }
 }
 
-export async function releaseEscrow(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+export async function releaseEscrow(
+  contractId: string,
+  escrowId: number,
+  amount: number,
+  feeAmount: number,
+  tokenType: TokenType,
+): Promise<string> {
   const totalOutflow = amount + feeAmount;
   try {
     const response = await request('stx_callContract', {
-      contract: CONTRACT_PRINCIPAL,
+      contract: contractId as `${string}.${string}`,
       functionName: 'release',
       functionArgs: [Cl.uint(escrowId)],
       postConditions: [
-        contractSendPc(totalOutflow, tokenType),
+        contractSendPc(contractId, totalOutflow, tokenType),
       ],
       network: STACKS_NETWORK,
     });
@@ -90,15 +110,21 @@ export async function releaseEscrow(escrowId: number, amount: number, feeAmount:
   }
 }
 
-export async function refundEscrow(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+export async function refundEscrow(
+  contractId: string,
+  escrowId: number,
+  amount: number,
+  feeAmount: number,
+  tokenType: TokenType,
+): Promise<string> {
   const totalRefund = amount + feeAmount;
   try {
     const response = await request('stx_callContract', {
-      contract: CONTRACT_PRINCIPAL,
+      contract: contractId as `${string}.${string}`,
       functionName: 'refund',
       functionArgs: [Cl.uint(escrowId)],
       postConditions: [
-        contractSendPc(totalRefund, tokenType),
+        contractSendPc(contractId, totalRefund, tokenType),
       ],
       network: STACKS_NETWORK,
     });
@@ -111,10 +137,13 @@ export async function refundEscrow(escrowId: number, amount: number, feeAmount: 
   }
 }
 
-export async function disputeEscrow(escrowId: number): Promise<string> {
+export async function disputeEscrow(
+  contractId: string,
+  escrowId: number,
+): Promise<string> {
   try {
     const response = await request('stx_callContract', {
-      contract: CONTRACT_PRINCIPAL,
+      contract: contractId as `${string}.${string}`,
       functionName: 'dispute',
       functionArgs: [Cl.uint(escrowId)],
       network: STACKS_NETWORK,
@@ -128,10 +157,14 @@ export async function disputeEscrow(escrowId: number): Promise<string> {
   }
 }
 
-export async function extendEscrow(escrowId: number, additionalBlocks: number): Promise<string> {
+export async function extendEscrow(
+  contractId: string,
+  escrowId: number,
+  additionalBlocks: number,
+): Promise<string> {
   try {
     const response = await request('stx_callContract', {
-      contract: CONTRACT_PRINCIPAL,
+      contract: contractId as `${string}.${string}`,
       functionName: 'extend-escrow',
       functionArgs: [Cl.uint(escrowId), Cl.uint(additionalBlocks)],
       network: STACKS_NETWORK,
@@ -145,15 +178,21 @@ export async function extendEscrow(escrowId: number, additionalBlocks: number): 
   }
 }
 
-export async function resolveExpiredDispute(escrowId: number, amount: number, feeAmount: number, tokenType: TokenType): Promise<string> {
+export async function resolveExpiredDispute(
+  contractId: string,
+  escrowId: number,
+  amount: number,
+  feeAmount: number,
+  tokenType: TokenType,
+): Promise<string> {
   const totalRefund = amount + feeAmount;
   try {
     const response = await request('stx_callContract', {
-      contract: CONTRACT_PRINCIPAL,
+      contract: contractId as `${string}.${string}`,
       functionName: 'resolve-expired-dispute',
       functionArgs: [Cl.uint(escrowId)],
       postConditions: [
-        contractSendPc(totalRefund, tokenType),
+        contractSendPc(contractId, totalRefund, tokenType),
       ],
       network: STACKS_NETWORK,
     });
@@ -161,6 +200,34 @@ export async function resolveExpiredDispute(escrowId: number, amount: number, fe
     return response.txid;
   } catch (err) {
     const e = categorizeTxError(err, 'recover your funds');
+    toast.error(e.title, { description: e.description });
+    throw err;
+  }
+}
+
+/**
+ * v7+ only: seller signals on-chain that work has been delivered. Moves the
+ * escrow into STATUS_DELIVERED and starts the review window during which the
+ * buyer cannot unilaterally refund without raising a dispute first.
+ *
+ * Older contract versions don't expose `deliver`; callers should gate the
+ * affordance on `escrow.contractId` being a v7+ contract.
+ */
+export async function deliverEscrow(
+  contractId: string,
+  escrowId: number,
+): Promise<string> {
+  try {
+    const response = await request('stx_callContract', {
+      contract: contractId as `${string}.${string}`,
+      functionName: 'deliver',
+      functionArgs: [Cl.uint(escrowId)],
+      network: STACKS_NETWORK,
+    });
+    toast.success('Delivery signal submitted', { description: PENDING_HINT });
+    return response.txid;
+  } catch (err) {
+    const e = categorizeTxError(err, 'signal delivery');
     toast.error(e.title, { description: e.description });
     throw err;
   }
