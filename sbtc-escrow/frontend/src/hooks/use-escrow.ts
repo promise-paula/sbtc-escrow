@@ -132,6 +132,7 @@ export function useUserStats(address: string | null) {
 
 interface SupabaseEscrowRow {
   id: number;
+  contract_id: string;
   buyer: string;
   seller: string;
   amount: number;
@@ -151,6 +152,7 @@ interface SupabaseEscrowRow {
 function mapEscrowRow(row: SupabaseEscrowRow): Escrow {
   return {
     id: row.id,
+    contractId: row.contract_id,
     buyer: row.buyer,
     seller: row.seller,
     amount: row.amount,
