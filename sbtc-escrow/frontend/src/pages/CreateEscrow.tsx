@@ -15,7 +15,7 @@ import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
 import { useUsdEstimate, useUsdValue } from '@/hooks/use-usd-estimate';
-import { MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -122,7 +122,18 @@ export default function CreateEscrow() {
     setTxStatus('pending');
     setTxError(null);
     try {
-      const hash = await createEscrow({ buyer: address, seller: recipient, amount: smallestUnit, description: description.trim(), duration, tokenType, feeBps: cfg.platformFeeBps });
+      // New escrows always target the currently active contract — legacy
+      // contracts are read/act-on only for escrows that already live there.
+      const hash = await createEscrow({
+        contractId: CONTRACT_PRINCIPAL,
+        buyer: address,
+        seller: recipient,
+        amount: smallestUnit,
+        description: description.trim(),
+        duration,
+        tokenType,
+        feeBps: cfg.platformFeeBps,
+      });
       setTxHash(hash);
       setTxStatus('success');
     } catch (err) {
