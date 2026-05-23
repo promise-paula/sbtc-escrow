@@ -238,10 +238,10 @@ export default function EscrowDetail() {
     setLoading(true);
     try {
       switch (action) {
-        case 'release': await releaseEscrow(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
-        case 'refund': await refundEscrow(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
+        case 'release': await releaseEscrow(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
+        case 'refund': await refundEscrow(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
         case 'dispute':
-          await disputeEscrow(escrow.id);
+          await disputeEscrow(escrow.contractId, escrow.id);
           // Save reason off-chain — best-effort, don't block the UX on failure
           if (address && disputeReason) {
             submitDisputeReason.mutate(
@@ -252,7 +252,7 @@ export default function EscrowDetail() {
           setDisputeReason('');
           setDisputeDetails('');
           break;
-        case 'recover': await resolveExpiredDispute(escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
+        case 'recover': await resolveExpiredDispute(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message.toLowerCase() : '';
@@ -987,7 +987,11 @@ export default function EscrowDetail() {
                     </Button>
                   )}
                   {isBuyer && isPending && !isExpired && (
-                    <ExtendEscrowPanel escrowId={escrow.id} currentExpiresAt={escrow.expiresAt} />
+                    <ExtendEscrowPanel
+                      contractId={escrow.contractId}
+                      escrowId={escrow.id}
+                      currentExpiresAt={escrow.expiresAt}
+                    />
                   )}
                   {isPending && !isExpired && (
                     <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
