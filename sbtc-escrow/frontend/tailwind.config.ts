@@ -82,6 +82,7 @@ export default {
         },
         status: {
           pending: "oklch(var(--status-pending) / <alpha-value>)",
+          delivered: "oklch(var(--status-delivered) / <alpha-value>)",
           released: "oklch(var(--status-released) / <alpha-value>)",
           refunded: "oklch(var(--status-refunded) / <alpha-value>)",
           disputed: "oklch(var(--status-disputed) / <alpha-value>)",
