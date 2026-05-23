@@ -1,5 +1,6 @@
 import { useSyncExternalStore, useEffect } from 'react';
 import { getPending, subscribePending, reconcileAgainstIndexed, type PendingEscrow } from '@/lib/pending-escrows';
+import { CONTRACT_PRINCIPAL } from '@/lib/stacks-config';
 import type { Escrow } from '@/lib/types';
 import { EscrowStatus } from '@/lib/types';
 
@@ -55,6 +56,9 @@ function syntheticId(txId: string): number {
 function pendingToEscrow(p: PendingEscrow): Escrow {
   return {
     id: syntheticId(p.txId),
+    // Pending placeholders are always against the currently active contract
+    // — new creates can only target the contract the SDK is configured for.
+    contractId: CONTRACT_PRINCIPAL,
     buyer: p.buyer,
     seller: p.seller,
     amount: p.amount,
