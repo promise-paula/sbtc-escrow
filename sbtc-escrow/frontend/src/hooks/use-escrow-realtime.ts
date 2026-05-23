@@ -39,6 +39,16 @@ export function useEscrowRealtime() {
         queryClient.invalidateQueries({ queryKey: ['platform-stats'] });
         queryClient.invalidateQueries({ queryKey: ['platform-config'] });
       })
+      .on(
+        'postgres_changes',
+        // Chat messages — invalidate without a contract_id filter so future
+        // contract migrations don't accidentally silence the thread when a
+        // user is viewing a legacy escrow's conversation.
+        { event: 'INSERT', schema: 'public', table: 'escrow_messages' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['messages'] });
+        },
+      )
       .subscribe();
 
     return () => {
