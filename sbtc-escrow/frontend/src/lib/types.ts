@@ -14,6 +14,12 @@ export enum TokenType {
 
 export interface Escrow {
   id: number;
+  /**
+   * The contract this escrow lives on, as `deployer.name`. Lets the UI scope
+   * actions / messages to the correct contract version when multiple are
+   * indexed simultaneously (e.g. during a v6 → v7 transition).
+   */
+  contractId: string;
   buyer: string;
   seller: string;
   amount: number; // microSTX or satoshis depending on tokenType
