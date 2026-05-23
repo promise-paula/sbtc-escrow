@@ -10,6 +10,7 @@ import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ExtendEscrowPanelProps {
+  contractId: string;
   escrowId: number;
   currentExpiresAt: number;
 }
@@ -20,7 +21,7 @@ const presets = [
   { label: '+2 Weeks', minutes: 60 * 24 * 14 },
 ];
 
-export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPanelProps) {
+export function ExtendEscrowPanel({ contractId, escrowId, currentExpiresAt }: ExtendEscrowPanelProps) {
   const [open, setOpen] = useState(false);
   const [customBlocks, setCustomBlocks] = useState('');
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(null);
@@ -40,7 +41,7 @@ export function ExtendEscrowPanel({ escrowId, currentExpiresAt }: ExtendEscrowPa
     if (!valid) return;
     setLoading(true);
     try {
-      await extendEscrow(escrowId, blocks);
+      await extendEscrow(contractId, escrowId, blocks);
       toast.success('Deadline extended', { description: `Added ${blocksToTime(blocks, minutesPerBlock)} to this escrow.` });
       setOpen(false);
     } catch (err) {
