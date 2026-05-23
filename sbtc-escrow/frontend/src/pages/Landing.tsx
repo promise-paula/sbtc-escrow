@@ -84,6 +84,7 @@ const trustItemVariants = {
 
 const STATUS_COLOR: Record<number, string> = {
   [EscrowStatus.Pending]: 'bg-status-pending',
+  [EscrowStatus.Delivered]: 'bg-status-delivered',
   [EscrowStatus.Released]: 'bg-status-released',
   [EscrowStatus.Refunded]: 'bg-status-refunded',
   [EscrowStatus.Disputed]: 'bg-status-disputed',

@@ -3,6 +3,7 @@ import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
 
 const statusClasses: Record<EscrowStatus, string> = {
   [EscrowStatus.Pending]: 'bg-status-pending',
+  [EscrowStatus.Delivered]: 'bg-status-delivered',
   [EscrowStatus.Released]: 'bg-status-released',
   [EscrowStatus.Refunded]: 'bg-status-refunded',
   [EscrowStatus.Disputed]: 'bg-status-disputed',

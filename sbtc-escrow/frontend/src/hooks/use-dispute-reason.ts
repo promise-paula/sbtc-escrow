@@ -23,15 +23,16 @@ export interface DisputeReason {
   createdAt: string;
 }
 
-export function useDisputeReason(escrowId: number) {
+export function useDisputeReason(escrowId: number, contractId?: string) {
+  const scopedContract = contractId ?? CONTRACT_PRINCIPAL;
   return useQuery({
-    queryKey: ['dispute-reason', CONTRACT_PRINCIPAL, escrowId],
+    queryKey: ['dispute-reason', scopedContract, escrowId],
     queryFn: async (): Promise<DisputeReason | null> => {
       if (!isSupabaseConfigured) return null;
       const { data, error } = await supabase
         .from('dispute_reasons')
         .select('id, escrow_id, reason_category, details, submitted_by, created_at')
-        .eq('contract_id', CONTRACT_PRINCIPAL)
+        .eq('contract_id', scopedContract)
         .eq('escrow_id', escrowId)
         .order('created_at', { ascending: false })
         .limit(1)

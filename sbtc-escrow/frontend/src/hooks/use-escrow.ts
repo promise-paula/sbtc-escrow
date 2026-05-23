@@ -30,33 +30,59 @@ export function useEscrows(address: string | null) {
   });
 }
 
+/**
+ * Look up a single escrow by ID. Prefers the active contract version; falls
+ * back to any contract version if no match (so links to legacy v6 escrows
+ * still resolve after a v7 cutover). The returned row carries its own
+ * `contractId` so consumers can route subsequent reads / actions correctly.
+ */
 export function useEscrow(id: number) {
   return useQuery({
-    queryKey: ['escrow', CONTRACT_PRINCIPAL, id],
+    queryKey: ['escrow', id],
     queryFn: async (): Promise<Escrow | null> => {
       if (!isSupabaseConfigured) return null;
-      const { data, error } = await supabase
+      // 1) Active contract preferred (the common case).
+      const active = await supabase
         .from('escrows')
         .select('*')
         .eq('contract_id', CONTRACT_PRINCIPAL)
         .eq('id', id)
-        .single();
-      if (error || !data) return null;
-      return mapEscrowRow(data);
+        .maybeSingle();
+      if (active.data) return mapEscrowRow(active.data);
+
+      // 2) Fallback: legacy contract version. Sort descending so if multiple
+      //    historical contracts share the same id, the newer one wins.
+      const fallback = await supabase
+        .from('escrows')
+        .select('*')
+        .eq('id', id)
+        .order('contract_id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return fallback.data ? mapEscrowRow(fallback.data) : null;
     },
     enabled: !!id,
   });
 }
 
-export function useEscrowEvents(escrowId?: number) {
+/**
+ * Fetch events for an escrow (or the global feed when no escrowId is passed).
+ *
+ * Pass `contractId` to scope to a specific contract version — useful when the
+ * caller is on the detail page of a legacy escrow and wants that escrow's
+ * history. Omit it for the global activity feed, which stays scoped to the
+ * currently active contract (so day-to-day users don't see legacy noise).
+ */
+export function useEscrowEvents(escrowId?: number, contractId?: string) {
+  const scopedContract = contractId ?? CONTRACT_PRINCIPAL;
   return useQuery({
-    queryKey: ['events', CONTRACT_PRINCIPAL, escrowId],
+    queryKey: ['events', scopedContract, escrowId],
     queryFn: async (): Promise<EscrowEvent[]> => {
       if (!isSupabaseConfigured) return [];
       let query = supabase
         .from('escrow_events')
         .select('*')
-        .eq('contract_id', CONTRACT_PRINCIPAL)
+        .eq('contract_id', scopedContract)
         .order('block_height', { ascending: false });
       if (escrowId) {
         query = query.eq('escrow_id', escrowId);

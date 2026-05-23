@@ -4,7 +4,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useEscrow, useEscrowEvents } from '@/hooks/use-escrow';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -65,7 +65,15 @@ export default function EscrowDetail() {
   const escrowId = id && /^\d+$/.test(id) ? parseInt(id, 10) : NaN;
   const { data: escrow, isLoading, isError: escrowError } = useEscrow(isNaN(escrowId) ? 0 : escrowId);
   const { data: config, isError: configError } = usePlatformConfig();
-  const { data: escrowEvents = [] } = useEscrowEvents(isNaN(escrowId) ? 0 : escrowId);
+  // Pass the escrow's own contract_id so legacy escrows show their events.
+  // `escrow` is undefined on first render — hooks fall back to the active
+  // contract for that pass, then re-fire once the escrow loads with its real
+  // contract_id (React Query handles this cleanly via the queryKey).
+  const escrowContractId = escrow?.contractId;
+  const { data: escrowEvents = [] } = useEscrowEvents(
+    isNaN(escrowId) ? 0 : escrowId,
+    escrowContractId,
+  );
   const { data: currentBlock = 0 } = useBlockHeight();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
@@ -79,10 +87,16 @@ export default function EscrowDetail() {
   const [savingFor, setSavingFor] = useState<'buyer' | 'seller' | null>(null);
   const [contactName, setContactName] = useState('');
   const [deliveryMessage, setDeliveryMessage] = useState('');
-  const { data: deliveries = [] } = useDeliveries(isNaN(escrowId) ? 0 : escrowId);
+  const { data: deliveries = [] } = useDeliveries(
+    isNaN(escrowId) ? 0 : escrowId,
+    escrowContractId,
+  );
   const markDelivered = useMarkDelivered();
   const submitDisputeReason = useSubmitDisputeReason();
-  const { data: existingDisputeReason } = useDisputeReason(isNaN(escrowId) ? 0 : escrowId);
+  const { data: existingDisputeReason } = useDisputeReason(
+    isNaN(escrowId) ? 0 : escrowId,
+    escrowContractId,
+  );
   const [disputeReason, setDisputeReason] = useState<DisputeReasonCategory | ''>('');
   const [disputeDetails, setDisputeDetails] = useState('');
   // Message thread between buyer and seller (independent of the on-chain
@@ -176,7 +190,18 @@ export default function EscrowDetail() {
     ? (currentBlock - escrow.disputedAt) >= disputeTimeout
     : false;
 
-  const hasActions = (
+  // True when this escrow lives on a contract version other than the one the
+  // SDK / wallet is configured for. We can still READ its state, but every
+  // write helper in escrow-service.ts dispatches to CONTRACT_PRINCIPAL, so
+  // signing a release/refund/dispute here would target the wrong contract
+  // and fail. Disable actions and surface a clear banner instead.
+  const isLegacyContract =
+    !!escrow.contractId && escrow.contractId !== CONTRACT_PRINCIPAL;
+  const legacyContractName = isLegacyContract
+    ? escrow.contractId.split('.')[1] ?? escrow.contractId
+    : null;
+
+  const hasActions = !isLegacyContract && (
     (isBuyer && (isPending || isExpired) && !isDisputed) ||
     (isBuyer && isPending && !isExpired) ||
     (isPending && !isExpired) ||
@@ -322,6 +347,35 @@ export default function EscrowDetail() {
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-center gap-2 text-sm text-warning">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           Contract is paused — actions are temporarily disabled.
+        </div>
+      )}
+
+      {isLegacyContract && (
+        <div className="rounded-lg border border-muted bg-muted/30 p-3 flex items-start gap-2 text-sm">
+          <Info className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+          <div className="space-y-1 flex-1">
+            <p className="font-medium text-foreground">
+              Legacy contract — view only
+            </p>
+            <p className="text-xs text-muted-foreground">
+              This escrow lives on <span className="font-mono">{legacyContractName}</span>,
+              an older contract version. Reading state is fine, but in-app actions
+              (release, refund, dispute) are disabled because the app's wallet
+              flow targets the current contract. Resolve on-chain via the explorer
+              if needed.
+            </p>
+            <a
+              // Hiro Explorer resolves a fully-qualified contract id under the
+              // /txid/ path, same way the README links do.
+              href={getExplorerUrl('tx', escrow.contractId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              View contract on explorer
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
         </div>
       )}
 

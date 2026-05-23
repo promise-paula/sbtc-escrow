@@ -44,6 +44,7 @@
     --warning-foreground: 30% 0.05 75;
 
     --status-pending: 62% 0.16 75;
+    --status-delivered: 65% 0.15 215;
     --status-released: 62% 0.17 155;
     --status-refunded: 55% 0.2 285;
     --status-disputed: 55% 0.22 27;
@@ -120,6 +121,7 @@
     --warning-foreground: 16% 0.02 75;
 
     --status-pending: 68% 0.14 75;
+    --status-delivered: 60% 0.13 215;
     --status-released: 55% 0.14 155;
     --status-refunded: 65% 0.18 285;
     --status-disputed: 50% 0.18 27;

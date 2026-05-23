@@ -11,15 +11,16 @@ export interface Delivery {
   createdAt: string; // ISO
 }
 
-export function useDeliveries(escrowId: number) {
+export function useDeliveries(escrowId: number, contractId?: string) {
+  const scopedContract = contractId ?? CONTRACT_PRINCIPAL;
   return useQuery({
-    queryKey: ['deliveries', CONTRACT_PRINCIPAL, escrowId],
+    queryKey: ['deliveries', scopedContract, escrowId],
     queryFn: async (): Promise<Delivery[]> => {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('deliveries')
         .select('id, escrow_id, seller_address, buyer_address, message, created_at')
-        .eq('contract_id', CONTRACT_PRINCIPAL)
+        .eq('contract_id', scopedContract)
         .eq('escrow_id', escrowId)
         .order('created_at', { ascending: true });
       if (error) throw error;
