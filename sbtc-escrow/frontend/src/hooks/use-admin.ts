@@ -38,22 +38,26 @@ const DEFAULT_CONFIG: PlatformConfig = {
 
 export function usePlatformStats() {
   return useQuery({
-    queryKey: ['platform-stats', CONTRACT_PRINCIPAL],
+    // Intentionally NOT scoped by contract_id: admin platform stats must reflect
+    // the cumulative state across every contract version we've ever deployed,
+    // so cutting over from v6 → v7 doesn't make the dashboard look like the
+    // platform shrank to zero. User-facing views still scope to the active
+    // contract; only the admin aggregation is cross-version.
+    queryKey: ['platform-stats'],
     queryFn: async (): Promise<PlatformStats> => {
       if (!isSupabaseConfigured) return EMPTY_STATS;
       const { data, error } = await supabase
         .from('escrows')
-        .select('amount, fee_amount, status, token_type')
-        .eq('contract_id', CONTRACT_PRINCIPAL);
+        .select('amount, fee_amount, status, token_type');
       if (error || !data?.length) return EMPTY_STATS;
       const stx = data.filter(r => (r.token_type ?? 0) === 0);
       const sbtc = data.filter(r => (r.token_type ?? 0) === 1);
 
-      // Count resolved disputes from events table (any final dispute resolution)
+      // Count resolved disputes from events table (any final dispute resolution),
+      // cross-version for the same reason as above.
       const { count: resolvedDisputes } = await supabase
         .from('escrow_events')
         .select('*', { count: 'exact', head: true })
-        .eq('contract_id', CONTRACT_PRINCIPAL)
         .in('event_type', [
           'dispute-resolved-for-buyer',
           'dispute-resolved-for-seller',
@@ -130,6 +134,7 @@ export function useDisputedEscrows() {
 
       return data.map((row) => ({
         id: row.id,
+        contractId: row.contract_id,
         buyer: row.buyer,
         seller: row.seller,
         amount: row.amount,
@@ -151,19 +156,22 @@ export function useDisputedEscrows() {
 
 export function useResolvedDisputes() {
   return useQuery({
-    queryKey: ['resolved-disputes', CONTRACT_PRINCIPAL],
+    // Cross-version: admin needs the full historical record of resolved
+    // disputes, including ones from contract versions that are no longer
+    // the active default.
+    queryKey: ['resolved-disputes'],
     queryFn: async (): Promise<Escrow[]> => {
       if (!isSupabaseConfigured) return [];
       const { data, error } = await supabase
         .from('escrows')
         .select('*')
-        .eq('contract_id', CONTRACT_PRINCIPAL)
         .not('disputed_at_block', 'is', null)
         .in('status', [EscrowStatus.Released, EscrowStatus.Refunded])
         .order('completed_at_block', { ascending: false });
       if (error || !data?.length) return [];
       return data.map((row) => ({
         id: row.id,
+        contractId: row.contract_id,
         buyer: row.buyer,
         seller: row.seller,
         amount: row.amount,
