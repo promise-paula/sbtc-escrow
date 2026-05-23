@@ -356,14 +356,14 @@ export default function EscrowDetail() {
           <Info className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
           <div className="space-y-1 flex-1">
             <p className="font-medium text-foreground">
-              Legacy contract — view only
+              Acting on legacy contract
             </p>
             <p className="text-xs text-muted-foreground">
               This escrow lives on <span className="font-mono">{legacyContractName}</span>,
-              an older contract version. Reading state is fine, but in-app actions
-              (release, refund, dispute) are disabled because the app's wallet
-              flow targets the current contract. Resolve on-chain via the explorer
-              if needed.
+              an older contract version. Any actions on this page (release,
+              refund, dispute) are signed against <span className="font-mono">{legacyContractName}</span> directly,
+              not the currently active contract. Funds remain governed by the
+              contract this escrow was created under.
             </p>
             <a
               // Hiro Explorer resolves a fully-qualified contract id under the
