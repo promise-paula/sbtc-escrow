@@ -4,7 +4,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useEscrow, useEscrowEvents } from '@/hooks/use-escrow';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -18,7 +18,7 @@ import { RestrictedEscrowView } from '@/components/shared/RestrictedEscrowView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute } from '@/lib/escrow-service';
+import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute, deliverEscrow } from '@/lib/escrow-service';
 import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
@@ -284,7 +284,19 @@ export default function EscrowDetail() {
   };
 
   const handleMarkDelivered = async () => {
+    const hasOnChainDelivery = supportsOnChainDelivery(escrow.contractId);
     try {
+      // v7+: trigger the on-chain delivery signal first. This is what actually
+      // protects the seller from the Golden Rule attack — it flips the escrow
+      // into STATUS_DELIVERED and starts the review window. The off-chain
+      // message is just the human-readable context attached to that event.
+      //
+      // Legacy contracts (v6 / escrow-mainnet) don't expose `deliver()`, so we
+      // fall through to the off-chain marker only — same behavior as before.
+      if (hasOnChainDelivery) {
+        await deliverEscrow(escrow.contractId, escrow.id);
+      }
+
       await markDelivered.mutateAsync({
         contractId: escrow.contractId,
         escrowId: escrow.id,
@@ -293,10 +305,22 @@ export default function EscrowDetail() {
         message: deliveryMessage,
       });
       setDeliveryMessage('');
-      toast.success('Marked as delivered', {
-        description: 'The buyer has been notified and can now review and release payment.',
-      });
-    } catch {
+      toast.success(
+        hasOnChainDelivery ? 'Delivery signaled on-chain' : 'Marked as delivered',
+        {
+          description: hasOnChainDelivery
+            ? 'Review window started. Funds stay locked until the buyer releases or you raise a dispute.'
+            : 'The buyer has been notified and can now review and release payment.',
+        },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied')) {
+        toast.error('Cancelled', {
+          description: 'You declined the wallet prompt — no on-chain or off-chain change was made.',
+        });
+        return;
+      }
       toast.error('Failed to send delivery signal', {
         description: 'Please try again.',
       });
