@@ -197,11 +197,23 @@ export function WalletAuthProvider({ children }: { children: React.ReactNode }) 
       }
 
       // 2. Exchange signature for a Supabase JWT via the edge function.
+      // Even though the function itself is deployed with verify_jwt=false,
+      // Supabase's API gateway still requires an `apikey` header to identify
+      // the project — without it every request short-circuits with a 401.
+      // The anon key is safe to expose in a browser bundle (it's already
+      // public via the Supabase client config).
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-      if (!supabaseUrl) throw new Error('VITE_SUPABASE_URL not configured');
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+      if (!supabaseUrl || !anonKey) {
+        throw new Error('VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY not configured');
+      }
       const res = await fetch(`${supabaseUrl}/functions/v1/wallet-auth`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+        },
         body: JSON.stringify({ address, message, signature, publicKey }),
       });
       const body = (await res.json().catch(() => ({}))) as
