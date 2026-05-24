@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { request } from '@stacks/connect';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { STACKS_NETWORK } from '@/lib/stacks-config';
 import { useWallet } from '@/contexts/WalletContext';
 
@@ -106,24 +106,20 @@ function buildChallenge(walletAddress: string): { message: string; nonce: string
   return { message, nonce };
 }
 
-async function applySupabaseSession(accessToken: string): Promise<void> {
-  if (!isSupabaseConfigured) return;
-  // Setting an empty refresh_token disables Supabase's auto-refresh — fine
-  // because we re-sign on expiry rather than relying on token refresh.
-  const { error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: '',
-  });
-  if (error) {
-    // Don't throw — the JWT might still work for direct fetch even if
-    // setSession failed. Surface for debugging.
-    console.warn('[wallet-auth] supabase.auth.setSession warning:', error.message);
-  }
+// Auth state is propagated to Supabase via the localStorage-reading fetch
+// wrapper in `lib/supabase.ts` — we deliberately don't use
+// `supabase.auth.setSession()` because supabase-js v2 silently rejects
+// sessions without a refresh_token (and we don't issue refresh tokens —
+// short-lived JWTs that are re-signed on expiry instead).
+//
+// The functions below are kept as no-ops so the rest of the component
+// doesn't need to know about that detail.
+async function applySupabaseSession(_accessToken: string): Promise<void> {
+  // intentional no-op: see file-level comment
 }
 
 async function clearSupabaseSession(): Promise<void> {
-  if (!isSupabaseConfigured) return;
-  await supabase.auth.signOut({ scope: 'local' });
+  // intentional no-op: localStorage gets cleared by persistSession(null)
 }
 
 export function WalletAuthProvider({ children }: { children: React.ReactNode }) {
