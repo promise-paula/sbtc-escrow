@@ -39,6 +39,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { PackageCheck } from 'lucide-react';
 import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
+import { usePendingAction, useReconcilePendingAction } from '@/hooks/use-pending-actions';
+import { setPendingAction, ACTION_LABEL, type ActionType } from '@/lib/pending-actions';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useDisputeReason,
@@ -107,6 +109,13 @@ export default function EscrowDetail() {
   );
   const sendMessage = useSendMessage();
   const [draftMessage, setDraftMessage] = useState('');
+
+  // Optimistic action overlay: shows "Releasing…" / "Refunding…" / etc. as
+  // soon as the wallet returns a txid, before the chainhook indexes the
+  // resulting on-chain event. Reconciles automatically when the indexed
+  // status matches the action's expected outcome.
+  const pendingAction = usePendingAction(escrow?.contractId, isNaN(escrowId) ? 0 : escrowId);
+  useReconcilePendingAction(escrow?.contractId, escrow?.id ?? 0, escrow?.status);
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
   const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
@@ -201,7 +210,10 @@ export default function EscrowDetail() {
     ? escrow.contractId.split('.')[1] ?? escrow.contractId
     : null;
 
-  const hasActions = (
+  // When an optimistic action is in flight, hide the action UI entirely —
+  // we don't want users double-submitting Release / Refund / etc. while the
+  // chain catches up. The pending banner shows what's in progress instead.
+  const hasActions = !pendingAction && (
     (isBuyer && (isPending || isExpired) && !isDisputed) ||
     (isBuyer && isPending && !isExpired) ||
     (isPending && !isExpired) ||
@@ -237,11 +249,25 @@ export default function EscrowDetail() {
   const handleAction = async (action: string) => {
     setLoading(true);
     try {
+      // Each action helper returns the wallet's txid. We capture it so we
+      // can record an optimistic "pending action" overlay for the escrow,
+      // which surfaces a "Releasing…" / "Refunding…" / etc. banner until
+      // the indexer catches up (typically 30s–3min). Without this the UI
+      // looks frozen for the full chain-confirmation window.
+      let txId: string | null = null;
+      let actionType: ActionType | null = null;
       switch (action) {
-        case 'release': await releaseEscrow(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
-        case 'refund': await refundEscrow(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
+        case 'release':
+          txId = await releaseEscrow(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType);
+          actionType = 'release';
+          break;
+        case 'refund':
+          txId = await refundEscrow(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType);
+          actionType = 'refund';
+          break;
         case 'dispute':
-          await disputeEscrow(escrow.contractId, escrow.id);
+          txId = await disputeEscrow(escrow.contractId, escrow.id);
+          actionType = 'dispute';
           // Save reason off-chain — best-effort, don't block the UX on failure
           if (address && disputeReason) {
             submitDisputeReason.mutate(
@@ -252,7 +278,20 @@ export default function EscrowDetail() {
           setDisputeReason('');
           setDisputeDetails('');
           break;
-        case 'recover': await resolveExpiredDispute(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType); break;
+        case 'recover':
+          txId = await resolveExpiredDispute(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType);
+          actionType = 'resolve-expired';
+          break;
+      }
+
+      if (txId && actionType) {
+        setPendingAction({
+          contractId: escrow.contractId,
+          escrowId: escrow.id,
+          type: actionType,
+          txId,
+          submittedAt: new Date().toISOString(),
+        });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message.toLowerCase() : '';
@@ -294,7 +333,16 @@ export default function EscrowDetail() {
       // Legacy contracts (v6 / escrow-mainnet) don't expose `deliver()`, so we
       // fall through to the off-chain marker only — same behavior as before.
       if (hasOnChainDelivery) {
-        await deliverEscrow(escrow.contractId, escrow.id);
+        const txId = await deliverEscrow(escrow.contractId, escrow.id);
+        // Optimistic overlay so the UI doesn't look frozen during chain
+        // confirmation; reconciled when the indexed status becomes DELIVERED.
+        setPendingAction({
+          contractId: escrow.contractId,
+          escrowId: escrow.id,
+          type: 'deliver',
+          txId,
+          submittedAt: new Date().toISOString(),
+        });
       }
 
       await markDelivered.mutateAsync({
@@ -398,6 +446,33 @@ export default function EscrowDetail() {
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               View contract on explorer
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {pendingAction && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-2 text-sm">
+          <span className="relative flex h-2 w-2 mt-1.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+          </span>
+          <div className="space-y-1 flex-1 min-w-0">
+            <p className="font-medium text-foreground">
+              {ACTION_LABEL[pendingAction.type]}…
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Your transaction is confirming on Stacks. This usually takes 30s–3min. The
+              status will update automatically once the chain confirms — no need to refresh.
+            </p>
+            <a
+              href={getExplorerUrl('tx', pendingAction.txId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono"
+            >
+              {pendingAction.txId.slice(0, 10)}…{pendingAction.txId.slice(-6)}
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
