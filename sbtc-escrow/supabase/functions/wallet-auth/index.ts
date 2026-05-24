@@ -34,27 +34,36 @@ import { hexToBytes, bytesToHex } from "https://esm.sh/@noble/hashes@1.4.0/utils
 import { c32address } from "https://esm.sh/c32check@2.0.0";
 import { create as signJwt, getNumericDate } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
 
-// Stacks signed-message prefix (per the wire format used by `stx_signMessage`).
-const STACKS_MESSAGE_PREFIX = "\x18Stacks Signed Message:\n";
+// Stacks signed-message prefix. The leading byte is the LENGTH of the string
+// that follows: "Stacks Signed Message:\n" is 23 chars, so `\x17`. Getting
+// this wrong (e.g. `\x18`) silently breaks signature verification because the
+// produced hash diverges from what every Stacks wallet uses.
+const STACKS_MESSAGE_PREFIX = "\x17Stacks Signed Message:\n";
 
-/** Encodes an integer as Stacks Clarity-compatible Varint (big-endian, 1/2/4/8 bytes). */
+/**
+ * Stacks varuint length encoding — Bitcoin-style varint with LITTLE-ENDIAN
+ * multi-byte values. Matches `@stacks/encryption/varuint` exactly.
+ */
 function encodeStacksVarint(value: number): Uint8Array {
   if (value < 0xfd) return new Uint8Array([value]);
   if (value <= 0xffff) {
     const buf = new Uint8Array(3);
     buf[0] = 0xfd;
-    new DataView(buf.buffer).setUint16(1, value, false);
+    new DataView(buf.buffer).setUint16(1, value, true); // little-endian
     return buf;
   }
   if (value <= 0xffffffff) {
     const buf = new Uint8Array(5);
     buf[0] = 0xfe;
-    new DataView(buf.buffer).setUint32(1, value, false);
+    new DataView(buf.buffer).setUint32(1, value, true); // little-endian
     return buf;
   }
+  // Larger sizes (> 4GB) are unrealistic for signed messages.
   const buf = new Uint8Array(9);
   buf[0] = 0xff;
-  new DataView(buf.buffer).setBigUint64(1, BigInt(value), false);
+  // Stacks writes hi/lo as two little-endian uint32s in low-then-high order.
+  new DataView(buf.buffer).setUint32(1, value >>> 0, true);
+  new DataView(buf.buffer).setUint32(5, Math.floor(value / 0x1_0000_0000), true);
   return buf;
 }
 
