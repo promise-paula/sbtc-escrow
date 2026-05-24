@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { request } from '@stacks/connect';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { STACKS_NETWORK } from '@/lib/stacks-config';
@@ -127,9 +128,24 @@ async function clearSupabaseSession(): Promise<void> {
 
 export function WalletAuthProvider({ children }: { children: React.ReactNode }) {
   const { address } = useWallet();
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<AuthSession | null>(() => readPersistedSession());
   const [isSigningIn, setIsSigningIn] = useState(false);
   const appliedRef = useRef<string | null>(null);
+
+  /**
+   * Invalidate any query that depends on auth-gated tables (messages,
+   * deliveries, dispute_reasons). Called whenever the auth state flips so
+   * React Query refetches with the right credentials — otherwise the UI
+   * keeps showing pre-auth empty results until something else triggers a
+   * refetch.
+   */
+  const invalidateAuthScopedQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['messages'] });
+    queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+    queryClient.invalidateQueries({ queryKey: ['dispute-reason'] });
+    queryClient.invalidateQueries({ queryKey: ['dispute-reasons'] });
+  }, [queryClient]);
 
   // Apply persisted session to the Supabase client on mount + whenever the
   // session changes. Idempotent — guarded by appliedRef so a stable session
@@ -144,8 +160,8 @@ export function WalletAuthProvider({ children }: { children: React.ReactNode }) 
     }
     if (appliedRef.current === session.accessToken) return;
     appliedRef.current = session.accessToken;
-    applySupabaseSession(session.accessToken);
-  }, [session]);
+    applySupabaseSession(session.accessToken).then(() => invalidateAuthScopedQueries());
+  }, [session, invalidateAuthScopedQueries]);
 
   // If the connected wallet changes (user switches accounts), invalidate the
   // session — the previous JWT was for a different address.
@@ -254,7 +270,8 @@ export function WalletAuthProvider({ children }: { children: React.ReactNode }) 
   const signOut = useCallback(() => {
     setSession(null);
     persistSession(null);
-  }, []);
+    invalidateAuthScopedQueries();
+  }, [invalidateAuthScopedQueries]);
 
   const value: WalletAuthContextType = {
     authedAddress: session?.walletAddress ?? null,
