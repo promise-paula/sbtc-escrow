@@ -29,7 +29,7 @@ import { cardVariants, listItemVariants, pageVariants, slideDown } from '@/lib/m
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Shield,
   Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download,
-  BookUser, Plus, ExternalLink, Bell, MessageSquare, Send
+  BookUser, Plus, ExternalLink, Bell, MessageSquare, Send, LogIn
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PackageCheck } from 'lucide-react';
 import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
+import { useWalletAuth } from '@/contexts/WalletAuthContext';
 import { usePendingAction, useReconcilePendingAction } from '@/hooks/use-pending-actions';
 import { setPendingAction, ACTION_LABEL, type ActionType } from '@/lib/pending-actions';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -109,6 +110,7 @@ export default function EscrowDetail() {
   );
   const sendMessage = useSendMessage();
   const [draftMessage, setDraftMessage] = useState('');
+  const { isAuthenticated, isSigningIn, signIn } = useWalletAuth();
 
   // Optimistic action overlay: shows "Releasing…" / "Refunding…" / etc. as
   // soon as the wallet returns a txid, before the chainhook indexes the
@@ -802,32 +804,63 @@ export default function EscrowDetail() {
                   })}
                 </div>
               )}
-              <div className="flex items-end gap-2 pt-1">
-                <Textarea
-                  placeholder={`Message the ${isBuyer ? 'seller' : 'buyer'}…`}
-                  value={draftMessage}
-                  onChange={(e) => setDraftMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Cmd/Ctrl + Enter to send
-                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  maxLength={2000}
-                  rows={2}
-                  className="text-sm resize-none flex-1"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSendMessage}
-                  disabled={sendMessage.isPending || !draftMessage.trim()}
-                  className="gap-1.5 shrink-0"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  {sendMessage.isPending ? 'Sending…' : 'Send'}
-                </Button>
-              </div>
+              {/* Posting requires a signed-in session — RLS on
+                  `escrow_messages` will check the wallet_address claim once
+                  tightened. Until the user signs in, surface a clear "Sign in"
+                  prompt instead of the input. Reading existing messages is
+                  always allowed (anon SELECT). */}
+              {isAuthenticated ? (
+                <div className="flex items-end gap-2 pt-1">
+                  <Textarea
+                    placeholder={`Message the ${isBuyer ? 'seller' : 'buyer'}…`}
+                    value={draftMessage}
+                    onChange={(e) => setDraftMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    maxLength={2000}
+                    rows={2}
+                    className="text-sm resize-none flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSendMessage}
+                    disabled={sendMessage.isPending || !draftMessage.trim()}
+                    className="gap-1.5 shrink-0"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {sendMessage.isPending ? 'Sending…' : 'Send'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <LogIn className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="text-xs font-medium text-foreground">
+                        Sign in with your wallet to post messages
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        One-time signature — proves you own this wallet and
+                        unlocks private messaging for your escrows. No gas, no
+                        on-chain tx.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => signIn()}
+                    disabled={isSigningIn}
+                    className="gap-1.5 shrink-0"
+                  >
+                    <LogIn className="h-3.5 w-3.5" />
+                    {isSigningIn ? 'Signing…' : 'Sign in'}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
