@@ -195,6 +195,14 @@ export default function EscrowDetail() {
   }
 
   const isPending = escrow.status === EscrowStatus.Pending;
+  const isDelivered = escrow.status === EscrowStatus.Delivered;
+  // "Active" = the escrow is in-flight on-chain (funds still locked, parties
+  // can still act). v7 adds DELIVERED as a second in-flight state: the seller
+  // has signaled delivery, the review window is running, but the buyer hasn't
+  // released or disputed yet. All buttons that gated on `isPending` should
+  // really gate on `isActive` — otherwise the action card vanishes the
+  // moment the seller marks delivered.
+  const isActive = isPending || isDelivered;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
   const isExpired = escrow.expiresAt <= currentBlock;
   const disputeTimedOut = isDisputed && escrow.disputedAt
@@ -216,13 +224,13 @@ export default function EscrowDetail() {
   // we don't want users double-submitting Release / Refund / etc. while the
   // chain catches up. The pending banner shows what's in progress instead.
   const hasActions = !pendingAction && (
-    (isBuyer && (isPending || isExpired) && !isDisputed) ||
-    (isBuyer && isPending && !isExpired) ||
-    (isPending && !isExpired) ||
-    (isSeller && isPending) ||
-    (isBuyer && isPending && isExpired) ||
+    (isBuyer && (isActive || isExpired) && !isDisputed) ||
+    (isBuyer && isActive && !isExpired) ||
+    (isActive && !isExpired) ||
+    (isSeller && isActive) ||
+    (isBuyer && isActive && isExpired) ||
     (isBuyer && disputeTimedOut) ||
-    (isSeller && isPending && isExpired)
+    (isSeller && isActive && isExpired)
   );
 
   const sortedEvents = [...escrowEvents].sort((a, b) => b.blockHeight - a.blockHeight);
@@ -529,7 +537,7 @@ export default function EscrowDetail() {
                   <span className="text-xs text-muted-foreground">{blockToHumanTime(txBlock)}</span>
                 );
               })()}
-              {isExpired && isPending && (
+              {isExpired && isActive && (
                 <Badge variant="destructive" className="text-xs">Expired</Badge>
               )}
               {isBuyer && (
@@ -542,7 +550,7 @@ export default function EscrowDetail() {
                   <Shield className="h-3 w-3" /> You: Seller
                 </Badge>
               )}
-              {isPending && !isExpired && blocksToExpiry > 0 && (
+              {isActive && !isExpired && blocksToExpiry > 0 && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {formatCountdown(remainingSeconds)} remaining
@@ -675,8 +683,10 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
-      {/* Delivery Card — visible to seller (mark as done) and buyer (view signals or enable notifs) */}
-      {isSupabaseConfigured && isPending && (isSeller || isBuyer) && (isSeller || deliveries.length > 0 || notifPerm === 'default') && (
+      {/* Delivery Card — visible to seller (mark as done) and buyer (view signals or enable notifs).
+          Stays visible after delivery so the recorded delivery message is still readable;
+          the "Mark as Delivered" CTA inside hides itself once already delivered. */}
+      {isSupabaseConfigured && isActive && (isSeller || isBuyer) && (isSeller || deliveries.length > 0 || notifPerm === 'default') && (
         <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
           <Card className="border-l-4 border-l-primary/40">
             <CardHeader className="pb-3">
@@ -701,7 +711,10 @@ export default function EscrowDetail() {
                   ))}
                 </div>
               )}
-              {isSeller && (
+              {/* Mark-as-Delivered CTA — only available before the seller has
+                  signaled delivery. Once status flips to DELIVERED (v7+), the
+                  signal already lives on-chain and re-pressing would be a no-op. */}
+              {isSeller && isPending && (
                 <div className="space-y-2">
                   {deliveries.length === 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -725,6 +738,21 @@ export default function EscrowDetail() {
                     <PackageCheck className="h-3.5 w-3.5" />
                     {markDelivered.isPending ? 'Sending…' : 'Mark as Delivered'}
                   </Button>
+                </div>
+              )}
+              {/* Post-delivery state — confirm the on-chain signal landed and
+                  surface what the buyer should do next. */}
+              {isDelivered && (
+                <div className="rounded-md bg-status-delivered/10 border border-status-delivered/20 px-3 py-2 text-xs">
+                  <p className="font-medium text-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-status-delivered" />
+                    Delivery signaled on-chain
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    {isBuyer
+                      ? 'The seller has marked this delivered. Review and release the payment, or raise a dispute if something is wrong.'
+                      : 'Waiting for the buyer to release. If they go silent, you can raise a dispute to involve the arbiter.'}
+                  </p>
                 </div>
               )}
               {/* Contextual notification nudge — buyer only, only when permission hasn't been asked */}
@@ -996,7 +1024,7 @@ export default function EscrowDetail() {
       </motion.div>
 
       {/* Actions */}
-      {isParty && (isPending || isDisputed) && !isPaused && (hasActions || confirmAction) && (
+      {isParty && (isActive || isDisputed) && !isPaused && (hasActions || confirmAction) && (
         <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader className="pb-3">
@@ -1114,11 +1142,13 @@ export default function EscrowDetail() {
 
               {!confirmAction && (
                 <div className="flex flex-wrap gap-2">
-                  {isBuyer && (isPending || isExpired) && !isDisputed && (
+                  {isBuyer && (isActive || isExpired) && !isDisputed && (
                     <Button size="sm" onClick={() => setConfirmAction('release')} className="gap-1.5">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Release Payment
                     </Button>
                   )}
+                  {/* Extend only makes sense before delivery — once delivered,
+                      the escrow is on a different timeline (review window). */}
                   {isBuyer && isPending && !isExpired && (
                     <ExtendEscrowPanel
                       contractId={escrow.contractId}
@@ -1126,22 +1156,22 @@ export default function EscrowDetail() {
                       currentExpiresAt={escrow.expiresAt}
                     />
                   )}
-                  {isPending && !isExpired && (
+                  {isActive && !isExpired && (
                     <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
                       <AlertTriangle className="h-3.5 w-3.5" /> Dispute
                     </Button>
                   )}
-                  {isSeller && isPending && isExpired && (
+                  {isSeller && isActive && isExpired && (
                     <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
                       <AlertTriangle className="h-3.5 w-3.5" /> Dispute
                     </Button>
                   )}
-                  {isSeller && isPending && (
+                  {isSeller && isActive && (
                     <Button size="sm" variant="outline" onClick={() => setConfirmAction('refund')} className="gap-1.5">
                       <XCircle className="h-3.5 w-3.5" /> Refund Buyer
                     </Button>
                   )}
-                  {isBuyer && isPending && isExpired && (
+                  {isBuyer && isActive && isExpired && (
                     <Button size="sm" variant="outline" onClick={() => setConfirmAction('refund')} className="gap-1.5">
                       <XCircle className="h-3.5 w-3.5" /> Claim Refund
                     </Button>
