@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
-import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -95,10 +95,14 @@ function useRecentEscrows() {
     queryKey: ['landing-recent-escrows'],
     queryFn: async () => {
       if (!isSupabaseConfigured) return [];
+      // Order by created_at_block (global, monotonic block height) instead of
+      // `id` — each contract version has its own id sequence, so ordering by
+      // id alone would hide newer escrows on a fresh contract behind older
+      // ones with higher numeric ids on the legacy contract.
       const { data } = await supabase
         .from('escrows')
-        .select('id, amount, status, token_type')
-        .order('id', { ascending: false })
+        .select('id, contract_id, amount, status, token_type, created_at_block')
+        .order('created_at_block', { ascending: false })
         .limit(4);
       return data ?? [];
     },
@@ -151,18 +155,35 @@ function DashboardPreview() {
         </div>
 
         {/* Rows */}
-        {(rows ?? []).map((r) => (
-          <div key={r.id} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
-            <span className="font-mono text-xs text-foreground">#{r.id}</span>
-            <span className="font-mono text-xs text-foreground truncate">
-              {formatAmount(r.amount, (r.token_type ?? 0) as TokenType)} {(r.token_type ?? 0) === 1 ? 'sBTC' : 'STX'}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
-              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_COLOR[r.status] ?? 'bg-muted-foreground'}`} />
-              {STATUS_LABELS[r.status as EscrowStatus] ?? 'Unknown'}
-            </span>
-          </div>
-        ))}
+        {(rows ?? []).map((r) => {
+          // Use composite key — escrow ids collide across contract versions.
+          const rowKey = `${r.contract_id}/${r.id}`;
+          // Show a small version chip only when this escrow is on a contract
+          // other than the currently active default (i.e. a legacy version).
+          const isLegacy = r.contract_id !== CONTRACT_PRINCIPAL;
+          const legacyVersionLabel = isLegacy
+            ? (r.contract_id?.split('.')[1] ?? '').replace(/^escrow-/, '')
+            : null;
+          return (
+            <div key={rowKey} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
+              <span className="font-mono text-xs text-foreground inline-flex items-center gap-1.5">
+                #{r.id}
+                {legacyVersionLabel && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-normal uppercase tracking-wide text-muted-foreground bg-muted/40">
+                    {legacyVersionLabel}
+                  </span>
+                )}
+              </span>
+              <span className="font-mono text-xs text-foreground truncate">
+                {formatAmount(r.amount, (r.token_type ?? 0) as TokenType)} {(r.token_type ?? 0) === 1 ? 'sBTC' : 'STX'}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
+                <span className={`h-1.5 w-1.5 rounded-full ${STATUS_COLOR[r.status] ?? 'bg-muted-foreground'}`} />
+                {STATUS_LABELS[r.status as EscrowStatus] ?? 'Unknown'}
+              </span>
+            </div>
+          );
+        })}
         {(!rows || rows.length === 0) && (
           <div className="px-4 py-6 text-center text-xs text-muted-foreground">No escrows yet</div>
         )}
