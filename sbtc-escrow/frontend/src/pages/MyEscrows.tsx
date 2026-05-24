@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrows } from '@/hooks/use-escrow';
 import { useMergedEscrows } from '@/hooks/use-pending-escrows';
-import { EscrowStatus, STATUS_LABELS } from '@/lib/types';
+import { usePendingAction } from '@/hooks/use-pending-actions';
+import { ACTION_LABEL } from '@/lib/pending-actions';
+import { Escrow, EscrowStatus, STATUS_LABELS } from '@/lib/types';
 import { getExplorerUrl } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -33,6 +35,65 @@ const STATUS_TABS = [
   { value: String(EscrowStatus.Refunded), label: STATUS_LABELS[EscrowStatus.Refunded] },
   { value: String(EscrowStatus.Disputed), label: STATUS_LABELS[EscrowStatus.Disputed] },
 ];
+
+/**
+ * Single escrow card in the grid. Extracted so we can call `usePendingAction`
+ * per row — that hook subscribes to a store and React rules forbid hooks inside
+ * .map() closures, but they're fine inside child components rendered from a map.
+ *
+ * Shows a "Releasing…" / "Refunding…" chip when an action submitted from this
+ * device hasn't yet been reflected by the indexer. The chip disappears
+ * automatically once the indexed status matches the action's expected outcome.
+ */
+function EscrowCard({
+  escrow,
+  isBuyer,
+  counterparty,
+  currentBlock,
+  minutesPerBlock,
+  onClick,
+}: {
+  escrow: Escrow;
+  isBuyer: boolean;
+  counterparty: string;
+  currentBlock: number;
+  minutesPerBlock: number;
+  onClick: () => void;
+}) {
+  const pendingAction = usePendingAction(escrow.contractId, escrow.id);
+
+  return (
+    <button
+      type="button"
+      className="w-full text-left p-4 rounded-lg border border-border cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3 bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={onClick}
+      aria-label={`Escrow #${escrow.id}: ${escrow.description}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-xs text-muted-foreground">#{escrow.id}</span>
+        {pendingAction ? (
+          <Badge variant="outline" className="text-xs font-normal gap-1.5 border-primary/40 text-primary">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {ACTION_LABEL[pendingAction.type]}…
+          </Badge>
+        ) : (
+          <StatusBadge status={escrow.status} />
+        )}
+      </div>
+      <p className="text-sm font-medium text-foreground line-clamp-2">{escrow.description}</p>
+      <div className="flex items-center justify-between">
+        <AmountDisplay micro={escrow.amount} tokenType={escrow.tokenType} />
+        <AddressDisplay address={counterparty} showCopy={false} />
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <Badge variant="outline" className="text-xs font-normal">
+          {isBuyer ? 'Buyer' : 'Seller'}
+        </Badge>
+        <span>{blockToRelativeTime(escrow.createdAt, currentBlock, minutesPerBlock)}</span>
+      </div>
+    </button>
+  );
+}
 
 export default function MyEscrows() {
   const navigate = useNavigate();
@@ -216,28 +277,14 @@ export default function MyEscrows() {
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    className="w-full text-left p-4 rounded-lg border border-border cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20 space-y-3 bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  <EscrowCard
+                    escrow={e}
+                    isBuyer={isBuyer}
+                    counterparty={counterparty}
+                    currentBlock={currentBlock}
+                    minutesPerBlock={minutesPerBlock}
                     onClick={() => navigate(`/escrow/${e.id}`)}
-                    aria-label={`Escrow #${e.id}: ${e.description}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs text-muted-foreground">#{e.id}</span>
-                      <StatusBadge status={e.status} />
-                    </div>
-                    <p className="text-sm font-medium text-foreground line-clamp-2">{e.description}</p>
-                    <div className="flex items-center justify-between">
-                      <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
-                      <AddressDisplay address={counterparty} showCopy={false} />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <Badge variant="outline" className="text-xs font-normal">
-                        {isBuyer ? 'Buyer' : 'Seller'}
-                      </Badge>
-                      <span>{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</span>
-                    </div>
-                  </button>
+                  />
                 )}
               </motion.div>
             );
