@@ -1,8 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
+import { fetchCallReadOnlyFunction, cvToJSON } from '@stacks/transactions';
+import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '@/lib/types';
 import {
+  CONTRACT_ADDRESS,
+  CONTRACT_NAME,
   CONTRACT_PRINCIPAL,
+  STACKS_API_URL,
+  STACKS_NETWORK,
   DEFAULT_DISPUTE_TIMEOUT,
   MAX_DURATION_BLOCKS,
   MIN_AMOUNT_STX,
@@ -80,21 +86,68 @@ export function usePlatformStats() {
   });
 }
 
+/**
+ * Read live platform config directly from chain. The contract is the source
+ * of truth — owner / fee_recipient / pause state / fees / dispute timeout
+ * all live on-chain and only become stale in the DB cache if a chainhook
+ * event is missed or if the contract was just deployed (no events emitted
+ * yet, which is exactly why the dashboard was showing an empty Owner field).
+ *
+ * Returns null on any failure so the caller can fall back to the DB cache.
+ */
+async function readPlatformConfigFromChain(): Promise<Partial<PlatformConfig> | null> {
+  try {
+    const network = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
+    if (STACKS_API_URL) {
+      network.client = { ...network.client, baseUrl: STACKS_API_URL };
+    }
+    const result = await fetchCallReadOnlyFunction({
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'get-config',
+      functionArgs: [],
+      network,
+      senderAddress: CONTRACT_ADDRESS,
+    });
+    const data = cvToJSON(result).value;
+    return {
+      owner: data['owner']?.value ?? '',
+      feeRecipient: data['fee-recipient']?.value ?? '',
+      platformFeeBps: parseInt(data['platform-fee-bps']?.value ?? '50'),
+      isPaused: !!data['is-paused']?.value,
+      disputeTimeout: parseInt(data['dispute-timeout']?.value ?? String(DEFAULT_DISPUTE_TIMEOUT)),
+    };
+  } catch (err) {
+    console.warn('[usePlatformConfig] chain read failed, falling back to DB cache:', err);
+    return null;
+  }
+}
+
 export function usePlatformConfig() {
   return useQuery({
-    queryKey: ['platform-config'],
+    queryKey: ['platform-config', CONTRACT_PRINCIPAL],
     // Keep data fresh for 2 min so optimistic updates from admin actions
     // aren't overwritten by stale Supabase data before the chainhook indexes.
     staleTime: 2 * 60 * 1000,
     queryFn: async (): Promise<PlatformConfig> => {
-      if (!isSupabaseConfigured) return DEFAULT_CONFIG;
-      const { data, error } = await supabase.from('platform_config').select('*').eq('id', 1).single();
-      if (error || !data) return DEFAULT_CONFIG;
+      // Source of truth: read from chain. Falls back to the Supabase cache
+      // only if the chain RPC is unreachable.
+      const [chainCfg, dbResult] = await Promise.all([
+        readPlatformConfigFromChain(),
+        isSupabaseConfigured
+          ? supabase.from('platform_config').select('*').eq('id', 1).single()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      const data = dbResult.data;
+      if (!chainCfg && !data) return DEFAULT_CONFIG;
+
+      // Chain wins for fields that exist on-chain. DB only fills in when chain
+      // read failed.
       return {
-        owner: data.contract_owner ?? '',
-        feeRecipient: data.fee_recipient ?? '',
-        platformFeeBps: data.fee_bps ?? 50,
-        isPaused: data.contract_paused ?? false,
+        owner: chainCfg?.owner ?? data?.contract_owner ?? '',
+        feeRecipient: chainCfg?.feeRecipient ?? data?.fee_recipient ?? '',
+        platformFeeBps: chainCfg?.platformFeeBps ?? data?.fee_bps ?? 50,
+        isPaused: chainCfg?.isPaused ?? data?.contract_paused ?? false,
         minAmount: MIN_AMOUNT_STX,
         maxAmount: MAX_AMOUNT_STX,
         minAmountSbtc: MIN_AMOUNT_SBTC,
