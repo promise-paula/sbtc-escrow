@@ -57,3 +57,27 @@ export const EXPLORER_BASE = 'https://explorer.hiro.so';
 
 // Project repository — single source of truth so org/repo changes are one edit.
 export const REPO_URL = 'https://github.com/promise-paula/sbtc-escrow';
+
+// ── Contract capability registry ─────────────────────────────────────
+//
+// Some features only exist on specific contract versions. v7+ adds on-chain
+// `deliver()` (STATUS_DELIVERED + review window) and `resolve-dispute-split`.
+// v6 / `escrow-mainnet` predate both. Hard-coding capabilities by contract id
+// avoids brittle name-pattern matching and forces an explicit add when a new
+// deployment ships.
+//
+// When a new v7+ contract is deployed (e.g. v7-equivalent on mainnet), add
+// its full principal here.
+const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
+  'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7',
+  // 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-v7-mainnet',  // TODO when deployed
+]);
+
+/**
+ * True iff the contract exposes the v7+ `deliver()` function and
+ * STATUS_DELIVERED. Use this to gate the "Mark as Delivered" on-chain call,
+ * the review-period UI, and split-resolution affordances.
+ */
+export function supportsOnChainDelivery(contractId: string): boolean {
+  return V7_PLUS_CONTRACTS.has(contractId);
+}
