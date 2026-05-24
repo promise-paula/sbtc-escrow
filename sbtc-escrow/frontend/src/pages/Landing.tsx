@@ -3,11 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
-import { CONTRACT_PRINCIPAL, STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
+import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { formatSTX, formatSBTC, formatAmount } from '@/lib/utils';
+import { formatSTX, formatSBTC, formatAmount, relativeTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { EscrowStatus, TokenType, STATUS_LABELS } from '@/lib/types';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
@@ -101,7 +101,7 @@ function useRecentEscrows() {
       // ones with higher numeric ids on the legacy contract.
       const { data } = await supabase
         .from('escrows')
-        .select('id, contract_id, amount, status, token_type, created_at_block')
+        .select('id, contract_id, amount, status, token_type, created_at_block, indexed_at')
         .order('created_at_block', { ascending: false })
         .limit(4);
       return data ?? [];
@@ -147,9 +147,12 @@ function DashboardPreview() {
           ))}
         </div>
 
-        {/* Table header */}
+        {/* Table header — Created (relative time) replaces the numeric #id
+            column, which is a technical identifier that has no meaning to a
+            casual landing-page visitor. The id still lives in the URL and the
+            in-app My Escrows list for users who own escrows. */}
         <div className="grid grid-cols-3 px-4 py-2 text-xs font-medium text-muted-foreground border-t border-border bg-muted/40">
-          <span>Escrow</span>
+          <span>Created</span>
           <span>Amount</span>
           <span>Status</span>
         </div>
@@ -158,21 +161,10 @@ function DashboardPreview() {
         {(rows ?? []).map((r) => {
           // Use composite key — escrow ids collide across contract versions.
           const rowKey = `${r.contract_id}/${r.id}`;
-          // Show a small version chip only when this escrow is on a contract
-          // other than the currently active default (i.e. a legacy version).
-          const isLegacy = r.contract_id !== CONTRACT_PRINCIPAL;
-          const legacyVersionLabel = isLegacy
-            ? (r.contract_id?.split('.')[1] ?? '').replace(/^escrow-/, '')
-            : null;
           return (
             <div key={rowKey} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
-              <span className="font-mono text-xs text-foreground inline-flex items-center gap-1.5">
-                #{r.id}
-                {legacyVersionLabel && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-normal uppercase tracking-wide text-muted-foreground bg-muted/40">
-                    {legacyVersionLabel}
-                  </span>
-                )}
+              <span className="text-xs text-foreground">
+                {r.indexed_at ? relativeTime(r.indexed_at) : '—'}
               </span>
               <span className="font-mono text-xs text-foreground truncate">
                 {formatAmount(r.amount, (r.token_type ?? 0) as TokenType)} {(r.token_type ?? 0) === 1 ? 'sBTC' : 'STX'}
