@@ -410,11 +410,26 @@ export default function CreateEscrow() {
                     onChange={e => setDescription(e.target.value)}
                     maxLength={256}
                     rows={3}
-                    aria-describedby="desc-counter"
+                    aria-describedby="desc-counter desc-disclosure"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground" id="desc-counter">
                     <span>{!descValid && description.trim().length === 0 ? 'Required' : ''}</span>
                     <span>{description.length}/256</span>
+                  </div>
+                  {/* The description is stored on-chain in plaintext and is
+                      readable by anyone with the Stacks API. Surface this
+                      clearly before the user types something they'd regret. */}
+                  <div
+                    id="desc-disclosure"
+                    className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] text-muted-foreground"
+                  >
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-warning" />
+                    <span>
+                      This description is stored <span className="font-medium text-foreground">on-chain in plaintext</span> and is
+                      permanently visible to anyone — including future viewers. Avoid personal
+                      info, contact details, or anything sensitive. Use the in-app
+                      messages thread for private context after the escrow is created.
+                    </span>
                   </div>
                 </div>
 
