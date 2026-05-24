@@ -27,12 +27,79 @@
 // auth proof.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import {
-  verifyMessageSignatureRsv,
-  getAddressFromPublicKey,
-  AddressVersion,
-} from "npm:@stacks/transactions@7";
+import { secp256k1 } from "https://esm.sh/@noble/curves@1.4.0/secp256k1";
+import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256";
+import { ripemd160 } from "https://esm.sh/@noble/hashes@1.4.0/ripemd160";
+import { hexToBytes, bytesToHex } from "https://esm.sh/@noble/hashes@1.4.0/utils";
+import { c32address } from "https://esm.sh/c32check@2.0.0";
 import { create as signJwt, getNumericDate } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
+
+// Stacks signed-message prefix (per the wire format used by `stx_signMessage`).
+const STACKS_MESSAGE_PREFIX = "\x18Stacks Signed Message:\n";
+
+/** Encodes an integer as Stacks Clarity-compatible Varint (big-endian, 1/2/4/8 bytes). */
+function encodeStacksVarint(value: number): Uint8Array {
+  if (value < 0xfd) return new Uint8Array([value]);
+  if (value <= 0xffff) {
+    const buf = new Uint8Array(3);
+    buf[0] = 0xfd;
+    new DataView(buf.buffer).setUint16(1, value, false);
+    return buf;
+  }
+  if (value <= 0xffffffff) {
+    const buf = new Uint8Array(5);
+    buf[0] = 0xfe;
+    new DataView(buf.buffer).setUint32(1, value, false);
+    return buf;
+  }
+  const buf = new Uint8Array(9);
+  buf[0] = 0xff;
+  new DataView(buf.buffer).setBigUint64(1, BigInt(value), false);
+  return buf;
+}
+
+/** Mirrors @stacks/transactions `hashMessage` — sha256 of prefix + varint(len) + message. */
+function hashStacksMessage(message: string): Uint8Array {
+  const messageBytes = new TextEncoder().encode(message);
+  const prefixBytes = new TextEncoder().encode(STACKS_MESSAGE_PREFIX);
+  const lenBytes = encodeStacksVarint(messageBytes.length);
+  const combined = new Uint8Array(prefixBytes.length + lenBytes.length + messageBytes.length);
+  combined.set(prefixBytes, 0);
+  combined.set(lenBytes, prefixBytes.length);
+  combined.set(messageBytes, prefixBytes.length + lenBytes.length);
+  return sha256(combined);
+}
+
+/**
+ * Verify a Stacks `stx_signMessage` signature.
+ *
+ * The wallet returns a 65-byte signature in RSV order (r||s||v). We try both
+ * legacy "VRS" and current "RSV" layouts since some older wallets emitted VRS.
+ * For verification we just need r,s; the recovery byte (v) is irrelevant.
+ */
+function verifyStacksSignature(message: string, signatureHex: string, publicKeyHex: string): boolean {
+  const hash = hashStacksMessage(message);
+  const sigBytes = hexToBytes(signatureHex.startsWith("0x") ? signatureHex.slice(2) : signatureHex);
+  if (sigBytes.length !== 65) return false;
+  const pubKey = hexToBytes(publicKeyHex.startsWith("0x") ? publicKeyHex.slice(2) : publicKeyHex);
+
+  // Try RSV (r in [0..32], s in [32..64], v at 64) — the canonical layout.
+  const rsv = secp256k1.Signature.fromCompact(sigBytes.slice(0, 64));
+  if (secp256k1.verify(rsv, hash, pubKey)) return true;
+
+  // Fallback: VRS (v at 0, r in [1..33], s in [33..65]).
+  const vrs = secp256k1.Signature.fromCompact(sigBytes.slice(1, 65));
+  return secp256k1.verify(vrs, hash, pubKey);
+}
+
+/** Derive a Stacks single-sig address from a compressed public key, per network. */
+function publicKeyToStacksAddress(publicKeyHex: string, network: "mainnet" | "testnet"): string {
+  const pubKey = hexToBytes(publicKeyHex.startsWith("0x") ? publicKeyHex.slice(2) : publicKeyHex);
+  const hash160 = ripemd160(sha256(pubKey));
+  // c32 version bytes: 22 = MainnetSingleSig (P-prefix), 26 = TestnetSingleSig (T-prefix)
+  const version = network === "mainnet" ? 22 : 26;
+  return c32address(version, bytesToHex(hash160));
+}
 
 const JWT_SECRET = Deno.env.get("JWT_SIGNING_SECRET");
 const STACKS_NETWORK = Deno.env.get("STACKS_NETWORK") || "testnet";
@@ -181,16 +248,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // 1. Cryptographic signature verification — the user controls the private
     //    key corresponding to `publicKey` and signed this exact message.
-    const sigValid = verifyMessageSignatureRsv({ message, signature, publicKey });
+    const sigValid = verifyStacksSignature(message, signature, publicKey);
     if (!sigValid) return jsonResponse({ error: "invalid_signature" }, 401);
 
     // 2. The publicKey must derive to the claimed address on the right network.
     //    Prevents a valid-but-unrelated keypair from authenticating as
     //    someone else's address.
-    const addressVersion = STACKS_NETWORK === "mainnet"
-      ? AddressVersion.MainnetSingleSig
-      : AddressVersion.TestnetSingleSig;
-    const derivedAddress = getAddressFromPublicKey(publicKey, addressVersion);
+    const network = STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet";
+    const derivedAddress = publicKeyToStacksAddress(publicKey, network);
     if (derivedAddress !== address) {
       return jsonResponse({ error: "address_mismatch" }, 401);
     }
