@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WalletProvider } from "@/contexts/WalletContext";
+import { WalletAuthProvider } from "@/contexts/WalletAuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AdminGuard } from "@/components/shared/AdminGuard";
@@ -36,6 +37,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <WalletProvider>
+        <WalletAuthProvider>
         <NotificationsListener />
         <TooltipProvider>
           <Sonner />
@@ -68,6 +70,7 @@ const App = () => (
             </Suspense>
           </BrowserRouter>
         </TooltipProvider>
+        </WalletAuthProvider>
       </WalletProvider>
     </ThemeProvider>
   </QueryClientProvider>
