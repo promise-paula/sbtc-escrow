@@ -2,10 +2,11 @@
  * sBTC Escrow SDK — public types.
  *
  * Mirrors the on-chain shape of:
- * - escrow-v6 (testnet, current default)
- * - escrow-mainnet (mainnet, current default)
- * - escrow-v7 (testnet, next iteration — adds DELIVERED status, review window,
- *   and partial dispute splits). Methods/fields specific to v7 are marked.
+ * - escrow-v7 (testnet, current default — adds DELIVERED status, review window,
+ *   and partial dispute splits)
+ * - escrow-mainnet-v2 (mainnet, current default — v7-equivalent)
+ * - escrow-v6 / escrow-mainnet (legacy, still readable). Methods/fields specific
+ *   to v7+ are marked.
  */
 
 /**
@@ -109,7 +110,7 @@ export interface CreateEscrowOptions {
 export interface EscrowClientConfig {
   /** Contract address (default: testnet deployment) */
   contractAddress?: string;
-  /** Contract name (default: escrow-v6 on testnet, escrow-mainnet on mainnet) */
+  /** Contract name (default: escrow-v7 on testnet, escrow-mainnet-v2 on mainnet) */
   contractName?: string;
   /** sBTC SIP-010 contract principal (default: per-network) */
   sbtcContract?: string;
