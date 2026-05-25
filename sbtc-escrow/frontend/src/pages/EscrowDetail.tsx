@@ -27,7 +27,7 @@ import { getNotificationPermission, requestNotificationPermission } from '@/lib/
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, listItemVariants, pageVariants, slideDown } from '@/lib/motion';
 import {
-  ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Shield,
+  ArrowLeft, AlertTriangle, AlertCircle, CheckCircle2, XCircle, Shield,
   Users, Info, Clock, Zap, PlusCircle, Timer, Share2, Link, Download,
   BookUser, Plus, ExternalLink, Bell, MessageSquare, Send, LogIn
 } from 'lucide-react';
@@ -795,6 +795,18 @@ export default function EscrowDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Mirror of the description disclosure on CreateEscrow. Messages
+                  live off-chain in Supabase but are readable by anyone with
+                  the public anon key, so users should self-censor sensitive
+                  info the same way they would on-chain. */}
+              <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] text-muted-foreground">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-warning" />
+                <span>
+                  Messages here are visible to anyone reading the platform.
+                  Avoid personal info, contact details, or anything sensitive
+                  beyond what's needed to resolve this deal.
+                </span>
+              </div>
               {messages.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
                   Start the conversation. Both parties can post here — useful for clarifying
