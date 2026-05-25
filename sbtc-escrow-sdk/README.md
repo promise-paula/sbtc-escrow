@@ -106,7 +106,8 @@ if (result.success) {
 // Release funds to seller (buyer only)
 await client.release(1, { senderKey });
 
-// Refund to buyer (seller voluntarily, or anyone after expiry)
+// Refund to buyer (seller voluntarily, or anyone after expiry on v6 / buyer
+// after expiry + review window on v7+)
 await client.refund(1, { senderKey });
 
 // Dispute an escrow (buyer or seller)
@@ -117,6 +118,32 @@ await client.extendEscrow(1, 144, { senderKey });
 
 // Resolve expired dispute (buyer self-service after timeout)
 await client.resolveExpiredDispute(1, { senderKey });
+```
+
+#### v7+ Operations
+
+These methods are only available on `escrow-v7` (testnet) and later contracts.
+Older contracts (`escrow-v6`, `escrow-mainnet`) don't expose them.
+
+```typescript
+// Seller signals delivery on-chain. Flips status to DELIVERED and starts
+// the review window during which the buyer cannot unilaterally refund
+// without raising a dispute first. This is the Golden Rule protection
+// for sellers — proof on-chain that work was delivered.
+await client.deliver(1, { senderKey });
+
+// Check whether an escrow is currently inside its post-delivery review
+// window. Returns true only after deliver() was called and before the
+// review period elapsed.
+const inReview = await client.isInReviewPeriod(1);
+
+// Admin/arbiter: resolve a disputed escrow with a partial split.
+// `buyerBps` is the buyer's share of the principal in basis points (0–10000).
+// Seller gets the remainder. Fee is split pro-rata.
+//   buyerBps = 0      → identical to resolve-dispute-for-seller
+//   buyerBps = 10000  → identical to resolve-dispute-for-buyer
+//   buyerBps = 7000   → 70% to buyer, 30% to seller
+await adminClient.resolveDisputeSplit(1, 7000, { senderKey: adminKey });
 ```
 
 ### Admin Operations
@@ -180,6 +207,7 @@ enum EscrowStatus {
   RELEASED = 1,
   REFUNDED = 2,
   DISPUTED = 3,
+  DELIVERED = 4,   // v7+ only
 }
 ```
 
@@ -199,6 +227,7 @@ interface Escrow {
   expiresAt: number;   // block height
   completedAt: number | null;
   disputedAt: number | null;
+  deliveredAt: number | null;   // v7+ only: block height the seller called deliver()
 }
 ```
 
@@ -231,6 +260,8 @@ interface EscrowConfig {
   maxAmountSbtc: number;
   maxDuration: number;
   disputeTimeout: number;
+  reviewPeriod?: number;   // v7+ only — blocks after deliver() during which
+                           // the buyer cannot unilaterally refund
 }
 ```
 
