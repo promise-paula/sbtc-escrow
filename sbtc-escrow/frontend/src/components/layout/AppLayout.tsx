@@ -4,6 +4,7 @@ import { AppSidebar } from './AppSidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
 import { TestnetBanner } from './TestnetBanner';
+import { IndexerHealthBanner } from '@/components/shared/IndexerHealthBanner';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useEscrowRealtime } from '@/hooks/use-escrow-realtime';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,6 +27,12 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           <TestnetBanner />
           <Header />
+          {/* Surface indexer health right below the header so a lagging
+              chainhook is immediately visible on any authenticated page.
+              Renders nothing in the healthy case. */}
+          <div className="px-4 sm:px-6 pt-3">
+            <IndexerHealthBanner />
+          </div>
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
             <AnimatePresence mode="wait">
               <motion.div
