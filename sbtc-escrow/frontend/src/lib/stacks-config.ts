@@ -70,7 +70,7 @@ export const REPO_URL = 'https://github.com/promise-paula/sbtc-escrow';
 // its full principal here.
 const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7',
-  // 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-v7-mainnet',  // TODO when deployed
+  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2',
 ]);
 
 /**
