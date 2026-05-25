@@ -832,11 +832,14 @@ export default function EscrowDetail() {
                   })}
                 </div>
               )}
-              {/* Posting requires a signed-in session — RLS on
-                  `escrow_messages` will check the wallet_address claim once
-                  tightened. Until the user signs in, surface a clear "Sign in"
-                  prompt instead of the input. Reading existing messages is
-                  always allowed (anon SELECT). */}
+              {/* Reading messages is anon-readable, so we always render them
+                  above. Posting requires a signed-in session because RLS on
+                  INSERT verifies the sender_address against the JWT claim.
+                  The CTA below distinguishes:
+                    - authed:      show the input + send button
+                    - not authed:  show "Sign in to reply" — softer copy when
+                                   messages already exist (the user can see
+                                   what's there and decide to engage). */}
               {isAuthenticated ? (
                 <div className="flex items-end gap-2 pt-1">
                   <Textarea
@@ -869,11 +872,13 @@ export default function EscrowDetail() {
                     <LogIn className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
                     <div className="space-y-0.5 min-w-0">
                       <p className="text-xs font-medium text-foreground">
-                        Sign in with your wallet to post messages
+                        {messages.length > 0
+                          ? 'Sign in to reply'
+                          : 'Sign in to send a message'}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        One-time signature — proves you own this wallet and
-                        unlocks private messaging for your escrows. No gas, no
+                        One-time wallet signature. Proves you own this address
+                        so the other party knows it's really you. No gas, no
                         on-chain tx.
                       </p>
                     </div>
