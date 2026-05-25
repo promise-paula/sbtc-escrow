@@ -2,7 +2,7 @@
  * sBTC Escrow SDK — Client
  *
  * TypeScript client for the sBTC Escrow smart contract on Stacks
- * (escrow-v6 on testnet, escrow-mainnet on mainnet). Supports both
+ * (escrow-v7 on testnet, escrow-mainnet-v2 on mainnet). Supports both
  * STX (native) and sBTC (SIP-010) escrows.
  */
 
@@ -35,15 +35,22 @@ import {
   NetworkType,
 } from './types';
 
-/** Default contract addresses */
+/**
+ * Default contract addresses. 0.2.0 promotes the v7-equivalent contracts to
+ * defaults on both networks:
+ *   - testnet: `escrow-v7` (was `escrow-v6` in 0.1.x)
+ *   - mainnet: `escrow-mainnet-v2` (was `escrow-mainnet` in 0.1.x)
+ * Callers that need to target the legacy contracts should pass `contractName`
+ * explicitly via {@link EscrowClientConfig}.
+ */
 const DEFAULT_CONTRACTS = {
   testnet: {
     address: 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N',
-    name: 'escrow-v6',
+    name: 'escrow-v7',
   },
   mainnet: {
     address: 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
-    name: 'escrow-mainnet',
+    name: 'escrow-mainnet-v2',
   },
 };
 
@@ -57,7 +64,7 @@ const DEFAULT_SBTC_CONTRACTS = {
  * sBTC Escrow Client
  *
  * Provides typed methods for interacting with the sBTC Escrow smart contract
- * (escrow-v6 on testnet, escrow-mainnet on mainnet). Supports both STX
+ * (escrow-v7 on testnet, escrow-mainnet-v2 on mainnet). Supports both STX
  * (native) and sBTC (SIP-010 fungible token) escrows.
  *
  * @example
