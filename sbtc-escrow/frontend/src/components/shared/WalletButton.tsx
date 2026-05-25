@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useWallet } from '@/contexts/WalletContext';
+import { useWalletAuth } from '@/contexts/WalletAuthContext';
 import { truncateAddress, getExplorerUrl, formatSTX, formatSBTC } from '@/lib/utils';
 import { useUsdEstimate } from '@/hooks/use-usd-estimate';
 import { TokenType } from '@/lib/types';
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Wallet, Copy, ExternalLink, LogOut, Loader2 } from 'lucide-react';
+import { Wallet, Copy, ExternalLink, LogOut, Loader2, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Balances {
@@ -23,6 +24,7 @@ interface Balances {
 
 export function WalletButton() {
   const { address, isConnected, connect, disconnect } = useWallet();
+  const { isAuthenticated, isSigningIn, signIn, signOut } = useWalletAuth();
   const [balances, setBalances] = useState<Balances | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -71,6 +73,15 @@ export function WalletButton() {
         <Button variant="outline" size="sm" className="gap-2 font-mono text-xs">
           <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
           {truncateAddress(address!, 5)}
+          {/* Tiny shield icon next to address — filled when auth-signed,
+              outlined when wallet-connected but not signed in. Tells the
+              user at a glance whether they can post messages / mark
+              delivered / etc. without opening the dropdown. */}
+          {isAuthenticated ? (
+            <ShieldCheck className="h-3 w-3 text-success" aria-label="Signed in" />
+          ) : (
+            <ShieldOff className="h-3 w-3 text-muted-foreground" aria-label="Not signed in" />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -89,6 +100,30 @@ export function WalletButton() {
           </div>
         )}
         <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+          Account
+        </DropdownMenuLabel>
+        {/* Auth state row — the wallet-auth signature is separate from the
+            wallet connection itself. Connecting proves nothing; signing in
+            with a wallet signature is what unlocks message posting and
+            authenticates the user to the off-chain layer. */}
+        {isAuthenticated ? (
+          <DropdownMenuItem onClick={signOut} className="gap-2">
+            <ShieldCheck className="h-3.5 w-3.5 text-success" />
+            <span className="flex-1">Signed in</span>
+            <span className="text-[10px] text-muted-foreground">Sign out</span>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onClick={(e) => { e.preventDefault(); signIn(); }}
+            disabled={isSigningIn}
+            className="gap-2"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            {isSigningIn ? 'Signing…' : 'Sign in to message'}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleCopy} className="gap-2">
           <Copy className="h-3.5 w-3.5" /> Copy Address
         </DropdownMenuItem>
@@ -98,7 +133,10 @@ export function WalletButton() {
           </a>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={disconnect} className="gap-2 text-destructive">
+        <DropdownMenuItem
+          onClick={() => { signOut(); disconnect(); }}
+          className="gap-2 text-destructive"
+        >
           <LogOut className="h-3.5 w-3.5" /> Disconnect
         </DropdownMenuItem>
       </DropdownMenuContent>
