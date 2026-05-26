@@ -139,14 +139,23 @@ export default function EscrowDetail() {
     return () => clearInterval(timer);
   }, [remainingSeconds > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Display precision intentionally degrades with distance from expiry.
+  // Block-rate is an estimate — showing "27d 14h 22m 8s" implies certainty
+  // we don't have, and ticking sub-minute values is visual noise when the
+  // window is days wide. Tight, honest format:
+  //   ≥7d      → "~Nd"
+  //   1d–7d    → "Nd Nh"
+  //   1h–24h   → "Nh Nm"
+  //   < 1h     → "Nm Ns" (live ticking matters here)
   const formatCountdown = (totalSec: number): string => {
     if (totalSec <= 0) return 'Expired';
     const d = Math.floor(totalSec / 86400);
     const h = Math.floor((totalSec % 86400) / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    if (d > 0) return `${d}d ${h}h ${m}m`;
-    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (d >= 7) return `~${d}d`;
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
     return `${m}m ${s}s`;
   };
 
