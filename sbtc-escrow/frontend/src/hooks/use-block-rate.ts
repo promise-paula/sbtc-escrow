@@ -15,7 +15,11 @@ interface BlockRateResult {
  * Falls back to DEFAULT_MINUTES_PER_BLOCK (1.5) on error.
  */
 async function fetchBlockRate(): Promise<BlockRateResult> {
-  const limit = 30;
+  // Sample a wide window. Mainnet block production is bursty (sometimes
+  // 6s, sometimes 10min depending on Bitcoin) — a short sample (30) makes
+  // "expires in" displays whiplash between refreshes. A few hundred blocks
+  // smooths out single-burst variance without lagging real rate shifts.
+  const limit = 200;
   const res = await fetch(`${STACKS_API_URL}/extended/v2/blocks?limit=${limit}`);
   if (!res.ok) throw new Error('Failed to fetch recent blocks');
   const data = await res.json();
