@@ -11,7 +11,7 @@ export interface AppSettings {
 const STORAGE_KEY = 'sbtc-escrow-settings';
 
 const defaults: AppSettings = {
-  showUsd: false,
+  showUsd: true,
   notifyConfirmations: false,
   notifyDisputes: false,
   notifyDeliveries: false,
