@@ -15,11 +15,12 @@ interface BlockRateResult {
  * Falls back to DEFAULT_MINUTES_PER_BLOCK (1.5) on error.
  */
 async function fetchBlockRate(): Promise<BlockRateResult> {
-  // Sample a wide window. Mainnet block production is bursty (sometimes
-  // 6s, sometimes 10min depending on Bitcoin) — a short sample (30) makes
-  // "expires in" displays whiplash between refreshes. A few hundred blocks
-  // smooths out single-burst variance without lagging real rate shifts.
-  const limit = 200;
+  // Hiro caps /extended/v2/blocks at limit=30. We use the median of the
+  // inter-block deltas (not the mean) so a single anomalous gap — e.g. a
+  // 10-min Bitcoin slowdown surrounded by 5-second blocks — doesn't blow
+  // up the estimate. Median over 29 deltas gives a stable, refresh-
+  // resistant value without re-rendering "expires in" wildly.
+  const limit = 30;
   const res = await fetch(`${STACKS_API_URL}/extended/v2/blocks?limit=${limit}`);
   if (!res.ok) throw new Error('Failed to fetch recent blocks');
   const data = await res.json();
@@ -27,25 +28,22 @@ async function fetchBlockRate(): Promise<BlockRateResult> {
   // Use block_time (Stacks block timestamp), NOT burn_block_time (Bitcoin)
   // since stacks-block-height in Clarity tracks Stacks blocks
   const blocks: { block_time: number }[] = data.results ?? [];
-  if (blocks.length < 2) {
-    return fallback();
-  }
+  if (blocks.length < 2) return fallback();
 
-  // blocks are returned newest-first; compute time deltas between consecutive blocks
-  let totalDeltaSec = 0;
-  let count = 0;
+  // blocks are newest-first; collect positive deltas, take the median
+  const deltas: number[] = [];
   for (let i = 0; i < blocks.length - 1; i++) {
     const delta = blocks[i].block_time - blocks[i + 1].block_time;
-    if (delta > 0) {
-      totalDeltaSec += delta;
-      count++;
-    }
+    if (delta > 0) deltas.push(delta);
   }
+  if (deltas.length === 0) return fallback();
 
-  if (count === 0) return fallback();
+  deltas.sort((a, b) => a - b);
+  const mid = Math.floor(deltas.length / 2);
+  const medianSeconds =
+    deltas.length % 2 === 0 ? (deltas[mid - 1] + deltas[mid]) / 2 : deltas[mid];
 
-  const avgSeconds = totalDeltaSec / count;
-  const minutesPerBlock = Math.max(avgSeconds / 60, 0.01); // floor at 0.6s
+  const minutesPerBlock = Math.max(medianSeconds / 60, 0.01); // floor at 0.6s
 
   return {
     minutesPerBlock,
