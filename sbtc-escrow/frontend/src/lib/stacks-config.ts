@@ -29,6 +29,17 @@ if (STACKS_NETWORK === 'mainnet') {
       `sBTC Escrow misconfigured: VITE_STACKS_NETWORK=mainnet but VITE_CONTRACT_ADDRESS="${CONTRACT_ADDRESS}" is not a mainnet address (must start with SP or SM).`,
     );
   }
+  if (!import.meta.env.VITE_CONTRACT_NAME) {
+    throw new Error(
+      'sBTC Escrow misconfigured: VITE_CONTRACT_NAME must be set explicitly for mainnet builds. ' +
+        'Without it, the build silently falls back to the testnet default ("escrow-v7"), which does not exist on mainnet.',
+    );
+  }
+  if (CONTRACT_NAME.startsWith('escrow-v')) {
+    throw new Error(
+      `sBTC Escrow misconfigured: VITE_STACKS_NETWORK=mainnet but VITE_CONTRACT_NAME="${CONTRACT_NAME}" looks like a testnet contract name. Expected the mainnet name (e.g. "escrow-mainnet-v2").`,
+    );
+  }
 }
 
 // Post-Nakamoto: Stacks blocks target ~5s but actual rate varies.
