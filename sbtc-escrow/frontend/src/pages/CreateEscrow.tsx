@@ -10,13 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
+import { isValidStacksAddress, formatSTX, formatSBTC, formatAmount, tokenLabel, calculateFee, toSmallestUnit, blockToEstimatedDate, blocksToTime, getExplorerUrl, truncateAddress, getAddressNetwork } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
 import { useUsdEstimate, useUsdValue } from '@/hooks/use-usd-estimate';
 import { useWalletBalance, useStxGasBalance } from '@/hooks/use-wallet-balance';
-import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK, STACKS_NETWORK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -104,7 +104,16 @@ export default function CreateEscrow() {
   const feeUsdInput = useUsdValue(fee, tokenType);
   const totalUsdInput = useUsdValue(total, tokenType);
 
-  const recipientValid = isValidStacksAddress(recipient);
+  // Network-aware recipient validation. The contract will reject a
+  // mainnet-shaped address on testnet (and vice versa), but a clear UI
+  // error catches it before the user signs anything.
+  const recipientShapeValid = isValidStacksAddress(recipient);
+  const recipientNetwork = recipientShapeValid ? getAddressNetwork(recipient) : null;
+  const recipientNetworkMismatch =
+    recipientShapeValid && recipientNetwork !== null && recipientNetwork !== STACKS_NETWORK;
+  const recipientValid = recipientShapeValid && !recipientNetworkMismatch;
+  const expectedPrefixes = STACKS_NETWORK === 'mainnet' ? 'SP / SM' : 'ST / SN';
+  const addressPlaceholder = STACKS_NETWORK === 'mainnet' ? 'SP...' : 'ST...';
   const selfEscrow = recipient === address;
   const amountValid = smallestUnit >= minAmt && smallestUnit <= maxAmt;
   const descValid = description.trim().length > 0 && description.length <= 256;
@@ -343,18 +352,29 @@ export default function CreateEscrow() {
                     )}
                   </div>
                   <Input
-                    placeholder="ST... or SP..."
+                    placeholder={addressPlaceholder}
                     value={recipient}
                     onChange={e => setRecipient(e.target.value)}
                     className="font-mono text-sm"
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    {STACKS_NETWORK === 'mainnet'
+                      ? 'Mainnet addresses start with SP (or SM for contracts).'
+                      : 'Testnet addresses start with ST (or SN for contracts).'}
+                  </p>
                   {matchedContact && (
                     <p className="text-xs text-muted-foreground">
                       From contacts: <span className="text-foreground font-medium">{matchedContact.name}</span>
                     </p>
                   )}
-                  {recipient && !recipientValid && (
+                  {recipient && !recipientShapeValid && (
                     <p className="text-xs text-destructive" role="alert">Invalid Stacks address</p>
+                  )}
+                  {recipientNetworkMismatch && (
+                    <p className="text-xs text-destructive" role="alert">
+                      This is a {recipientNetwork} address. You're on {STACKS_NETWORK} —
+                      use an address starting with {expectedPrefixes}.
+                    </p>
                   )}
                   {selfEscrow && (
                     <p className="text-xs text-destructive" role="alert">Cannot escrow to yourself</p>
