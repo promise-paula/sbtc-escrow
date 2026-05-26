@@ -15,6 +15,7 @@ import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
 import { useUsdEstimate, useUsdValue } from '@/hooks/use-usd-estimate';
+import { useWalletBalance, useStxGasBalance } from '@/hooks/use-wallet-balance';
 import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
@@ -108,6 +109,37 @@ export default function CreateEscrow() {
   const amountValid = smallestUnit >= minAmt && smallestUnit <= maxAmt;
   const descValid = description.trim().length > 0 && description.length <= 256;
   const durationValid = duration >= MIN_DURATION_BLOCKS && duration <= MAX_DURATION_BLOCKS;
+
+  // Pre-flight balance check. Gas is always paid in STX, so for sBTC escrows
+  // we need both the sBTC for the deposit AND a small STX buffer for gas.
+  // GAS_BUFFER (microSTX) is a conservative ceiling for a single contract
+  // call — actual cost is typically a fraction of this.
+  const GAS_BUFFER = 10_000n; // 0.01 STX
+  const { data: tokenBalance, isLoading: tokenBalLoading } = useWalletBalance(tokenType);
+  const { data: stxBalance, isLoading: stxBalLoading } = useStxGasBalance();
+  const balancesLoading = tokenBalLoading || (tokenType === TokenType.SBTC && stxBalLoading);
+  const totalNeeded = BigInt(total);
+  const hasTokenBalance = tokenBalance === undefined ? true : tokenBalance >= totalNeeded;
+  const hasStxForGas =
+    tokenType === TokenType.STX
+      ? tokenBalance === undefined
+        ? true
+        : tokenBalance >= totalNeeded + GAS_BUFFER
+      : stxBalance === undefined
+        ? true
+        : stxBalance >= GAS_BUFFER;
+  const balanceSufficient = hasTokenBalance && hasStxForGas;
+  const balanceShortfall =
+    !amountValid || balancesLoading
+      ? null
+      : !hasTokenBalance
+        ? {
+            kind: 'token' as const,
+            need: formatAmount(Number(totalNeeded - (tokenBalance ?? 0n)), tokenType),
+          }
+        : !hasStxForGas
+          ? { kind: 'gas' as const, need: '0.01 STX' }
+          : null;
 
   const step1Valid = recipientValid && !selfEscrow;
   const step2Valid = amountValid && descValid && durationValid;
@@ -400,6 +432,18 @@ export default function CreateEscrow() {
                       </p>
                     </div>
                   )}
+                  {balanceShortfall && (
+                    <p className="text-xs text-destructive flex items-start gap-1.5" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        {balanceShortfall.kind === 'token' ? (
+                          <>Your wallet is short <span className="font-medium tabular-nums">{balanceShortfall.need} {token}</span> for this escrow.</>
+                        ) : (
+                          <>You need at least <span className="font-medium tabular-nums">{balanceShortfall.need}</span> in your wallet for network fees, in addition to the {token} being escrowed.</>
+                        )}
+                      </span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -476,7 +520,7 @@ export default function CreateEscrow() {
                   <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
-                  <Button onClick={() => setStep(3)} disabled={!step2Valid} className="flex-1 gap-1.5">
+                  <Button onClick={() => setStep(3)} disabled={!step2Valid || !balanceSufficient} className="flex-1 gap-1.5">
                     Next <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -545,7 +589,7 @@ export default function CreateEscrow() {
                   <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
-                  <Button onClick={handleSubmit} disabled={!consent} className="flex-1 shadow-glow-md hover:shadow-glow-lg transition-shadow">
+                  <Button onClick={handleSubmit} disabled={!consent || !balanceSufficient} className="flex-1 shadow-glow-md hover:shadow-glow-lg transition-shadow">
                     Confirm & Deposit
                   </Button>
                 </div>
