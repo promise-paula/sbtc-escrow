@@ -500,18 +500,31 @@ export default function CreateEscrow() {
                 <div className="space-y-1.5">
                   <Label className="text-xs">Duration</Label>
                   <div className="flex gap-2 flex-wrap">
-                    {durationPresets.map(p => (
-                      <Button
-                        key={p.label}
-                        type="button"
-                        variant={!customDuration && durationMinutes === p.minutes ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => { setDurationMinutes(p.minutes); setCustomDuration(''); }}
-                      >
-                        {p.label}
-                      </Button>
-                    ))}
+                    {durationPresets.map(p => {
+                      // Contract caps duration at MAX_DURATION_BLOCKS. At fast
+                      // block rates (current mainnet ~6s/block), wall-clock
+                      // presets like "30 Days" can exceed that ceiling — hide
+                      // them rather than letting the user pick something the
+                      // contract will reject.
+                      const presetBlocks = timeToBlocks(p.minutes, minutesPerBlock);
+                      const exceedsCap = presetBlocks > MAX_DURATION_BLOCKS;
+                      if (exceedsCap) return null;
+                      return (
+                        <Button
+                          key={p.label}
+                          type="button"
+                          variant={!customDuration && durationMinutes === p.minutes ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => { setDurationMinutes(p.minutes); setCustomDuration(''); }}
+                        >
+                          {p.label}
+                        </Button>
+                      );
+                    })}
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Maximum: {MAX_DURATION_BLOCKS.toLocaleString()} blocks (~{blocksToTime(MAX_DURATION_BLOCKS, minutesPerBlock)} at current ~{minutesPerBlock.toFixed(2)} min/block).
+                  </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Input
                       type="number"
