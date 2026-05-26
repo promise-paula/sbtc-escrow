@@ -10,9 +10,14 @@ export const SETTINGS_CHANGED_EVENT = 'sbtc-settings-changed';
 function readShowUsd(): boolean {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? Boolean(JSON.parse(raw).showUsd) : false;
+    // No saved settings yet -> new visitor, default to ON. Once they touch
+    // the Settings page (or any setting), the persisted object becomes the
+    // source of truth and respects their explicit choice.
+    if (!raw) return true;
+    const parsed = JSON.parse(raw);
+    return 'showUsd' in parsed ? Boolean(parsed.showUsd) : true;
   } catch {
-    return false;
+    return true;
   }
 }
 
