@@ -18,7 +18,8 @@ import { RestrictedEscrowView } from '@/components/shared/RestrictedEscrowView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute, deliverEscrow } from '@/lib/escrow-service';
+import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute, resolveExpiredDisputeForSeller, deliverEscrow } from '@/lib/escrow-service';
+import { useSellerRescueEligible } from '@/hooks/use-seller-rescue-eligible';
 import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
@@ -191,7 +192,11 @@ export default function EscrowDetail() {
 
   const isPaused = config?.isPaused ?? false;
   const disputeTimeout = config?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT;
-  const isBuyer = escrow.buyer === address;
+  // v3+ beneficiary has buyer-equivalent rights on-chain. We treat them the
+  // same as the buyer for UI gating so the same buttons appear for both.
+  const isPrimaryBuyer = escrow.buyer === address;
+  const isBeneficiary = !!escrow.beneficiary && escrow.beneficiary === address;
+  const isBuyer = isPrimaryBuyer || isBeneficiary;
   const isSeller = escrow.seller === address;
   const isParty = isBuyer || isSeller;
 
@@ -218,6 +223,14 @@ export default function EscrowDetail() {
     ? (currentBlock - escrow.disputedAt) >= disputeTimeout
     : false;
 
+  // v3+ seller self-rescue. The contract enforces the full eligibility
+  // (delivered AND status=disputed AND past 2x dispute-timeout). We rely on
+  // the read-only `is-seller-rescue-eligible` to avoid duplicating the math
+  // client-side; the contract is the source of truth. Returns false on
+  // non-v3 contracts so legacy escrows naturally hide the button.
+  const sellerRescueEligible =
+    useSellerRescueEligible(escrow?.contractId, escrow?.id).data === true;
+
   // True when this escrow lives on a contract version other than the one the
   // SDK / wallet is configured for. We can still READ its state, but every
   // write helper in escrow-service.ts dispatches to CONTRACT_PRINCIPAL, so
@@ -239,7 +252,8 @@ export default function EscrowDetail() {
     (isSeller && isActive) ||
     (isBuyer && isActive && isExpired) ||
     (isBuyer && disputeTimedOut) ||
-    (isSeller && isActive && isExpired)
+    (isSeller && isActive && isExpired) ||
+    (isSeller && sellerRescueEligible)
   );
 
   const sortedEvents = [...escrowEvents].sort((a, b) => b.blockHeight - a.blockHeight);
@@ -300,6 +314,11 @@ export default function EscrowDetail() {
         case 'recover':
           txId = await resolveExpiredDispute(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType);
           actionType = 'resolve-expired';
+          break;
+        case 'seller-rescue':
+          // v3+ only: seller claims funds for delivered work after 2x dispute-timeout
+          txId = await resolveExpiredDisputeForSeller(escrow.contractId, escrow.id, escrow.amount, escrow.feeAmount, escrow.tokenType);
+          actionType = 'release';
           break;
       }
 
@@ -629,6 +648,19 @@ export default function EscrowDetail() {
                 )}
               </div>
             </div>
+
+            {escrow.beneficiary && (
+              <div className="rounded-lg border border-border p-3 mt-3">
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                  Beneficiary
+                  {address === escrow.beneficiary && <span className="text-primary font-medium">(you)</span>}
+                  <span className="text-[10px] text-muted-foreground/70 ml-1">
+                    · co-buyer with full release/refund/dispute rights
+                  </span>
+                </p>
+                <AddressDisplay address={escrow.beneficiary} showExplorer />
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -1151,6 +1183,7 @@ export default function EscrowDetail() {
                             {confirmAction === 'release' && 'This will release funds to the seller. This action cannot be undone.'}
                             {confirmAction === 'refund' && 'This will return the escrowed funds to the buyer.'}
                             {confirmAction === 'recover' && 'The dispute timeout has expired. You can recover your funds.'}
+                            {confirmAction === 'seller-rescue' && 'The admin did not resolve this delivered dispute in time. You can claim the funds for the work you delivered.'}
                           </p>
                         </div>
                       </div>
@@ -1205,6 +1238,11 @@ export default function EscrowDetail() {
                   {isBuyer && disputeTimedOut && (
                     <Button size="sm" onClick={() => setConfirmAction('recover')} className="gap-1.5">
                       <Shield className="h-3.5 w-3.5" /> Recover Funds
+                    </Button>
+                  )}
+                  {isSeller && sellerRescueEligible && (
+                    <Button size="sm" onClick={() => setConfirmAction('seller-rescue')} className="gap-1.5">
+                      <Shield className="h-3.5 w-3.5" /> Claim Delivered Funds
                     </Button>
                   )}
                 </div>
