@@ -74,31 +74,67 @@ Deno.serve(async (req: Request): Promise<Response> => {
       latest_indexed_at: latestEvent?.indexed_at ?? null,
     };
 
-    // 3. Calculate lag
-    const hiroBlock = chainhookStatus?.last_evaluated_block ?? null;
-    const localBlock = dbStatus.latest_block;
-    const blockLag =
-      hiroBlock && localBlock ? hiroBlock - localBlock : null;
+    // 3. Calculate scanner lag (chain tip vs last block the predicate scanned).
+    // This is the *real* health signal — does NOT depend on contract activity.
+    // The earlier metric (hiro_block - db_block) grew forever on a quiet
+    // contract and made the system look broken when it was fine.
+    let chainTip: number | null = null;
+    try {
+      const tipController = new AbortController();
+      const tipTimeout = setTimeout(() => tipController.abort(), 5000);
+      const tipRes = await fetch(
+        `https://api.${STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet"}.hiro.so/v2/info`,
+        { signal: tipController.signal },
+      );
+      clearTimeout(tipTimeout);
+      if (tipRes.ok) {
+        const tipData = await tipRes.json();
+        chainTip = tipData.stacks_tip_height ?? null;
+      }
+    } catch {
+      // Tip lookup is best-effort; without it we fall back to "trust chainhook status"
+    }
 
-    const healthy =
+    const lastEvaluated = chainhookStatus?.last_evaluated_block ?? null;
+    const scannerLag =
+      chainTip !== null && lastEvaluated !== null
+        ? Math.max(0, chainTip - lastEvaluated)
+        : null;
+
+    // Historical "db_lag" — how far the DB is behind the predicate's last
+    // scanned block. Informational only (grows forever on a quiet contract);
+    // do NOT use for the healthy/unhealthy decision.
+    const dbLag =
+      lastEvaluated !== null && dbStatus.latest_block !== null
+        ? Math.max(0, lastEvaluated - dbStatus.latest_block)
+        : null;
+
+    // Healthy iff predicate is enabled AND in a live state AND caught up to tip.
+    const chainhookLive =
       (chainhookStatus?.enabled ?? false) &&
-      (blockLag === null || blockLag < 100);
+      (chainhookStatus?.status === "streaming" || chainhookStatus?.status === "scanning");
+    const scannerCaughtUp = scannerLag === null || scannerLag < 10;
+    const healthy = chainhookLive && scannerCaughtUp;
 
     return new Response(
       JSON.stringify({
         healthy,
         chainhook: chainhookStatus,
         database: dbStatus,
+        // `lag.blocks` is the scanner lag — kept under the same key for
+        // backwards compatibility with the existing IndexerHealthBanner.
         lag: {
-          blocks: blockLag,
+          blocks: scannerLag,
+          db_lag_blocks: dbLag,
+          chain_tip: chainTip,
           note:
-            blockLag === null
-              ? "No events indexed yet"
-              : blockLag < 10
+            scannerLag === null
+              ? "Chain tip unknown"
+              : scannerLag < 3
                 ? "Healthy"
-                : blockLag < 100
+                : scannerLag < 10
                   ? "Slight delay"
-                  : "Significant lag — check Edge Function logs",
+                  : "Scanner falling behind — check predicate status",
         },
         checked_at: new Date().toISOString(),
       }),
