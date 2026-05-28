@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { request } from '@stacks/connect';
 import { Cl } from '@stacks/transactions';
-import { STACKS_NETWORK } from './stacks-config';
+import { STACKS_NETWORK, supportsV3Features } from './stacks-config';
 import { TokenType } from './types';
 import { contractSendPc, userSendPc } from './post-conditions';
 import { categorizeTxError } from './tx-errors';
@@ -36,20 +36,41 @@ export async function createEscrow(params: {
   duration: number;
   tokenType: TokenType;
   feeBps?: number;
+  /**
+   * Optional secondary authority on the escrow (v3+ contracts only).
+   * If set on a v3+ contract, the beneficiary has the same release / refund /
+   * dispute / extend rights as the buyer. Silently ignored on v2 / v7
+   * contracts (those don't take this argument).
+   */
+  beneficiary?: string;
 }): Promise<string> {
   const fee = estimateFee(params.amount, params.feeBps);
   const totalAmount = params.amount + fee;
+  const isV3 = supportsV3Features(params.contractId);
+
+  // v3 contracts take a 6th `beneficiary (optional principal)` argument.
+  // Sending it to v2 would cause a wrong-arg-count contract-call failure.
+  const baseArgs = [
+    Cl.standardPrincipal(params.seller),
+    Cl.uint(params.amount),
+    Cl.stringUtf8(params.description),
+    Cl.uint(params.duration),
+    Cl.uint(params.tokenType),
+  ];
+  const functionArgs = isV3
+    ? [
+        ...baseArgs,
+        params.beneficiary
+          ? Cl.some(Cl.standardPrincipal(params.beneficiary))
+          : Cl.none(),
+      ]
+    : baseArgs;
+
   try {
     const response = await request('stx_callContract', {
       contract: params.contractId as `${string}.${string}`,
       functionName: 'create-escrow',
-      functionArgs: [
-        Cl.standardPrincipal(params.seller),
-        Cl.uint(params.amount),
-        Cl.stringUtf8(params.description),
-        Cl.uint(params.duration),
-        Cl.uint(params.tokenType),
-      ],
+      functionArgs,
       postConditions: [
         userSendPc(params.buyer, totalAmount, params.tokenType),
       ],
@@ -200,6 +221,48 @@ export async function resolveExpiredDispute(
     return response.txid;
   } catch (err) {
     const e = categorizeTxError(err, 'recover your funds');
+    toast.error(e.title, { description: e.description });
+    throw err;
+  }
+}
+
+/**
+ * v3+ only: seller self-rescue. Releases full amount to seller and fee to
+ * fee-recipient when a delivered escrow has been stuck in DISPUTED past
+ * `2 * dispute-timeout` blocks (i.e. admin abandoned the resolution).
+ *
+ * Callers must gate this on `supportsV3Features(contractId)` AND on the
+ * read-only `is-seller-rescue-eligible(escrow-id)` returning true.
+ */
+export async function resolveExpiredDisputeForSeller(
+  contractId: string,
+  escrowId: number,
+  amount: number,
+  feeAmount: number,
+  tokenType: TokenType,
+): Promise<string> {
+  if (!supportsV3Features(contractId)) {
+    throw new Error(
+      `resolveExpiredDisputeForSeller requires a v3+ contract; ${contractId} does not support it.`,
+    );
+  }
+  // The contract transfers `amount` to seller and `fee` to fee-recipient;
+  // both come out of the contract's locked balance.
+  const totalRelease = amount + feeAmount;
+  try {
+    const response = await request('stx_callContract', {
+      contract: contractId as `${string}.${string}`,
+      functionName: 'resolve-expired-dispute-for-seller',
+      functionArgs: [Cl.uint(escrowId)],
+      postConditions: [
+        contractSendPc(contractId, totalRelease, tokenType),
+      ],
+      network: STACKS_NETWORK,
+    });
+    toast.success('Self-rescue submitted', { description: PENDING_HINT });
+    return response.txid;
+  } catch (err) {
+    const e = categorizeTxError(err, 'recover your funds as seller');
     toast.error(e.title, { description: e.description });
     throw err;
   }
