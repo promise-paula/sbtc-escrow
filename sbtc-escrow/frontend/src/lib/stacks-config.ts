@@ -73,15 +73,22 @@ export const REPO_URL = 'https://github.com/promise-paula/sbtc-escrow';
 //
 // Some features only exist on specific contract versions. v7+ adds on-chain
 // `deliver()` (STATUS_DELIVERED + review window) and `resolve-dispute-split`.
-// v6 / `escrow-mainnet` predate both. Hard-coding capabilities by contract id
-// avoids brittle name-pattern matching and forces an explicit add when a new
+// v6 / `escrow-mainnet` predate both. v3 / `escrow-mainnet-v3` adds the
+// burn-block clock, beneficiary parameter, time-bound pause, sweep-orphans,
+// and seller self-rescue. Hard-coding capabilities by contract id avoids
+// brittle name-pattern matching and forces an explicit add when a new
 // deployment ships.
-//
-// When a new v7+ contract is deployed (e.g. v7-equivalent on mainnet), add
-// its full principal here.
 const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2',
+  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',
+]);
+
+// V3+ contracts: time-based (burn-block) expiry, beneficiary delegation,
+// per-escrow fee-recipient snapshot, sweep-orphans, seller self-rescue.
+// All v3+ contracts also satisfy V7_PLUS (they're supersets).
+const V3_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
+  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',
 ]);
 
 /**
@@ -91,4 +98,23 @@ const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
  */
 export function supportsOnChainDelivery(contractId: string): boolean {
   return V7_PLUS_CONTRACTS.has(contractId);
+}
+
+/**
+ * True iff the contract uses the v3+ feature set: burn-block clock,
+ * beneficiary delegation, per-escrow fee-recipient snapshot, sweep-orphans,
+ * seller self-rescue. Use this to gate the "Add beneficiary" UI on Create,
+ * the seller's self-rescue affordance, and burn-block-based time displays.
+ */
+export function supportsV3Features(contractId: string): boolean {
+  return V3_PLUS_CONTRACTS.has(contractId);
+}
+
+/**
+ * True if this contract uses burn-block-height for its time anchors
+ * (vs stacks-block-height). Used by frontend time-conversion helpers so
+ * "30 days" actually translates to 30 days regardless of Stacks block rate.
+ */
+export function usesBurnBlockClock(contractId: string): boolean {
+  return V3_PLUS_CONTRACTS.has(contractId);
 }
