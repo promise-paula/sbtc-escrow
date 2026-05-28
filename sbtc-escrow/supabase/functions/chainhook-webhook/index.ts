@@ -326,9 +326,16 @@ async function routeEvent(
       } catch (descErr) {
         console.warn(`[escrow-created] Description fetch failed for #${escrowId}, proceeding without:`, descErr);
       }
+      // v3+ event includes `beneficiary` (optional principal) and `fee-recipient`
+      // (per-escrow snapshot). Earlier contract versions omit both fields, so
+      // the spread-with-fallback shape keeps the upsert backwards-compatible
+      // without forcing a column-presence check at every call site.
+      const beneficiary =
+        (data.beneficiary as string | null | undefined) ?? null;
       await upsertEscrow(contractId, escrowId!, {
         buyer: data.buyer,
         seller: data.seller,
+        beneficiary,
         amount: data.amount,
         fee_amount: data.fee,
         token_type: (data["token-type"] as number) ?? 0,
@@ -405,6 +412,23 @@ async function routeEvent(
         completed_at_block: blockHeight,
       });
       await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      break;
+
+    // v3+: seller self-rescue after 2x dispute-timeout on a delivered escrow.
+    // Treated as a final RELEASED state from the indexer's perspective.
+    case "dispute-expired-resolved-for-seller":
+      await updateEscrow(contractId, escrowId!, {
+        status: 1, // released
+        completed_at_block: blockHeight,
+      });
+      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      break;
+
+    // v3+: admin sweep of orphan funds (donations that landed at the contract
+    // principal). Doesn't touch an escrow — record as a config-scope event
+    // for audit-trail purposes only.
+    case "orphans-swept":
+      await insertEvent(contractId, null, event, blockHeight, txId, data);
       break;
 
     // v7+: admin/arbiter resolved a dispute with a partial split. Treated as a
@@ -530,6 +554,7 @@ async function handleRollback(block: BlockPayload): Promise<void> {
         "dispute-resolved-for-seller": 1,
         "dispute-resolved-split": 1,
         "dispute-expired-resolved": 2,
+        "dispute-expired-resolved-for-seller": 1, // v3+: seller self-rescue
       };
       const prevStatus = statusMap[priorEvent.event_type];
       if (prevStatus !== undefined) {
