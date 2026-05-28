@@ -16,7 +16,7 @@ import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
 import { useUsdEstimate, useUsdValue } from '@/hooks/use-usd-estimate';
 import { useWalletBalance, useStxGasBalance } from '@/hooks/use-wallet-balance';
-import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK, STACKS_NETWORK } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK, STACKS_NETWORK, supportsV3Features } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
@@ -57,6 +57,8 @@ export default function CreateEscrow() {
   const [step, setStep] = useState(1);
 
   const [recipient, setRecipient] = useState('');
+  const [beneficiary, setBeneficiary] = useState('');
+  const [showBeneficiary, setShowBeneficiary] = useState(false);
   const [amountStr, setAmountStr] = useState('');
   const [description, setDescription] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(60 * 24 * 7); // default 1 week
@@ -115,6 +117,30 @@ export default function CreateEscrow() {
   const expectedPrefixes = STACKS_NETWORK === 'mainnet' ? 'SP / SM' : 'ST / SN';
   const addressPlaceholder = STACKS_NETWORK === 'mainnet' ? 'SP...' : 'ST...';
   const selfEscrow = recipient === address;
+
+  // Beneficiary is v3+ only — gate the input on contract capabilities so the
+  // UI is automatically silent on legacy contracts that don't accept the param.
+  const supportsBeneficiary = supportsV3Features(CONTRACT_PRINCIPAL);
+  const beneficiaryTrimmed = beneficiary.trim();
+  const beneficiaryShapeValid = isValidStacksAddress(beneficiaryTrimmed);
+  const beneficiaryNetwork = beneficiaryShapeValid
+    ? getAddressNetwork(beneficiaryTrimmed)
+    : null;
+  const beneficiaryNetworkMismatch =
+    beneficiaryShapeValid &&
+    beneficiaryNetwork !== null &&
+    beneficiaryNetwork !== STACKS_NETWORK;
+  // Contract enforces these too, but failing fast in the UI saves a tx.
+  const beneficiarySameAsBuyer = beneficiaryTrimmed === address;
+  const beneficiarySameAsSeller =
+    beneficiaryTrimmed.length > 0 && beneficiaryTrimmed === recipient;
+  const beneficiaryValid =
+    !showBeneficiary ||
+    beneficiaryTrimmed.length === 0 ||
+    (beneficiaryShapeValid &&
+      !beneficiaryNetworkMismatch &&
+      !beneficiarySameAsBuyer &&
+      !beneficiarySameAsSeller);
   const amountValid = smallestUnit >= minAmt && smallestUnit <= maxAmt;
   const descValid = description.trim().length > 0 && description.length <= 256;
   const durationValid = duration >= MIN_DURATION_BLOCKS && duration <= MAX_DURATION_BLOCKS;
@@ -150,7 +176,7 @@ export default function CreateEscrow() {
           ? { kind: 'gas' as const, need: '0.01 STX' }
           : null;
 
-  const step1Valid = recipientValid && !selfEscrow;
+  const step1Valid = recipientValid && !selfEscrow && beneficiaryValid;
   const step2Valid = amountValid && descValid && durationValid;
 
   const progressPercent = step === 1 ? 33 : step === 2 ? 66 : 100;
@@ -174,6 +200,10 @@ export default function CreateEscrow() {
         duration,
         tokenType,
         feeBps: cfg.platformFeeBps,
+        beneficiary:
+          supportsBeneficiary && showBeneficiary && beneficiaryTrimmed.length > 0
+            ? beneficiaryTrimmed
+            : undefined,
       });
       setTxHash(hash);
       setTxStatus('success');
@@ -380,6 +410,68 @@ export default function CreateEscrow() {
                     <p className="text-xs text-destructive" role="alert">Cannot escrow to yourself</p>
                   )}
                 </div>
+
+                {supportsBeneficiary && (
+                  <div className="space-y-1.5">
+                    {!showBeneficiary ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 -ml-2"
+                        onClick={() => setShowBeneficiary(true)}
+                      >
+                        + Add a co-buyer (beneficiary)
+                      </Button>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Beneficiary <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] -mr-2 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setShowBeneficiary(false);
+                              setBeneficiary('');
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                        <Input
+                          placeholder={addressPlaceholder}
+                          value={beneficiary}
+                          onChange={e => setBeneficiary(e.target.value)}
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Co-buyer with the same release / refund / dispute rights as you.
+                          Useful when an intermediary (marketplace, agent) is signing this
+                          escrow on behalf of an end user — pass the end user here so they
+                          keep control. Leave blank for a standard one-buyer escrow.
+                        </p>
+                        {beneficiaryTrimmed && !beneficiaryShapeValid && (
+                          <p className="text-xs text-destructive" role="alert">Invalid Stacks address</p>
+                        )}
+                        {beneficiaryNetworkMismatch && (
+                          <p className="text-xs text-destructive" role="alert">
+                            This is a {beneficiaryNetwork} address. You're on {STACKS_NETWORK} —
+                            use an address starting with {expectedPrefixes}.
+                          </p>
+                        )}
+                        {beneficiarySameAsBuyer && (
+                          <p className="text-xs text-destructive" role="alert">Beneficiary can't be your own address</p>
+                        )}
+                        {beneficiarySameAsSeller && (
+                          <p className="text-xs text-destructive" role="alert">Beneficiary can't be the recipient</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <Button onClick={() => setStep(2)} disabled={!step1Valid} className="w-full gap-1.5">
                   Next <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -576,6 +668,12 @@ export default function CreateEscrow() {
                     <span className="text-muted-foreground shrink-0">Recipient</span>
                     <span className="font-mono text-xs truncate">{recipient}</span>
                   </div>
+                  {supportsBeneficiary && showBeneficiary && beneficiaryTrimmed && (
+                    <div className="flex justify-between gap-3 p-3">
+                      <span className="text-muted-foreground shrink-0">Beneficiary</span>
+                      <span className="font-mono text-xs truncate">{beneficiaryTrimmed}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Token</span>
                     <span className="font-mono">{token}</span>
