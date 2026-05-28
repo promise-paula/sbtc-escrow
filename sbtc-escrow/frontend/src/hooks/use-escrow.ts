@@ -161,6 +161,7 @@ interface SupabaseEscrowRow {
   contract_id: string;
   buyer: string;
   seller: string;
+  beneficiary: string | null;
   amount: number;
   fee_amount: number;
   token_type: number;
@@ -181,6 +182,7 @@ function mapEscrowRow(row: SupabaseEscrowRow): Escrow {
     contractId: row.contract_id,
     buyer: row.buyer,
     seller: row.seller,
+    beneficiary: row.beneficiary ?? null,
     amount: row.amount,
     feeAmount: row.fee_amount ?? 0,
     tokenType: (row.token_type ?? 0) as TokenType,
