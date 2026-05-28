@@ -22,6 +22,12 @@ export interface Escrow {
   contractId: string;
   buyer: string;
   seller: string;
+  /**
+   * Optional secondary authority (v3+ contracts). When set, has buyer-equivalent
+   * release / refund / dispute / extend rights. Null on v6 / v7 / mainnet-v2
+   * escrows (those contract versions don't support the field).
+   */
+  beneficiary?: string | null;
   amount: number; // microSTX or satoshis depending on tokenType
   feeAmount: number;
   tokenType: TokenType;
