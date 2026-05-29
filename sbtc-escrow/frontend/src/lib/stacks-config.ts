@@ -4,7 +4,11 @@ export const STACKS_API_URL = import.meta.env.VITE_STACKS_API_URL ||
   (STACKS_NETWORK === 'mainnet' ? 'https://api.mainnet.hiro.so' : 'https://api.testnet.hiro.so');
 
 export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
-export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v7';
+// Default targets the latest active contract on each network. Override with
+// VITE_CONTRACT_NAME if you need to create new escrows on a legacy version
+// (legacy escrows are still readable / actionable via the multi-version
+// dispatch in escrow-service.ts — only NEW creates respect this default).
+export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v8';
 export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${string}.${string}`;
 
 export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
@@ -50,8 +54,58 @@ export const DEFAULT_DISPUTE_TIMEOUT = 28_800; // ~30 days at 960 blocks/day (po
 export const MAX_DISPUTE_TIMEOUT = 57_600; // ~60 days at 960 blocks/day (post-Nakamoto)
 export const MIN_DISPUTE_TIMEOUT = 1;
 export const MAX_FEE_BPS = 500; // 5%
-export const MIN_DURATION_BLOCKS = 4; // ~5 min at post-Nakamoto block times (enough for tx confirmation)
-export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day (post-Nakamoto)
+
+// ── Duration bounds: TWO clocks ────────────────────────────────────────
+// v2/v7 contracts use stacks-block-height (variable rate, post-Nakamoto).
+// v3+ contracts use burn-block-height (Bitcoin chain, ~10 min/block, stable).
+// Use the `_BURN` constants when targeting a v3+ contract.
+
+// Stacks-block math (legacy v2/v7)
+export const MIN_DURATION_BLOCKS = 4; // ~5 min at target rate
+export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day
+
+// Burn-block math (v3+)
+export const MIN_DURATION_BURN_BLOCKS = 1; // ~10 min minimum (matches contract MIN_DURATION u1)
+export const MAX_DURATION_BURN_BLOCKS = 52_560; // ~365 days (matches contract MAX_DURATION u52560)
+export const BURN_BLOCK_MINUTES = 10; // Bitcoin produces ~144 blocks/day = 10 min/block average
+
+/**
+ * Convert a wall-clock duration (in minutes) to a block count for the given
+ * contract's clock. For v3+ contracts uses burn-block math (1 block ≈ 10 min,
+ * stable). For v2/v7 contracts uses the live stacks-block rate.
+ */
+export function durationToBlocks(
+  contractId: string,
+  minutes: number,
+  liveMinutesPerStacksBlock: number,
+): number {
+  if (usesBurnBlockClock(contractId)) {
+    return Math.max(MIN_DURATION_BURN_BLOCKS, Math.round(minutes / BURN_BLOCK_MINUTES));
+  }
+  return Math.max(1, Math.round(minutes / liveMinutesPerStacksBlock));
+}
+
+/**
+ * The duration cap for the given contract's clock, in blocks. Use this when
+ * filtering UI presets or validating user input.
+ */
+export function maxDurationBlocks(contractId: string): number {
+  return usesBurnBlockClock(contractId) ? MAX_DURATION_BURN_BLOCKS : MAX_DURATION_BLOCKS;
+}
+
+/**
+ * The minutes-per-block to use for "expires in X" displays for this contract.
+ * On v3+ contracts this is a stable constant (Bitcoin block target). On
+ * legacy contracts it's the live observed Stacks block rate.
+ */
+export function effectiveMinutesPerBlock(
+  contractId: string,
+  liveMinutesPerStacksBlock: number,
+): number {
+  return usesBurnBlockClock(contractId)
+    ? BURN_BLOCK_MINUTES
+    : liveMinutesPerStacksBlock;
+}
 
 // Below this, an admin is almost certainly making a mistake — surface a
 // confirmation in the UI before letting them set a dispute window of less
@@ -80,14 +134,21 @@ export const REPO_URL = 'https://github.com/promise-paula/sbtc-escrow';
 // deployment ships.
 const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7',
+  'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',
 ]);
 
-// V3+ contracts: time-based (burn-block) expiry, beneficiary delegation,
-// per-escrow fee-recipient snapshot, sweep-orphans, seller self-rescue.
-// All v3+ contracts also satisfy V7_PLUS (they're supersets).
+// V3+ contracts: burn-block expiry, beneficiary delegation, per-escrow
+// fee-recipient snapshot, sweep-orphans, seller self-rescue, time-bound
+// pause with anti-chaining cooldown. All v3+ contracts also satisfy
+// V7_PLUS (they're feature supersets).
+//
+// Testnet v3-equivalent is named `escrow-v8` to keep the testnet vN /
+// mainnet-vN naming lanes parallel. Mainnet v3 is added here when it
+// deploys.
 const V3_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
+  'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',
 ]);
 
