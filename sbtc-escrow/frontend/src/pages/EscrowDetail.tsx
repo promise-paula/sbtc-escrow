@@ -193,7 +193,13 @@ export default function EscrowDetail() {
   // contracts use Stacks blocks and lean on the rate-based estimate.
   // Future blocks (e.g. `expiresAt` if not yet mined) won't appear in the
   // map; `blockToHumanTime` projects those from the observed burn rate.
-  const burnHeightsToResolve = usesBurnClock
+  // Only request real timestamps for blocks that have already been mined.
+  // Future heights (e.g. `expiresAt` on an active escrow) would return
+  // 404 from /extended/v2/burn-blocks/{height} and pollute the dev console
+  // with red error logs even though the hook handles the null gracefully.
+  // `blockToHumanTime` projects future blocks from the network-target rate
+  // anyway, so there's no UX value in requesting them.
+  const burnHeightsToResolve = usesBurnClock && currentBlock > 0
     ? [
         escrow?.createdAt,
         escrow?.expiresAt,
@@ -201,7 +207,7 @@ export default function EscrowDetail() {
         escrow?.disputedAt,
         escrow?.deliveredAt,
         ...escrowEvents.map((e) => e.blockHeight),
-      ]
+      ].filter((h): h is number => typeof h === 'number' && h > 0 && h <= currentBlock)
     : [];
   const { data: burnTimestamps } = useBurnBlockTimestamps(
     burnHeightsToResolve,
