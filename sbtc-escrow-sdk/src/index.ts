@@ -9,7 +9,7 @@
  */
 
 // Main client
-export { EscrowClient } from './client';
+export { EscrowClient, supportsV3Features } from './client';
 
 // Types
 export {
