@@ -9,6 +9,10 @@ interface EscrowRow {
   id: number;
   buyer: string;
   seller: string;
+  // v3+ optional co-buyer with full release/refund/dispute rights — must be
+  // notified on state changes too, otherwise the only way they'd find out
+  // a dispute opened on "their" escrow is by manually refreshing.
+  beneficiary: string | null;
   status: number;
 }
 
@@ -48,8 +52,10 @@ export function useEscrowNotifications() {
           const row = payload.new as EscrowRow;
           const old = payload.old as Partial<EscrowRow>;
 
-          // Filter to escrows involving this user
-          if (row.buyer !== address && row.seller !== address) return;
+          // Filter to escrows involving this user (buyer, seller, OR
+          // beneficiary — the beneficiary has buyer-equivalent rights and
+          // needs the same notifications).
+          if (row.buyer !== address && row.seller !== address && row.beneficiary !== address) return;
 
           // Detect status transition (use ref to dedupe across reconnects)
           const prevStatus = lastSeenStatus.current.get(row.id) ?? old.status;
@@ -64,7 +70,10 @@ export function useEscrowNotifications() {
           if (isDispute && !settings.notifyDisputes) return;
           if (isCompletion && !settings.notifyConfirmations) return;
 
-          const role = row.buyer === address ? 'buyer' : 'seller';
+          const role =
+            row.buyer === address ? 'buyer'
+            : row.seller === address ? 'seller'
+            : 'beneficiary';
           let title = '';
           if (row.status === EscrowStatus.Released) title = 'Escrow released';
           else if (row.status === EscrowStatus.Refunded) title = 'Escrow refunded';
