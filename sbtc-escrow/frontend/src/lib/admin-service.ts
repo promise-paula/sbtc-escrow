@@ -46,20 +46,41 @@ async function adminCall(
   }
 }
 
-export function pauseContract(contractId: string): Promise<string> {
-  return adminCall(contractId, 'pause-contract', [], 'Contract paused', 'pause the contract');
+/**
+ * Pause new escrow creations for a bounded duration. v3+ contracts require
+ * an explicit `duration` (in burn blocks). The same duration becomes the
+ * anti-chaining cooldown — admin cannot re-pause until both the pause
+ * window and the matching cooldown have elapsed. Legacy v2/v7 contracts
+ * accepted a no-arg pause; v3 deliberately removed that footgun.
+ */
+export function pauseContract(contractId: string, durationBlocks: number): Promise<string> {
+  return adminCall(
+    contractId,
+    'pause-contract',
+    [Cl.uint(durationBlocks)],
+    // Phrased as "submitted" not "paused" — the tx can still abort on-chain
+    // (e.g. ERR_PAUSE_COOLDOWN_ACTIVE), and the operator shouldn't think
+    // it's done until the in-UI "Confirming…" banner clears.
+    `Pause tx submitted (${durationBlocks} blocks)`,
+    'pause the contract',
+  );
 }
 
 export function unpauseContract(contractId: string): Promise<string> {
-  return adminCall(contractId, 'unpause-contract', [], 'Contract unpaused', 'unpause the contract');
+  return adminCall(contractId, 'unpause-contract', [], 'Unpause tx submitted', 'unpause the contract');
 }
 
+// All admin success toasts are phrased as "tx submitted" rather than
+// "X done" — the wallet returns a txid the instant it broadcasts, but the
+// tx can still abort on-chain (invalid bounds, race with another admin
+// call, etc.). The on-chain refetch driven by usePlatformConfig is what
+// actually proves the change took effect.
 export function setPlatformFee(contractId: string, bps: number): Promise<string> {
   return adminCall(
     contractId,
     'set-platform-fee',
     [Cl.uint(bps)],
-    `Fee updated to ${bps} BPS (${(bps / 100).toFixed(2)}%)`,
+    `Fee tx submitted (${bps} BPS / ${(bps / 100).toFixed(2)}%)`,
     'update the fee',
   );
 }
@@ -69,7 +90,7 @@ export function setFeeRecipient(contractId: string, address: string): Promise<st
     contractId,
     'set-fee-recipient',
     [Cl.standardPrincipal(address)],
-    'Fee recipient updated',
+    'Fee recipient tx submitted',
     'update the fee recipient',
   );
 }
@@ -79,7 +100,7 @@ export function setDisputeTimeout(contractId: string, blocks: number): Promise<s
     contractId,
     'set-dispute-timeout',
     [Cl.uint(blocks)],
-    `Dispute timeout updated to ${blocks} blocks`,
+    `Dispute timeout tx submitted (${blocks} blocks)`,
     'update the dispute timeout',
   );
 }
@@ -89,13 +110,13 @@ export function transferOwnership(contractId: string, newOwner: string): Promise
     contractId,
     'transfer-ownership',
     [Cl.standardPrincipal(newOwner)],
-    'Ownership transfer initiated',
+    'Ownership transfer initiated (tx submitted)',
     'initiate the ownership transfer',
   );
 }
 
 export function acceptOwnership(contractId: string): Promise<string> {
-  return adminCall(contractId, 'accept-ownership', [], 'Ownership transfer accepted', 'accept ownership');
+  return adminCall(contractId, 'accept-ownership', [], 'Accept ownership tx submitted', 'accept ownership');
 }
 
 export function resolveDisputeForBuyer(
@@ -154,7 +175,7 @@ export function resolveDisputeSplit(
     contractId,
     'resolve-dispute-split',
     [Cl.uint(escrowId), Cl.uint(buyerBps)],
-    `Dispute resolved — split ${buyerBps / 100}% buyer / ${(10000 - buyerBps) / 100}% seller`,
+    `Split tx submitted (${buyerBps / 100}% buyer / ${(10000 - buyerBps) / 100}% seller)`,
     'resolve the dispute split',
     [contractSendPc(contractId, totalOutflow, tokenType)],
   );
