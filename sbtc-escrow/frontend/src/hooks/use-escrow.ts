@@ -21,7 +21,7 @@ export function useEscrows(address: string | null) {
         .from('escrows')
         .select('*')
         .eq('contract_id', CONTRACT_PRINCIPAL)
-        .or(`buyer.eq.${address},seller.eq.${address}`)
+        .or(`buyer.eq.${address},seller.eq.${address},beneficiary.eq.${address}`)
         .order('indexed_at', { ascending: false });
       if (error || !data?.length) return [];
       return data.map(mapEscrowRow);
@@ -108,7 +108,7 @@ export function useUserEscrowEvents(address: string | null) {
         .from('escrows')
         .select('id')
         .eq('contract_id', CONTRACT_PRINCIPAL)
-        .or(`buyer.eq.${address},seller.eq.${address}`);
+        .or(`buyer.eq.${address},seller.eq.${address},beneficiary.eq.${address}`);
       if (escrowErr || !escrows?.length) return [];
       const ids = escrows.map(e => e.id);
       // Then get events for those escrows
@@ -134,7 +134,7 @@ export function useUserStats(address: string | null) {
         .from('escrows')
         .select('*')
         .eq('contract_id', CONTRACT_PRINCIPAL)
-        .or(`buyer.eq.${address},seller.eq.${address}`);
+        .or(`buyer.eq.${address},seller.eq.${address},beneficiary.eq.${address}`);
       if (error || !data?.length) return EMPTY_STATS;
       const escrows = data.map(mapEscrowRow);
       // Pending, Delivered, and Disputed all keep funds locked on-chain.
