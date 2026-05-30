@@ -16,14 +16,14 @@ import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
 import { useUsdEstimate, useUsdValue } from '@/hooks/use-usd-estimate';
 import { useWalletBalance, useStxGasBalance } from '@/hooks/use-wallet-balance';
-import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MAX_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK, STACKS_NETWORK, supportsV3Features } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, MIN_DURATION_BLOCKS, MIN_AMOUNT_STX, MAX_AMOUNT_STX, MIN_AMOUNT_SBTC, MAX_AMOUNT_SBTC, DEFAULT_MINUTES_PER_BLOCK, STACKS_NETWORK, supportsV3Features, durationToBlocks, maxDurationBlocks, effectiveMinutesPerBlock, MIN_DURATION_BURN_BLOCKS, usesBurnBlockClock } from '@/lib/stacks-config';
 import { createEscrow } from '@/lib/escrow-service';
 import { TokenType } from '@/lib/types';
 import { TransactionPending } from '@/components/shared/TransactionPending';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, dur, scaleIn, shake } from '@/lib/motion';
-import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck, AlertCircle, BookUser } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, ExternalLink, User, Coins, FileCheck, AlertCircle, AlertTriangle, BookUser } from 'lucide-react';
 
 /** Time-based duration presets (in minutes) */
 const durationPresets = [
@@ -92,9 +92,17 @@ export default function CreateEscrow() {
   const maxAmt = tokenType === TokenType.SBTC ? (cfg.maxAmountSbtc ?? MAX_AMOUNT_SBTC) : cfg.maxAmount;
   const fee = calculateFee(smallestUnit, cfg.platformFeeBps);
   const total = smallestUnit + fee;
+  // v3+ contracts (burn-block clock) and legacy contracts (stacks-block clock)
+  // count duration differently. Compute the right block count for whichever
+  // clock the target contract uses; the rest of the form (presets, display,
+  // validation) reads from the same helpers so the math stays consistent.
+  const isBurnBlockContract = usesBurnBlockClock(CONTRACT_PRINCIPAL);
+  const effMinutesPerBlock = effectiveMinutesPerBlock(CONTRACT_PRINCIPAL, minutesPerBlock);
+  const effMaxDuration = maxDurationBlocks(CONTRACT_PRINCIPAL);
+  const effMinDuration = isBurnBlockContract ? MIN_DURATION_BURN_BLOCKS : MIN_DURATION_BLOCKS;
   const duration = customDuration
     ? parseInt(customDuration, 10)
-    : timeToBlocks(durationMinutes, minutesPerBlock);
+    : durationToBlocks(CONTRACT_PRINCIPAL, durationMinutes, minutesPerBlock);
   const token = tokenLabel(tokenType);
 
   const amountUsd = useUsdEstimate(smallestUnit, tokenType);
@@ -143,7 +151,7 @@ export default function CreateEscrow() {
       !beneficiarySameAsSeller);
   const amountValid = smallestUnit >= minAmt && smallestUnit <= maxAmt;
   const descValid = description.trim().length > 0 && description.length <= 256;
-  const durationValid = duration >= MIN_DURATION_BLOCKS && duration <= MAX_DURATION_BLOCKS;
+  const durationValid = duration >= effMinDuration && duration <= effMaxDuration;
 
   // Pre-flight balance check. Gas is always paid in STX, so for sBTC escrows
   // we need both the sBTC for the deposit AND a small STX buffer for gas.
@@ -214,6 +222,11 @@ export default function CreateEscrow() {
         setTxError({ title: 'Wallet signature declined', hint: 'You closed or rejected the wallet prompt. Approve the transaction in your wallet to continue.' });
       } else if (low.includes('insufficient') || low.includes('balance')) {
         setTxError({ title: 'Insufficient balance', hint: `You need ${formatAmount(total, tokenType)} ${token} plus network fees in your wallet.`, detail: msg });
+      } else if (low.includes('u1002') || low.includes('contract_paused') || low.includes('contract paused')) {
+        // ERR_CONTRACT_PAUSED — race between our pre-flight isPaused read and
+        // the broadcast (admin paused in between). Better message than
+        // "transaction failed" so the user knows it's not a wallet issue.
+        setTxError({ title: 'Contract is paused', hint: 'Admin paused the contract while you were confirming. Try again once it resumes.', detail: msg });
       } else if (low.includes('network') || low.includes('fetch') || low.includes('timeout')) {
         setTxError({ title: 'Network error', hint: 'Could not reach the Stacks network. Check your connection and try again.', detail: msg });
       } else {
@@ -309,6 +322,26 @@ export default function CreateEscrow() {
   return (
     <div className="p-4 sm:p-6 max-w-lg mx-auto space-y-6">
       <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Create Escrow</h1>
+
+      {/* Pause banner — pre-flight check against on-chain `is-paused` so the
+          user doesn't burn a wallet round-trip + tx fee just to discover the
+          contract isn't accepting new escrows. usePlatformConfig reads
+          directly from the chain so this is always current truth. */}
+      {config?.isPaused && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-2 text-sm text-foreground">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium">Contract is paused</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Admin has temporarily halted normal operations. New escrows,
+              releases, refunds, disputes, and deadline extensions are all
+              blocked until the pause lifts. Admin dispute resolutions and
+              seller self-rescue (for delivered escrows past timeout) still
+              work. Check back shortly or contact the operator.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Step indicator */}
       <div className="space-y-3">
@@ -593,13 +626,13 @@ export default function CreateEscrow() {
                   <Label className="text-xs">Duration</Label>
                   <div className="flex gap-2 flex-wrap">
                     {durationPresets.map(p => {
-                      // Contract caps duration at MAX_DURATION_BLOCKS. At fast
-                      // block rates (current mainnet ~6s/block), wall-clock
-                      // presets like "30 Days" can exceed that ceiling — hide
-                      // them rather than letting the user pick something the
-                      // contract will reject.
-                      const presetBlocks = timeToBlocks(p.minutes, minutesPerBlock);
-                      const exceedsCap = presetBlocks > MAX_DURATION_BLOCKS;
+                      // Hide any preset that would exceed the contract's max
+                      // duration cap on its native clock (stacks blocks for
+                      // v2/v7; burn blocks for v3+). v3+ presets fit easily;
+                      // legacy contracts at fast Stacks rates may need to
+                      // hide larger presets.
+                      const presetBlocks = durationToBlocks(CONTRACT_PRINCIPAL, p.minutes, minutesPerBlock);
+                      const exceedsCap = presetBlocks > effMaxDuration;
                       if (exceedsCap) return null;
                       return (
                         <Button
@@ -615,28 +648,31 @@ export default function CreateEscrow() {
                     })}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Maximum: {MAX_DURATION_BLOCKS.toLocaleString()} blocks (~{blocksToTime(MAX_DURATION_BLOCKS, minutesPerBlock)} at current ~{minutesPerBlock.toFixed(2)} min/block).
+                    Maximum: {effMaxDuration.toLocaleString()} {isBurnBlockContract ? 'burn blocks' : 'blocks'}
+                    {' '}(~{blocksToTime(effMaxDuration, effMinutesPerBlock)}
+                    {isBurnBlockContract ? ' at Bitcoin’s ~10 min/block target' : ` at current ~${minutesPerBlock.toFixed(2)} min/block`}).
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Input
                       type="number"
-                      placeholder={`Min ${MIN_DURATION_BLOCKS} blocks`}
+                      placeholder={`Min ${effMinDuration} ${isBurnBlockContract ? 'burn blocks' : 'blocks'}`}
                       value={customDuration}
                       onChange={e => setCustomDuration(e.target.value)}
                       className="font-mono text-sm w-40"
-                      min={MIN_DURATION_BLOCKS}
-                      max={MAX_DURATION_BLOCKS}
+                      min={effMinDuration}
+                      max={effMaxDuration}
                     />
-                    <span className="text-xs text-muted-foreground">blocks</span>
+                    <span className="text-xs text-muted-foreground">{isBurnBlockContract ? 'burn blocks' : 'blocks'}</span>
                   </div>
                   {customDuration && !durationValid && (
                     <p className="text-xs text-destructive">
-                      Minimum {MIN_DURATION_BLOCKS} blocks (~{blocksToTime(MIN_DURATION_BLOCKS, minutesPerBlock)}). Short durations may expire before the seller can act.
+                      Minimum {effMinDuration} {isBurnBlockContract ? 'burn blocks' : 'blocks'}
+                      {' '}(~{blocksToTime(effMinDuration, effMinutesPerBlock)}). Short durations may expire before the seller can act.
                     </p>
                   )}
                   {durationValid && (
                     <p className="text-xs text-muted-foreground">
-                      Expires: ~{blockToEstimatedDate(currentBlock + duration, currentBlock, minutesPerBlock).toLocaleDateString()} ({blocksToTime(duration, minutesPerBlock)})
+                      Expires: ~{blockToEstimatedDate(currentBlock + duration, currentBlock, effMinutesPerBlock).toLocaleDateString()} ({blocksToTime(duration, effMinutesPerBlock)})
                     </p>
                   )}
                 </div>
@@ -701,7 +737,7 @@ export default function CreateEscrow() {
                   </div>
                   <div className="flex justify-between p-3">
                     <span className="text-muted-foreground">Duration</span>
-                    <span>{blocksToTime(duration, minutesPerBlock)} ({duration.toLocaleString()} blocks)</span>
+                    <span>{blocksToTime(duration, effMinutesPerBlock)} ({duration.toLocaleString()} {isBurnBlockContract ? 'burn blocks' : 'blocks'})</span>
                   </div>
                   <div className="p-3">
                     <span className="text-muted-foreground text-xs">Description</span>
@@ -720,8 +756,8 @@ export default function CreateEscrow() {
                   <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
-                  <Button onClick={handleSubmit} disabled={!consent || !balanceSufficient} className="flex-1 shadow-glow-md hover:shadow-glow-lg transition-shadow">
-                    Confirm & Deposit
+                  <Button onClick={handleSubmit} disabled={!consent || !balanceSufficient || !!config?.isPaused} className="flex-1 shadow-glow-md hover:shadow-glow-lg transition-shadow">
+                    {config?.isPaused ? 'Contract Paused' : 'Confirm & Deposit'}
                   </Button>
                 </div>
               </CardContent>
