@@ -95,14 +95,18 @@ function useRecentEscrows() {
     queryKey: ['landing-recent-escrows'],
     queryFn: async () => {
       if (!isSupabaseConfigured) return [];
-      // Order by created_at_block (global, monotonic block height) instead of
-      // `id` — each contract version has its own id sequence, so ordering by
-      // id alone would hide newer escrows on a fresh contract behind older
-      // ones with higher numeric ids on the legacy contract.
+      // Order by `indexed_at` (DB wall-clock when the chainhook recorded the
+      // create event) rather than `created_at_block`. Block numbers are
+      // mixed-clock across contract versions — v3+ stores burn blocks
+      // (~178,000) while legacy v2/v7 store Stacks blocks (~3,998,000), so
+      // a numeric DESC on created_at_block puts every legacy escrow ahead
+      // of every v3 escrow regardless of when they actually happened. The
+      // landing page used to show only "Released" because the 4 entries
+      // that won the numeric race all happened to be old legacy ones.
       const { data } = await supabase
         .from('escrows')
         .select('id, contract_id, amount, status, token_type, created_at_block, indexed_at')
-        .order('created_at_block', { ascending: false })
+        .order('indexed_at', { ascending: false })
         .limit(4);
       return data ?? [];
     },
