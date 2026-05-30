@@ -3,6 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWallet } from '@/contexts/WalletContext';
 import { useEscrow, useEscrowEvents } from '@/hooks/use-escrow';
 import { useBlockHeight } from '@/hooks/use-block-height';
+import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
+import { useBurnBlockTimestamps } from '@/hooks/use-burn-block-timestamps';
+import { useBurnBlockRate } from '@/hooks/use-burn-block-rate';
+import { usesBurnBlockClock, BURN_BLOCK_MINUTES } from '@/lib/stacks-config';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
@@ -48,19 +52,45 @@ import {
   useDisputeReason,
   useSubmitDisputeReason,
   DISPUTE_REASON_CATEGORIES,
+  getDisputeReasonsForRole,
   type DisputeReasonCategory,
 } from '@/hooks/use-dispute-reason';
 
+// Timeline event labels. Labels here describe what happened in plain language
+// rather than echoing the contract event name. Admin-resolved disputes are
+// labeled by their *outcome* (refund vs release) — "Dispute Resolved (Buyer)"
+// is ambiguous: did the buyer win, or was it resolved on the buyer's
+// behalf? "Refunded by admin" is unambiguous.
 const EVENT_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   'escrow-created': { label: 'Created', color: 'bg-primary', icon: PlusCircle },
-  'escrow-released': { label: 'Released', color: 'bg-status-released', icon: CheckCircle2 },
-  'escrow-refunded': { label: 'Refunded', color: 'bg-status-refunded', icon: XCircle },
+  'escrow-delivered': { label: 'Delivery signaled', color: 'bg-status-delivered', icon: PackageCheck },
+  'escrow-released': { label: 'Released to seller', color: 'bg-status-released', icon: CheckCircle2 },
+  'escrow-refunded': { label: 'Refunded to buyer', color: 'bg-status-refunded', icon: XCircle },
   'escrow-disputed': { label: 'Disputed', color: 'bg-status-disputed', icon: AlertTriangle },
-  'escrow-extended': { label: 'Extended', color: 'bg-primary', icon: Timer },
-  'dispute-resolved-for-buyer': { label: 'Dispute Resolved (Buyer)', color: 'bg-status-refunded', icon: Shield },
-  'dispute-resolved-for-seller': { label: 'Dispute Resolved (Seller)', color: 'bg-status-released', icon: Shield },
-  'dispute-expired-resolved': { label: 'Dispute Timeout Resolved', color: 'bg-status-refunded', icon: Clock },
+  'escrow-extended': { label: 'Deadline extended', color: 'bg-primary', icon: Timer },
+  'dispute-resolved-for-buyer': { label: 'Refunded by admin', color: 'bg-status-refunded', icon: Shield },
+  'dispute-resolved-for-seller': { label: 'Released by admin', color: 'bg-status-released', icon: Shield },
+  'dispute-resolved-split': { label: 'Split-resolved by admin', color: 'bg-status-released', icon: Shield },
+  'dispute-expired-resolved': { label: 'Refunded after dispute timeout', color: 'bg-status-refunded', icon: Clock },
+  'dispute-expired-resolved-for-seller': { label: 'Seller self-rescue', color: 'bg-status-released', icon: Shield },
 };
+
+// Format a wall-clock delta (in ms, always positive) as a tight relative
+// phrase. Direction picks the suffix/prefix ("in 2h" vs "2h ago"). Mirrors
+// the precision tiers used elsewhere in this view.
+function formatRelative(ms: number, dir: 'ago' | 'in'): string {
+  const totalMin = Math.floor(ms / 60_000);
+  if (totalMin < 1) return dir === 'ago' ? 'just now' : 'in <1m';
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  let phrase: string;
+  if (days >= 7) phrase = `${days}d`;
+  else if (days > 0) phrase = `${days}d ${hours}h`;
+  else if (hours > 0) phrase = `${hours}h ${mins}m`;
+  else phrase = `${mins}m`;
+  return dir === 'ago' ? `${phrase} ago` : `in ${phrase}`;
+}
 
 export default function EscrowDetail() {
   const { id } = useParams();
@@ -78,9 +108,25 @@ export default function EscrowDetail() {
     isNaN(escrowId) ? 0 : escrowId,
     escrowContractId,
   );
-  const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: stacksBlock = 0 } = useBlockHeight();
+  const { data: burnBlock = 0 } = useBurnBlockHeight();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  // v3+ contracts anchor expiry / dispute / review math to burn-block-height
+  // (Bitcoin chain, ~10 min/block stable). Legacy v2/v7 contracts use
+  // stacks-block-height. Pick the right "current block" so the "Expired"
+  // and "expires in X" computations compare apples to apples with the
+  // contract's stored block numbers.
+  const usesBurnClock = usesBurnBlockClock(escrow?.contractId ?? '');
+  const currentBlock = usesBurnClock ? burnBlock : stacksBlock;
+  // For v3+ contracts we display "X ago" / "in X" using REAL Bitcoin block
+  // timestamps (fetched from /extended/v2/burn-blocks/{h}) instead of
+  // multiplying block deltas by a constant. The observed burn-block rate
+  // is still used to project *future* blocks (e.g. expires_at_block) since
+  // those haven't been mined yet.
+  const { data: burnRate } = useBurnBlockRate();
+  const burnSecondsPerBlock = burnRate?.secondsPerBlock ?? BURN_BLOCK_MINUTES * 60;
+  const clockMinutesPerBlock = usesBurnClock ? burnRate?.minutesPerBlock ?? BURN_BLOCK_MINUTES : minutesPerBlock;
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
@@ -120,13 +166,42 @@ export default function EscrowDetail() {
   const pendingAction = usePendingAction(escrow?.contractId, isNaN(escrowId) ? 0 : escrowId);
   useReconcilePendingAction(escrow?.contractId, escrow?.id ?? 0, escrow?.status);
 
+  // v3+ seller self-rescue eligibility. Must be declared here (with the
+  // other hooks) rather than after the early-return / loading guards
+  // below — otherwise React's Rules of Hooks fire on the load-then-loaded
+  // render transition. The hook itself short-circuits to `false` on
+  // non-v3 contracts and on missing escrow/id, so calling it eagerly
+  // is safe.
+  const sellerRescueEligible =
+    useSellerRescueEligible(escrow?.contractId, escrow?.id).data === true;
+
+  // Real Bitcoin wall-clock timestamps for every burn-block height we
+  // display. Only meaningful on v3+ (burn-clock) contracts — legacy
+  // contracts use Stacks blocks and lean on the rate-based estimate.
+  // Future blocks (e.g. `expiresAt` if not yet mined) won't appear in the
+  // map; `blockToHumanTime` projects those from the observed burn rate.
+  const burnHeightsToResolve = usesBurnClock
+    ? [
+        escrow?.createdAt,
+        escrow?.expiresAt,
+        escrow?.completedAt,
+        escrow?.disputedAt,
+        escrow?.deliveredAt,
+        ...escrowEvents.map((e) => e.blockHeight),
+      ]
+    : [];
+  const { data: burnTimestamps } = useBurnBlockTimestamps(
+    burnHeightsToResolve,
+    usesBurnClock,
+  );
+
   // Live countdown: convert blocks-remaining to seconds, tick every second
   const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   const calcSeconds = useCallback(() => {
-    return Math.max(0, Math.round(blocksToExpiry * minutesPerBlock * 60));
-  }, [blocksToExpiry, minutesPerBlock]);
+    return Math.max(0, Math.round(blocksToExpiry * clockMinutesPerBlock * 60));
+  }, [blocksToExpiry, clockMinutesPerBlock]);
 
   useEffect(() => {
     setRemainingSeconds(calcSeconds());
@@ -223,14 +298,6 @@ export default function EscrowDetail() {
     ? (currentBlock - escrow.disputedAt) >= disputeTimeout
     : false;
 
-  // v3+ seller self-rescue. The contract enforces the full eligibility
-  // (delivered AND status=disputed AND past 2x dispute-timeout). We rely on
-  // the read-only `is-seller-rescue-eligible` to avoid duplicating the math
-  // client-side; the contract is the source of truth. Returns false on
-  // non-v3 contracts so legacy escrows naturally hide the button.
-  const sellerRescueEligible =
-    useSellerRescueEligible(escrow?.contractId, escrow?.id).data === true;
-
   // True when this escrow lives on a contract version other than the one the
   // SDK / wallet is configured for. We can still READ its state, but every
   // write helper in escrow-service.ts dispatches to CONTRACT_PRINCIPAL, so
@@ -262,10 +329,37 @@ export default function EscrowDetail() {
   const buyerContact = findByAddress(escrow.buyer);
   const sellerContact = findByAddress(escrow.seller);
 
+  // For v3+ contracts we prefer real Bitcoin wall-clock timestamps. Past
+  // blocks come from `burnTimestamps` (Map<height,Date> sourced from
+  // /extended/v2/burn-blocks/{h}). Future blocks are projected from the
+  // current burn height + observed rate. Legacy v2/v7 escrows fall through
+  // to the block-rate × delta approximation.
   const blockToHumanTime = (block: number): string => {
+    // Block 0 means "indexer hasn't recorded a real height yet" — either
+    // the chainhook is lagging or its payload was missing the burn-block
+    // field. Projecting (0 - currentBurn) × secondsPerBlock would render
+    // "482d ago," which is mathematically correct and operationally
+    // useless. Show a placeholder until the real value is indexed.
+    if (block <= 0) return '—';
+    if (usesBurnClock) {
+      const real = burnTimestamps?.get(block);
+      if (real) {
+        const diffMs = Date.now() - real.getTime();
+        return diffMs >= 0
+          ? formatRelative(diffMs, 'ago')
+          : formatRelative(-diffMs, 'in');
+      }
+      if (currentBlock > 0) {
+        const projectedSec = (block - currentBlock) * burnSecondsPerBlock;
+        const diffMs = -projectedSec * 1000;
+        return diffMs >= 0
+          ? formatRelative(diffMs, 'ago')
+          : formatRelative(-diffMs, 'in');
+      }
+    }
     const diff = block - currentBlock;
-    if (diff > 0) return `in ${blocksToTime(diff, minutesPerBlock)}`;
-    if (diff < 0) return `${blocksToTime(-diff, minutesPerBlock)} ago`;
+    if (diff > 0) return `in ${blocksToTime(diff, clockMinutesPerBlock)}`;
+    if (diff < 0) return `${blocksToTime(-diff, clockMinutesPerBlock)} ago`;
     return 'now';
   };
 
@@ -455,9 +549,20 @@ export default function EscrowDetail() {
       {(escrowError || configError) && <ErrorBanner message="Failed to load escrow details. Showing cached data." />}
 
       {isPaused && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-center gap-2 text-sm text-warning">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          Contract is paused — actions are temporarily disabled.
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 flex items-start gap-2 text-sm">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+          <div className="space-y-1">
+            <p className="font-medium text-foreground">Contract is paused</p>
+            <p className="text-xs text-muted-foreground">
+              While the contract is paused, the following are blocked at the
+              contract level: <strong>release, refund, dispute, deadline
+              extension, and seller delivery signal</strong>. Off-chain
+              actions like messaging still work. If a dispute on this escrow
+              has already timed out, the seller's "Claim Delivered Funds"
+              self-rescue path remains available. Check back once the pause
+              lifts.
+            </p>
+          </div>
         </div>
       )}
 
@@ -679,8 +784,14 @@ export default function EscrowDetail() {
               <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
                 <span className="text-xs text-muted-foreground shrink-0">Created</span>
                 <span className="font-mono text-xs text-foreground text-right">
-                  Block {escrow.createdAt.toLocaleString()}
-                  <span className="text-muted-foreground"> · {blockToHumanTime(escrow.createdAt)}</span>
+                  {escrow.createdAt > 0 ? (
+                    <>
+                      Block {escrow.createdAt.toLocaleString()}
+                      <span className="text-muted-foreground"> · {blockToHumanTime(escrow.createdAt)}</span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground italic">Pending indexer…</span>
+                  )}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 py-2.5">
@@ -770,14 +881,20 @@ export default function EscrowDetail() {
                     rows={2}
                     className="text-sm resize-none"
                   />
+                  {isPaused && (
+                    <p className="text-xs text-warning flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Contract is paused — delivery signal is blocked at the contract level. Try again once the pause lifts.
+                    </p>
+                  )}
                   <Button
                     size="sm"
                     onClick={handleMarkDelivered}
-                    disabled={markDelivered.isPending}
+                    disabled={markDelivered.isPending || isPaused}
                     className="gap-1.5"
                   >
                     <PackageCheck className="h-3.5 w-3.5" />
-                    {markDelivered.isPending ? 'Sending…' : 'Mark as Delivered'}
+                    {markDelivered.isPending ? 'Sending…' : isPaused ? 'Paused' : 'Mark as Delivered'}
                   </Button>
                 </div>
               )}
@@ -1066,9 +1183,24 @@ export default function EscrowDetail() {
                         <div className={`pb-5 ${isLast ? 'pb-0' : ''}`}>
                           <p className="text-sm font-medium">{cfg.label}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span className="font-mono">Block {event.blockHeight}</span>
-                            <span>·</span>
-                            <span>{relativeTime(event.timestamp)}</span>
+                            {event.blockHeight > 0 ? (
+                              <>
+                                <span className="font-mono">Block {event.blockHeight}</span>
+                                <span>·</span>
+                                {/* Use the on-chain block as the time anchor (not
+                                    event.timestamp / indexed_at) so the Timeline
+                                    stays consistent with the rest of the UI on
+                                    v3+ contracts. The DB timestamp can drift
+                                    from the actual on-chain time when the
+                                    chainhook lags or events are replayed. */}
+                                <span>{blockToHumanTime(event.blockHeight)}</span>
+                              </>
+                            ) : (
+                              // Fall back to indexed_at — not on-chain truth, but
+                              // strictly more useful than "Block 0 · 482d ago"
+                              // when the chainhook payload was missing the height.
+                              <span className="italic">{relativeTime(event.timestamp)} (indexer)</span>
+                            )}
                           </div>
                         </div>
                       </motion.div>
@@ -1081,8 +1213,13 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
-      {/* Actions */}
-      {isParty && (isActive || isDisputed) && !isPaused && (hasActions || confirmAction) && (
+      {/* Actions panel. When the contract is paused the v3 spec blocks
+          release / refund / dispute / extend at the contract level, BUT
+          seller self-rescue (resolve-expired-dispute-for-seller) is NOT
+          gated by is-operational — so the panel must still render to keep
+          that escape hatch reachable. Pause-blocked buttons are disabled
+          individually below with an inline note. */}
+      {isParty && (isActive || isDisputed) && (!isPaused || sellerRescueEligible) && (hasActions || confirmAction) && (
         <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader className="pb-3">
@@ -1093,7 +1230,10 @@ export default function EscrowDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               {isDisputed && escrow.disputedAt && (
-                <DisputeTimeoutProgress disputedAt={escrow.disputedAt} />
+                <DisputeTimeoutProgress
+                  disputedAt={escrow.disputedAt}
+                  contractId={escrow.contractId}
+                />
               )}
 
               {isDisputed && existingDisputeReason && (
@@ -1124,7 +1264,12 @@ export default function EscrowDetail() {
                           Reason <span className="text-destructive">*</span>
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                          {DISPUTE_REASON_CATEGORIES.map((cat) => (
+                          {/* Reasons are role-specific. The same dispute button
+                              fires the same on-chain action either way, but
+                              showing "Seller unresponsive" to a seller (or
+                              "Buyer in bad faith" to a buyer) is incoherent
+                              and makes admin triage harder. */}
+                          {getDisputeReasonsForRole(isBuyer ? 'buyer' : 'seller').map((cat) => (
                             <button
                               key={cat.value}
                               type="button"
@@ -1201,40 +1346,89 @@ export default function EscrowDetail() {
 
               {!confirmAction && (
                 <div className="flex flex-wrap gap-2">
+                  {/* Pause-blocked actions: release / refund / dispute / extend
+                      all have a check-is-operational guard in the v3 contract,
+                      so any attempt during pause aborts with u1002. Buttons
+                      stay visible (so users understand the action is normally
+                      available here) but are disabled with a tooltip-style
+                      hint via the title attribute. Recover Funds (buyer
+                      reclaim after dispute timeout) and Claim Delivered Funds
+                      (seller self-rescue) are NOT pause-gated by the contract
+                      and stay actionable. */}
                   {isBuyer && (isActive || isExpired) && !isDisputed && (
-                    <Button size="sm" onClick={() => setConfirmAction('release')} className="gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => setConfirmAction('release')}
+                      disabled={isPaused}
+                      title={isPaused ? 'Blocked while contract is paused' : undefined}
+                      className="gap-1.5"
+                    >
                       <CheckCircle2 className="h-3.5 w-3.5" /> Release Payment
                     </Button>
                   )}
                   {/* Extend only makes sense before delivery — once delivered,
-                      the escrow is on a different timeline (review window). */}
+                      the escrow is on a different timeline (review window).
+                      ExtendEscrowPanel handles its own disabled-when-paused
+                      affordance once we plumb isPaused through to it. */}
                   {isBuyer && isPending && !isExpired && (
                     <ExtendEscrowPanel
                       contractId={escrow.contractId}
                       escrowId={escrow.id}
                       currentExpiresAt={escrow.expiresAt}
+                      disabledReason={isPaused ? 'Contract paused' : undefined}
                     />
                   )}
                   {isActive && !isExpired && (
-                    <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmAction('dispute')}
+                      disabled={isPaused}
+                      title={isPaused ? 'Blocked while contract is paused' : undefined}
+                      className="gap-1.5 text-destructive border-destructive/30"
+                    >
                       <AlertTriangle className="h-3.5 w-3.5" /> Dispute
                     </Button>
                   )}
                   {isSeller && isActive && isExpired && (
-                    <Button size="sm" variant="outline" onClick={() => setConfirmAction('dispute')} className="gap-1.5 text-destructive border-destructive/30">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmAction('dispute')}
+                      disabled={isPaused}
+                      title={isPaused ? 'Blocked while contract is paused' : undefined}
+                      className="gap-1.5 text-destructive border-destructive/30"
+                    >
                       <AlertTriangle className="h-3.5 w-3.5" /> Dispute
                     </Button>
                   )}
                   {isSeller && isActive && (
-                    <Button size="sm" variant="outline" onClick={() => setConfirmAction('refund')} className="gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmAction('refund')}
+                      disabled={isPaused}
+                      title={isPaused ? 'Blocked while contract is paused' : undefined}
+                      className="gap-1.5"
+                    >
                       <XCircle className="h-3.5 w-3.5" /> Refund Buyer
                     </Button>
                   )}
                   {isBuyer && isActive && isExpired && (
-                    <Button size="sm" variant="outline" onClick={() => setConfirmAction('refund')} className="gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmAction('refund')}
+                      disabled={isPaused}
+                      title={isPaused ? 'Blocked while contract is paused' : undefined}
+                      className="gap-1.5"
+                    >
                       <XCircle className="h-3.5 w-3.5" /> Claim Refund
                     </Button>
                   )}
+                  {/* Recover Funds + Claim Delivered Funds: NOT gated by
+                      is-operational in the contract — these are the escape
+                      hatches that must remain available during pause. */}
                   {isBuyer && disputeTimedOut && (
                     <Button size="sm" onClick={() => setConfirmAction('recover')} className="gap-1.5">
                       <Shield className="h-3.5 w-3.5" /> Recover Funds
