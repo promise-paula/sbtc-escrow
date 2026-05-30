@@ -19,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Inbox } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
-import { blockToRelativeTime } from '@/lib/utils';
+import { relativeTime } from '@/lib/utils';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
@@ -89,7 +89,7 @@ function EscrowCard({
         <Badge variant="outline" className="text-xs font-normal">
           {isBuyer ? 'Buyer' : 'Seller'}
         </Badge>
-        <span>{blockToRelativeTime(escrow.createdAt, currentBlock, minutesPerBlock)}</span>
+        <span>{relativeTime(escrow.indexedAt)}</span>
       </div>
     </button>
   );
@@ -146,11 +146,15 @@ export default function MyEscrows() {
         // Pending placeholders always pin to the top — they're the most recent action.
         if (a.isPending && !b.isPending) return -1;
         if (!a.isPending && b.isPending) return 1;
+        // Use indexedAt (wall-clock) not createdAt (block height). Mixing
+        // burn blocks (v3+) with Stacks blocks (legacy) in a numeric sort
+        // puts every legacy escrow before every v3 escrow regardless of
+        // actual chronology.
         switch (sortBy) {
-          case 'oldest': return a.createdAt - b.createdAt;
+          case 'oldest': return a.indexedAt < b.indexedAt ? -1 : 1;
           case 'amount-high': return b.amount - a.amount;
           case 'amount-low': return a.amount - b.amount;
-          default: return b.createdAt - a.createdAt;
+          default: return a.indexedAt < b.indexedAt ? 1 : -1;
         }
       });
   }, [roleFiltered, statusFilter, search, sortBy]);
