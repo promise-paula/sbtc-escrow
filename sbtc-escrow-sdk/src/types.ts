@@ -102,8 +102,30 @@ export interface CreateEscrowOptions {
   seller: string;
   amount: number;
   description: string;
+  /**
+   * Duration in blocks.
+   *
+   * On v3+ contracts (`escrow-mainnet-v3`, etc.) this is interpreted as
+   * **burn blocks** (Bitcoin chain, ~144 per day, stable). On v2 and earlier
+   * it is interpreted as **Stacks blocks** (variable rate). The SDK does not
+   * translate between the two — pass the value appropriate for the target
+   * contract. See `usesBurnBlockClock()` if you need to dispatch dynamically.
+   */
   durationBlocks: number;
   tokenType: TokenType;
+  /**
+   * Optional secondary authority on the escrow.
+   *
+   * **v3+ only.** If set on a v3+ contract, the beneficiary has the same
+   * release / refund / dispute / extend rights as the buyer. Useful for
+   * integrators (marketplaces, payment processors) that wrap `createEscrow`
+   * on behalf of an end-user — pass the end-user as `beneficiary` so they
+   * retain agency over their own escrow.
+   *
+   * Passing this on a non-v3 contract throws at call time. Cannot equal
+   * `seller` (would muddy authorization) or the buyer (redundant).
+   */
+  beneficiary?: string;
 }
 
 /** Options for EscrowClient constructor */
