@@ -34,6 +34,7 @@ const DEFAULT_CONFIG: PlatformConfig = {
   feeRecipient: '',
   platformFeeBps: 50,
   isPaused: false,
+  pauseCooldownUntil: 0,
   minAmount: MIN_AMOUNT_STX,
   maxAmount: MAX_AMOUNT_STX,
   minAmountSbtc: MIN_AMOUNT_SBTC,
@@ -115,6 +116,9 @@ async function readPlatformConfigFromChain(): Promise<Partial<PlatformConfig> | 
       feeRecipient: data['fee-recipient']?.value ?? '',
       platformFeeBps: parseInt(data['platform-fee-bps']?.value ?? '50'),
       isPaused: !!data['is-paused']?.value,
+      // v3+ only — pre-v3 contracts return undefined here, which coerces to 0
+      // and means "no cooldown" (consistent with the contract default).
+      pauseCooldownUntil: parseInt(data['pause-cooldown-until']?.value ?? '0'),
       disputeTimeout: parseInt(data['dispute-timeout']?.value ?? String(DEFAULT_DISPUTE_TIMEOUT)),
     };
   } catch (err) {
@@ -148,6 +152,7 @@ export function usePlatformConfig() {
         feeRecipient: chainCfg?.feeRecipient ?? data?.fee_recipient ?? '',
         platformFeeBps: chainCfg?.platformFeeBps ?? data?.fee_bps ?? 50,
         isPaused: chainCfg?.isPaused ?? data?.contract_paused ?? false,
+        pauseCooldownUntil: chainCfg?.pauseCooldownUntil ?? 0,
         minAmount: MIN_AMOUNT_STX,
         maxAmount: MAX_AMOUNT_STX,
         minAmountSbtc: MIN_AMOUNT_SBTC,
