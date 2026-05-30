@@ -10,8 +10,11 @@ import { useBlockRate } from '@/hooks/use-block-rate';
 import {
   CONTRACT_ADDRESS,
   CONTRACT_NAME,
+  CONTRACT_PRINCIPAL,
   STACKS_NETWORK,
   DEFAULT_MINUTES_PER_BLOCK,
+  BURN_BLOCK_MINUTES,
+  usesBurnBlockClock,
 } from '@/lib/stacks-config';
 import { cardVariants } from '@/lib/motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -325,7 +328,15 @@ export default function SettingsPage() {
                 label="Dispute Timeout"
                 value={
                   config
-                    ? `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(config.disputeTimeout)})`
+                    ? // v3+ contracts anchor dispute timeout to burn blocks
+                      // (~4 min testnet / ~10 min mainnet). Legacy contracts
+                      // use Stacks blocks (live-rate observed). Using the
+                      // wrong rate here historically over-stated v3 timeouts
+                      // by ~3-7×.
+                      `${config.disputeTimeout.toLocaleString()} blocks (~${blocksToTime(
+                        config.disputeTimeout,
+                        usesBurnBlockClock(CONTRACT_PRINCIPAL) ? BURN_BLOCK_MINUTES : minutesPerBlock,
+                      )})`
                     : '—'
                 }
               />
