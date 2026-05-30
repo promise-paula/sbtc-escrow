@@ -1,20 +1,39 @@
 import React from 'react';
 import { useBlockHeight } from '@/hooks/use-block-height';
+import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
 import { useBlockRate } from '@/hooks/use-block-rate';
-import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
-import { Progress } from '@/components/ui/progress';
+import {
+  DEFAULT_DISPUTE_TIMEOUT,
+  DEFAULT_MINUTES_PER_BLOCK,
+  BURN_BLOCK_MINUTES,
+  usesBurnBlockClock,
+  CONTRACT_PRINCIPAL,
+} from '@/lib/stacks-config';
 import { blocksToTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 interface DisputeTimeoutProgressProps {
   disputedAt: number;
   timeoutBlocks?: number;
+  /** Contract id this dispute belongs to. v3+ contracts anchor disputed_at
+   *  to burn-block-height (stable ~10 min/block) while legacy v2/v7 use
+   *  stacks-block-height. Mixing the two caused every v3 dispute to render
+   *  as "Timed Out" within seconds. Defaults to the active contract for
+   *  backwards compatibility with callers that didn't pass it yet. */
+  contractId?: string;
 }
 
-export function DisputeTimeoutProgress({ disputedAt, timeoutBlocks = DEFAULT_DISPUTE_TIMEOUT }: DisputeTimeoutProgressProps) {
-  const { data: currentBlock = 0 } = useBlockHeight();
+export function DisputeTimeoutProgress({
+  disputedAt,
+  timeoutBlocks = DEFAULT_DISPUTE_TIMEOUT,
+  contractId = CONTRACT_PRINCIPAL,
+}: DisputeTimeoutProgressProps) {
+  const burnClock = usesBurnBlockClock(contractId);
+  const { data: stacksBlock = 0 } = useBlockHeight();
+  const { data: burnBlock = 0 } = useBurnBlockHeight();
+  const currentBlock = burnClock ? burnBlock : stacksBlock;
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  const minutesPerBlock = burnClock ? BURN_BLOCK_MINUTES : (blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK);
 
   if (!currentBlock || !disputedAt) {
     return (
