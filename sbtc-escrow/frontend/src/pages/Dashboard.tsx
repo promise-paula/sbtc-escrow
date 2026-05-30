@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PlusCircle, ArrowRight, Inbox, Lock, Clock, CheckCircle, ShoppingCart, Store, List, Activity } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
-import { formatSTX, blockToRelativeTime, truncateAddress } from '@/lib/utils';
+import { formatSTX, relativeTime, truncateAddress } from '@/lib/utils';
 import { useUsdEstimate } from '@/hooks/use-usd-estimate';
 import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBlockRate } from '@/hooks/use-block-rate';
@@ -27,6 +27,8 @@ const STATUS_COLORS: Record<EscrowStatus, string> = {
   [EscrowStatus.Released]: 'oklch(62% 0.17 155)',
   [EscrowStatus.Refunded]: 'oklch(55% 0.2 285)',
   [EscrowStatus.Disputed]: 'oklch(55% 0.22 27)',
+  // v7+ DELIVERED — short pre-release window after seller signals delivery.
+  [EscrowStatus.Delivered]: 'oklch(70% 0.16 200)',
 };
 
 const STATUS_DOT_CLASSES: Record<EscrowStatus, string> = {
@@ -34,6 +36,7 @@ const STATUS_DOT_CLASSES: Record<EscrowStatus, string> = {
   [EscrowStatus.Released]: 'bg-status-released',
   [EscrowStatus.Refunded]: 'bg-status-refunded',
   [EscrowStatus.Disputed]: 'bg-status-disputed',
+  [EscrowStatus.Delivered]: 'bg-status-delivered',
 };
 
 export default function Dashboard() {
@@ -47,8 +50,15 @@ export default function Dashboard() {
 
   if (escrowsLoading || statsLoading) return <DashboardSkeleton />;
 
+  // Sort by indexedAt (wall-clock) rather than createdAt (block height) —
+  // v3+ escrows store burn blocks (~178k) while legacy v2/v7 use Stacks
+  // blocks (~3.9M), so a numeric DESC on block height puts every legacy
+  // escrow ahead of every v3 escrow regardless of when they actually
+  // happened. The Recent Activity list used to bury today's v8 escrows
+  // behind months-old legacy ones because of this.
   const recentEscrows = (escrows || [])
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice()
+    .sort((a, b) => (a.indexedAt < b.indexedAt ? 1 : -1))
     .slice(0, 5);
 
   const statusCounts = (escrows || []).reduce((acc, e) => {
@@ -246,7 +256,13 @@ export default function Dashboard() {
                         Escrow <span className="font-mono">#{e.id}</span> {role}{' '}
                         <span className="font-mono text-muted-foreground">{truncateAddress(counterparty)}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground">{blockToRelativeTime(e.createdAt, currentBlock, minutesPerBlock)}</p>
+                      {/* Use indexedAt (chainhook wall-clock) not block-delta math —
+                          v3+ escrows store burn blocks but dashboards historically
+                          assumed Stacks blocks, yielding wildly wrong "2829d ago"
+                          values. The indexed_at timestamp is set when the create
+                          event lands in the DB (~30s after on-chain), which is
+                          accurate enough for a list-view hint. */}
+                      <p className="text-xs text-muted-foreground">{relativeTime(e.indexedAt)}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <AmountDisplay micro={e.amount} tokenType={e.tokenType} />
