@@ -13,6 +13,10 @@ interface ExtendEscrowPanelProps {
   contractId: string;
   escrowId: number;
   currentExpiresAt: number;
+  /** If set, disables the trigger and shows this as a tooltip — used to
+   *  surface contract-level gating (e.g. "Contract paused") without
+   *  removing the button entirely. */
+  disabledReason?: string;
 }
 
 const presets = [
@@ -21,7 +25,7 @@ const presets = [
   { label: '+2 Weeks', minutes: 60 * 24 * 14 },
 ];
 
-export function ExtendEscrowPanel({ contractId, escrowId, currentExpiresAt }: ExtendEscrowPanelProps) {
+export function ExtendEscrowPanel({ contractId, escrowId, currentExpiresAt, disabledReason }: ExtendEscrowPanelProps) {
   const [open, setOpen] = useState(false);
   const [customBlocks, setCustomBlocks] = useState('');
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(null);
@@ -58,7 +62,14 @@ export function ExtendEscrowPanel({ contractId, escrowId, currentExpiresAt }: Ex
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={!!disabledReason}
+        title={disabledReason}
+        className="gap-1.5"
+      >
         <Clock className="h-3.5 w-3.5" /> Extend Deadline
       </Button>
     );
