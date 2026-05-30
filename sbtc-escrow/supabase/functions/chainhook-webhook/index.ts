@@ -19,6 +19,32 @@ const CONTRACT_IDS = new Set(
   ).split(",").map((s) => s.trim()),
 );
 
+// v3+ contracts anchor their on-chain `created-at` / `delivered-at` /
+// `disputed-at` / `completed-at` to burn-block-height (Bitcoin chain, stable
+// ~10 min/block). For events emitted by these contracts the webhook stores
+// burn blocks in the corresponding DB columns so the frontend can compute
+// expiry / countdown math consistently. Legacy v2/v7 contracts store Stacks
+// block heights — those rows continue to use the Stacks tip from the
+// chainhook payload.
+//
+// Source of truth: V3_PLUS_CONTRACTS env var (set via `supabase secrets`).
+// Empty/unset means no contracts use burn-block clock — webhook falls back
+// to stacks-block indexing for all events. This is the safer default: if an
+// operator forgets to add a new v3+ contract here, the worst case is that
+// its rows have Stacks-block timestamps instead of burn-block ones (data
+// is mixed but the frontend's `usesBurnBlockClock` registry still knows
+// which way to interpret it). The previous "hardcoded fallback" pattern
+// caused silent data drift when env state diverged from code state.
+const V3_PLUS_CONTRACTS = new Set(
+  (Deno.env.get("V3_PLUS_CONTRACTS") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+function isV3Plus(contractId: string): boolean {
+  return V3_PLUS_CONTRACTS.has(contractId);
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -303,6 +329,41 @@ async function fetchEscrowDescription(
   }
 }
 
+/**
+ * Resolve a Stacks tx's anchoring Bitcoin (burn) block height by querying
+ * Hiro's tx API. Ground truth for v3+ contracts, which anchor all on-chain
+ * timing to burn-block-height. Used as a fallback / authoritative source
+ * when the chainhook payload's `block.metadata` doesn't expose the burn
+ * height in any of the field paths we recognize.
+ *
+ * Tradeoffs:
+ *   • Costs one extra API roundtrip per v3+ event (200-500ms typical).
+ *     Acceptable since chainhook delivery is already async on Hiro's side.
+ *   • Hiro tx API has had occasional outages; on failure we return null and
+ *     the caller falls back to the chainhook-payload extraction (which
+ *     historically returns 0 — the frontend then renders "Pending indexer…"
+ *     gracefully, and an operator can backfill from Hiro once recovered).
+ *   • Memoized per request via the caller's cache so multi-event txs don't
+ *     re-fetch.
+ */
+async function fetchTxBurnBlock(txId: string): Promise<number | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`${STACKS_API_BASE}/extended/v1/tx/${txId}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const h = body?.burn_block_height;
+    return typeof h === "number" && h > 0 ? h : null;
+  } catch (err) {
+    console.warn(`[fetchTxBurnBlock] ${txId}:`, err);
+    return null;
+  }
+}
+
 // ============================================================================
 // Event routing
 // ============================================================================
@@ -310,11 +371,16 @@ async function fetchEscrowDescription(
 async function routeEvent(
   data: Record<string, unknown>,
   blockHeight: number,
+  burnBlockHeight: number,
   txId: string,
   contractId: string,
 ): Promise<void> {
   const event = data.event as string;
   const escrowId = (data["escrow-id"] as number) ?? null;
+  // For v3+ contracts use burn-block-height for the *_at_block columns so the
+  // DB is consistent with the contract's on-chain clock. For v2/v7 we keep
+  // using the Stacks tip from the chainhook payload.
+  const effBlock = isV3Plus(contractId) ? burnBlockHeight : blockHeight;
 
   switch (event) {
     // ----- Escrow lifecycle events -----
@@ -341,11 +407,11 @@ async function routeEvent(
         token_type: (data["token-type"] as number) ?? 0,
         description,
         status: 0,
-        created_at_block: blockHeight,
+        created_at_block: effBlock,
         expires_at_block: data["expires-at"],
         tx_id: txId,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
     }
 
@@ -353,65 +419,65 @@ async function routeEvent(
     case "escrow-delivered":
       await updateEscrow(contractId, escrowId!, {
         status: 4, // DELIVERED
-        delivered_at_block: data["delivered-at"] ?? blockHeight,
+        delivered_at_block: data["delivered-at"] ?? effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     case "escrow-released":
       await updateEscrow(contractId, escrowId!, {
         status: 1,
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     case "escrow-refunded":
       await updateEscrow(contractId, escrowId!, {
         status: 2,
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     case "escrow-disputed":
       await updateEscrow(contractId, escrowId!, {
         status: 3,
-        disputed_at_block: data["disputed-at"] ?? blockHeight,
+        disputed_at_block: data["disputed-at"] ?? effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     case "escrow-extended":
       await updateEscrow(contractId, escrowId!, {
         expires_at_block: data["new-expires-at"],
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     // ----- Dispute resolution -----
     case "dispute-resolved-for-buyer":
       await updateEscrow(contractId, escrowId!, {
         status: 2, // refunded
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     case "dispute-resolved-for-seller":
       await updateEscrow(contractId, escrowId!, {
         status: 1, // released
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     case "dispute-expired-resolved":
       await updateEscrow(contractId, escrowId!, {
         status: 2, // refunded
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     // v3+: seller self-rescue after 2x dispute-timeout on a delivered escrow.
@@ -419,9 +485,9 @@ async function routeEvent(
     case "dispute-expired-resolved-for-seller":
       await updateEscrow(contractId, escrowId!, {
         status: 1, // released
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     // v3+: admin sweep of orphan funds (donations that landed at the contract
@@ -437,9 +503,9 @@ async function routeEvent(
     case "dispute-resolved-split":
       await updateEscrow(contractId, escrowId!, {
         status: 1, // released (final)
-        completed_at_block: blockHeight,
+        completed_at_block: effBlock,
       });
-      await insertEvent(contractId, escrowId, event, blockHeight, txId, data);
+      await insertEvent(contractId, escrowId, event, effBlock, txId, data);
       break;
 
     // ----- Platform config events (no escrow_id) -----
@@ -609,9 +675,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const errors: string[] = [];
     let processedCount = 0;
 
+    // Per-request burn-block cache. A single payload often groups several
+    // events under one tx (e.g. create + delivered + released sequentially),
+    // so memoizing the tx → burn-block lookup is the difference between one
+    // API call per payload and one per event.
+    const burnBlockByTx = new Map<string, number>();
+
     // --- Apply blocks (new canonical data) ---
     for (const block of payload?.event?.apply ?? []) {
       const blockHeight = block.block_identifier.index;
+      // Chainhook v2 puts the anchoring Bitcoin block height on the block
+      // metadata. Different builds and predicate types use different field
+      // names; cover the ones we've seen in the wild. v3+ contracts depend
+      // on this — if all paths return 0 we log the metadata shape so we can
+      // add the field path on the next deploy without guessing.
+      const md = block.metadata ?? {};
+      const burnBlockHeight =
+        md.bitcoin_anchor_block_identifier?.index ??
+        md.burn_block_identifier?.index ??
+        md.burn_block?.index ??
+        md.burn_block?.height ??
+        md.burn_block_height ??
+        (block as Record<string, unknown>).burn_block_height ??
+        0;
+      if (burnBlockHeight === 0) {
+        console.warn(
+          `[burn-block-extract] stacks block ${blockHeight} returned 0 — payload metadata keys: ` +
+            JSON.stringify(Object.keys(md)) +
+            ` | sample: ${JSON.stringify(md).slice(0, 400)}`,
+        );
+      }
 
       for (const tx of block.transactions ?? []) {
         if (tx.metadata?.status !== "success") continue;
@@ -619,7 +712,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         for (const op of tx.operations ?? []) {
           if (op.type !== "contract_log") continue;
-          if (!CONTRACT_IDS.has(op.metadata?.contract_identifier as string)) continue;
+          const contractId = op.metadata?.contract_identifier as string;
+          if (!CONTRACT_IDS.has(contractId)) {
+            // Loud-skip: log a structured warning so the indexer-monitor
+            // alert pipeline catches configuration drift (e.g. a new
+            // contract version registered with Hiro but missing from
+            // ESCROW_CONTRACT_IDS). The Hiro POST still returns 200 so
+            // the predicate doesn't go into a retry loop, but the
+            // operator gets a Slack ping within minutes instead of
+            // discovering it via a user report.
+            console.error(
+              `[skip] Event from non-allowlisted contract '${contractId}' at block ${blockHeight}, tx ${txId}. ` +
+                `Update ESCROW_CONTRACT_IDS to include this contract or remove its Hiro predicate.`,
+            );
+            continue;
+          }
 
           const data = extractEventData(op.metadata.value);
           if (!data?.event) {
@@ -630,8 +737,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
             continue;
           }
 
+          // For v3+ contracts the contract anchors timing to burn blocks, so
+          // we MUST land a real height. If the chainhook payload didn't
+          // surface one (all 6 paths returned 0), authoritatively resolve it
+          // via Hiro's tx API — cached per request so a multi-event tx pays
+          // the lookup at most once.
+          let effectiveBurnBlock = burnBlockHeight;
+          if (effectiveBurnBlock === 0 && isV3Plus(op.metadata.contract_identifier)) {
+            const cached = burnBlockByTx.get(txId);
+            if (cached !== undefined) {
+              effectiveBurnBlock = cached;
+            } else {
+              const resolved = await fetchTxBurnBlock(txId);
+              if (resolved && resolved > 0) {
+                effectiveBurnBlock = resolved;
+                burnBlockByTx.set(txId, resolved);
+              }
+            }
+          }
+
           try {
-            await routeEvent(data, blockHeight, txId, op.metadata.contract_identifier);
+            await routeEvent(data, blockHeight, effectiveBurnBlock, txId, op.metadata.contract_identifier);
             processedCount++;
           } catch (err) {
             const msg = `Event ${data.event} at block ${blockHeight}: ${err}`;
