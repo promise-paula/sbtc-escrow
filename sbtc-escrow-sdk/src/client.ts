@@ -14,6 +14,8 @@ import {
   uintCV,
   principalCV,
   stringUtf8CV,
+  noneCV,
+  someCV,
   PostConditionMode,
   ClarityValue,
   Pc,
@@ -36,12 +38,11 @@ import {
 } from './types';
 
 /**
- * Default contract addresses. 0.2.0 promotes the v7-equivalent contracts to
- * defaults on both networks:
- *   - testnet: `escrow-v7` (was `escrow-v6` in 0.1.x)
- *   - mainnet: `escrow-mainnet-v2` (was `escrow-mainnet` in 0.1.x)
- * Callers that need to target the legacy contracts should pass `contractName`
- * explicitly via {@link EscrowClientConfig}.
+ * Default contract addresses. As of 0.3.0, defaults stay on the v2/v7
+ * deployments until v3 is live on mainnet. Once `escrow-mainnet-v3` is
+ * deployed and smoke-tested, this constant moves to v3 in a patch release
+ * (consumers calling v2-only methods will be unaffected since v3 is a
+ * superset). To opt into v3 today, pass `contractName` explicitly.
  */
 const DEFAULT_CONTRACTS = {
   testnet: {
@@ -53,6 +54,26 @@ const DEFAULT_CONTRACTS = {
     name: 'escrow-mainnet-v2',
   },
 };
+
+/**
+ * Contracts that implement the v3 feature set: burn-block clock,
+ * `beneficiary` parameter on create, `resolve-expired-dispute-for-seller`,
+ * `sweep-orphans`, per-escrow fee-recipient snapshot, time-bound `pause`
+ * with anti-chaining cooldown.
+ *
+ * The SDK uses this registry to gate v3-only call paths (so a caller can't
+ * accidentally send a beneficiary to a v2 contract, where the extra arg
+ * would cause a runtime contract-call failure).
+ */
+const V3_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
+  'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',           // testnet
+  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',   // mainnet (pending deploy)
+]);
+
+/** True iff the contract id targets a v3+ deployment. */
+export function supportsV3Features(contractId: string): boolean {
+  return V3_PLUS_CONTRACTS.has(contractId);
+}
 
 /** Default sBTC SIP-010 contract principals */
 const DEFAULT_SBTC_CONTRACTS = {
@@ -291,17 +312,41 @@ export class EscrowClient {
         ? [this.buildSbtcUserPc(senderAddress, totalAmount)]
         : [Pc.principal(senderAddress).willSendEq(totalAmount).ustx()];
 
+    // v3 contracts take an optional beneficiary as the 6th arg. Sending it
+    // to v2 would cause a runtime contract-call failure (wrong arg count),
+    // so we either dispatch v3 or v2 explicitly here.
+    const isV3 = supportsV3Features(`${this.contractAddress}.${this.contractName}`);
+
+    if (options.beneficiary && !isV3) {
+      throw new Error(
+        `createEscrow: beneficiary parameter requires a v3+ contract; ` +
+          `${this.contractAddress}.${this.contractName} does not support it. ` +
+          `Either omit beneficiary or target escrow-mainnet-v3 / future v3+.`,
+      );
+    }
+
+    const baseArgs = [
+      principalCV(options.seller),
+      uintCV(options.amount),
+      stringUtf8CV(options.description),
+      uintCV(options.durationBlocks),
+      uintCV(options.tokenType),
+    ];
+
+    const functionArgs = isV3
+      ? [
+          ...baseArgs,
+          options.beneficiary
+            ? someCV(principalCV(options.beneficiary))
+            : noneCV(),
+        ]
+      : baseArgs;
+
     const tx = await makeContractCall({
       contractAddress: this.contractAddress,
       contractName: this.contractName,
       functionName: 'create-escrow',
-      functionArgs: [
-        principalCV(options.seller),
-        uintCV(options.amount),
-        stringUtf8CV(options.description),
-        uintCV(options.durationBlocks),
-        uintCV(options.tokenType),
-      ],
+      functionArgs,
       senderKey: txOptions.senderKey,
       network: this.network,
       postConditionMode: PostConditionMode.Deny,
@@ -443,18 +488,91 @@ export class EscrowClient {
     );
   }
 
+  /**
+   * Seller self-rescue (v3+ only).
+   *
+   * Callable only when ALL of:
+   *   - status is DISPUTED
+   *   - escrow was DELIVERED before the dispute
+   *   - `2 * dispute-timeout` burn blocks have elapsed since `disputed-at`
+   *   - caller is the seller
+   *
+   * Use `isSellerRescueEligible(escrowId)` to check eligibility before
+   * spending gas. Throws if called against a non-v3 contract.
+   */
+  async resolveExpiredDisputeForSeller(
+    escrowId: number,
+    txOptions: SignedTxOptions,
+  ): Promise<BroadcastResult> {
+    this.assertV3('resolveExpiredDisputeForSeller');
+    return this.callWrite(
+      'resolve-expired-dispute-for-seller',
+      [uintCV(escrowId)],
+      txOptions,
+      PostConditionMode.Allow,
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // ADMIN METHODS
   // ═══════════════════════════════════════════════════════════════
 
-  /** Pause contract — emergency stop (admin only) */
-  async pauseContract(txOptions: SignedTxOptions): Promise<BroadcastResult> {
-    return this.callWrite('pause-contract', [], txOptions, PostConditionMode.Deny);
+  /**
+   * Pause contract — emergency stop (admin only).
+   *
+   * On v3+ contracts, `durationBlocks` is required (burn blocks). The pause
+   * auto-lifts after that many blocks. A cooldown of equal length follows
+   * before the next pause is permitted. On v2/v7 contracts, `durationBlocks`
+   * is ignored — pause stays in effect until `unpauseContract`.
+   */
+  async pauseContract(
+    txOptions: SignedTxOptions,
+    durationBlocks?: number,
+  ): Promise<BroadcastResult> {
+    const isV3 = supportsV3Features(`${this.contractAddress}.${this.contractName}`);
+
+    if (isV3 && (durationBlocks === undefined || durationBlocks <= 0)) {
+      throw new Error(
+        'pauseContract: durationBlocks is required on v3+ contracts and must be > 0.',
+      );
+    }
+
+    return this.callWrite(
+      'pause-contract',
+      isV3 ? [uintCV(durationBlocks as number)] : [],
+      txOptions,
+      PostConditionMode.Deny,
+    );
   }
 
   /** Unpause contract (admin only) */
   async unpauseContract(txOptions: SignedTxOptions): Promise<BroadcastResult> {
     return this.callWrite('unpause-contract', [], txOptions, PostConditionMode.Deny);
+  }
+
+  /**
+   * Sweep orphaned funds (v3+ only, admin only).
+   *
+   * Withdraws funds the contract holds that are NOT locked in any active
+   * escrow — i.e., direct donations sent to the contract principal by
+   * mistake. The on-chain `total-locked-{stx,sbtc}` accounting guarantees
+   * this can NEVER touch escrow principal: the contract reverts if
+   * `amount > balance - locked`.
+   *
+   * Throws if called against a non-v3 contract.
+   */
+  async sweepOrphans(
+    tokenType: TokenType,
+    amount: number,
+    txOptions: SignedTxOptions,
+  ): Promise<BroadcastResult> {
+    this.assertV3('sweepOrphans');
+    return this.callWrite(
+      'sweep-orphans',
+      [uintCV(tokenType), uintCV(amount)],
+      txOptions,
+      PostConditionMode.Allow,
+    );
   }
 
   /** Update platform fee in basis points (admin only, max 500 = 5%) */
@@ -615,5 +733,44 @@ export class EscrowClient {
   private buildSbtcUserPc(sender: string, amount: number) {
     const [address, name] = this.sbtcContract.split('.');
     return Pc.principal(sender).willSendLte(amount).ft(`${address}.${name}` as `${string}.${string}`, 'sbtc-token');
+  }
+
+  /**
+   * Throws if the configured contract isn't a v3+ deployment. Used at the
+   * top of methods that call v3-only functions to fail fast with a clear
+   * error rather than letting the broadcast hit a missing-function revert.
+   */
+  private assertV3(methodName: string): void {
+    if (!supportsV3Features(`${this.contractAddress}.${this.contractName}`)) {
+      throw new Error(
+        `${methodName}: requires a v3+ contract; ` +
+          `${this.contractAddress}.${this.contractName} does not support it.`,
+      );
+    }
+  }
+
+  /**
+   * Read-only check: is the given escrow eligible for seller self-rescue?
+   *
+   * Returns `true` only on v3+ contracts where:
+   *   - status is DISPUTED
+   *   - delivered-at is set (escrow was DELIVERED before dispute)
+   *   - current burn block > disputed-at + 2 * dispute-timeout
+   *
+   * On v2/v7 contracts, always returns `false` (no such function exists).
+   */
+  async isSellerRescueEligible(escrowId: number): Promise<boolean> {
+    if (!supportsV3Features(`${this.contractAddress}.${this.contractName}`)) {
+      return false;
+    }
+    const result = await fetchCallReadOnlyFunction({
+      contractAddress: this.contractAddress,
+      contractName: this.contractName,
+      functionName: 'is-seller-rescue-eligible',
+      functionArgs: [uintCV(escrowId)],
+      network: this.network,
+      senderAddress: this.contractAddress,
+    });
+    return cvToJSON(result).value === true;
   }
 }
