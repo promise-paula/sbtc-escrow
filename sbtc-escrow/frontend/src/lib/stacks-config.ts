@@ -67,7 +67,15 @@ export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day
 // Burn-block math (v3+)
 export const MIN_DURATION_BURN_BLOCKS = 1; // ~10 min minimum (matches contract MIN_DURATION u1)
 export const MAX_DURATION_BURN_BLOCKS = 52_560; // ~365 days (matches contract MAX_DURATION u52560)
-export const BURN_BLOCK_MINUTES = 10; // Bitcoin produces ~144 blocks/day = 10 min/block average
+// Burn-block production rate, in minutes per block.
+//
+// Mainnet anchors to real Bitcoin (10 min target, ~144 blocks/day, stable).
+// Testnet anchors to fast-burn signet/regtest (typically ~3-4 min/block,
+// observed at testnet.hiro.so to median ~3.7 min). Using 10 across the
+// board on testnet causes 'X ago' displays to overestimate elapsed time
+// by ~3x. Use the network-aware constant so testnet UX matches the actual
+// observed rate while mainnet keeps the production semantic.
+export const BURN_BLOCK_MINUTES = STACKS_NETWORK === 'mainnet' ? 10 : 4;
 
 /**
  * Convert a wall-clock duration (in minutes) to a block count for the given
