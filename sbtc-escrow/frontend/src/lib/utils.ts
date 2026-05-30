@@ -67,9 +67,14 @@ export function blocksToTime(blocks: number, minutesPerBlock = DEFAULT_MINUTES_P
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  // For the ≥7d branch we ceil rather than floor so a freshly-created
+  // 30-day escrow renders "30d" instead of "29d" the moment after the
+  // first burn block elapses (29.99d). The contract deadline only fires
+  // once the block height actually crosses expires_at_block, so any
+  // partial day remaining still counts as part of the user's window.
+  if (hours >= 7 * 24) return `${Math.ceil(hours / 24)}d`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ${hours % 24}h`;
-  return `${days}d`;
+  return `${days}d ${hours % 24}h`;
 }
 
 export function blockToEstimatedDate(blockHeight: number, currentBlock: number, minutesPerBlock = DEFAULT_MINUTES_PER_BLOCK): Date {

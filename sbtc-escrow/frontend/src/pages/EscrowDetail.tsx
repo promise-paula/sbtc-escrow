@@ -238,12 +238,18 @@ export default function EscrowDetail() {
   //   < 1h     → "Nm Ns" (live ticking matters here)
   const formatCountdown = (totalSec: number): string => {
     if (totalSec <= 0) return 'Expired';
-    const d = Math.floor(totalSec / 86400);
     const h = Math.floor((totalSec % 86400) / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    if (d >= 7) return `~${d}d`;
-    if (d > 0) return `${d}d ${h}h`;
+    // For the ≥7d branch we ceil instead of floor: a "30-day" escrow should
+    // read "30d" the moment after creation, not "29d" because a single burn
+    // block elapsed (29.999d). The deadline only fires when the block height
+    // actually crosses expires_at_block, so any part-of-day remaining means
+    // the user still has that day. Matches the intuition "I set 30 days".
+    const dCeil = Math.ceil(totalSec / 86400);
+    const dFloor = Math.floor(totalSec / 86400);
+    if (dCeil >= 7) return `~${dCeil}d`;
+    if (dFloor > 0) return `${dFloor}d ${h}h`;
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m ${s}s`;
   };
