@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDisputedEscrows, usePlatformConfig, useResolvedDisputes } from '@/hooks/use-admin';
-import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, BURN_BLOCK_MINUTES, usesBurnBlockClock } from '@/lib/stacks-config';
 import { useBlockHeight } from '@/hooks/use-block-height';
+import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import { DisputeTimeoutProgress } from '@/components/shared/DisputeTimeoutProgress';
@@ -11,7 +12,10 @@ import { EscrowListSkeleton } from '@/components/shared/PageSkeletons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { resolveDisputeForBuyer, resolveDisputeForSeller } from '@/lib/admin-service';
+import { resolveDisputeForBuyer, resolveDisputeForSeller, resolveDisputeSplit } from '@/lib/admin-service';
+import { Input } from '@/components/ui/input';
+import { supportsOnChainDelivery } from '@/lib/stacks-config';
+import { formatAmount } from '@/lib/utils';
 import { EscrowStatus } from '@/lib/types';
 import { blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
@@ -25,10 +29,31 @@ export default function DisputeQueue() {
   const { data: disputed, isLoading, isError } = useDisputedEscrows();
   const { data: config } = usePlatformConfig();
   const { data: resolvedDisputes = [] } = useResolvedDisputes();
-  const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: stacksBlock = 0 } = useBlockHeight();
+  const { data: burnBlock = 0 } = useBurnBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  const stacksMinutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  // Per-row clock + rate selector. v3+ escrows anchor disputed_at to burn
+  // blocks; legacy v2/v7 use stacks blocks. Mixing them caused the admin
+  // queue to show every v3 dispute as "timed out" within seconds because
+  // (stacks_tip - burn_disputed_at) ≈ 3.8M blocks, vastly exceeding the
+  // dispute timeout. Each dispute is now evaluated against the clock its
+  // contract uses.
+  const tipFor = (contractId: string) => (usesBurnBlockClock(contractId) ? burnBlock : stacksBlock);
+  const ratePerBlockFor = (contractId: string) =>
+    usesBurnBlockClock(contractId) ? BURN_BLOCK_MINUTES : stacksMinutesPerBlock;
   const [confirmAction, setConfirmAction] = useState<{ contractId: string; escrowId: number; type: 'buyer' | 'seller'; amount: number; feeAmount: number; tokenType: number } | null>(null);
+  // v7+ split-resolution panel state. Separate from confirmAction because
+  // the split flow has its own input (buyer-bps) rather than a binary
+  // confirm. buyerBps is a string for input control; parsed on submit.
+  const [splitPanel, setSplitPanel] = useState<{
+    contractId: string;
+    escrowId: number;
+    amount: number;
+    feeAmount: number;
+    tokenType: number;
+    buyerBps: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const { data: disputeReasonMap = {} } = useDisputeReasons((disputed || []).map(e => e.id));
 
@@ -39,12 +64,20 @@ export default function DisputeQueue() {
   const resolved = resolvedDisputes;
 
   const nearTimeoutCount = active.filter(e => {
-    const elapsed = currentBlock - (e.disputedAt || 0);
+    const elapsed = tipFor(e.contractId) - (e.disputedAt || 0);
     return elapsed / disputeTimeout > 0.75;
   }).length;
 
-  const avgTimeOpen = active.length > 0
-    ? Math.round(active.reduce((sum, e) => sum + (currentBlock - (e.disputedAt || 0)), 0) / active.length)
+  // Aggregate as wall-clock minutes since the per-row "blocks" are mixed-
+  // clock (v3 disputes use burn blocks, legacy uses stacks blocks). Summing
+  // raw blocks would compare different units and produce nonsense averages.
+  const avgMinutesOpen = active.length > 0
+    ? Math.round(
+        active.reduce((sum, e) => {
+          const blocks = tipFor(e.contractId) - (e.disputedAt || 0);
+          return sum + blocks * ratePerBlockFor(e.contractId);
+        }, 0) / active.length,
+      )
     : 0;
 
   const handleResolve = async (
@@ -65,9 +98,36 @@ export default function DisputeQueue() {
     }
   };
 
+  const handleSplitResolve = async () => {
+    if (!splitPanel) return;
+    const bps = parseInt(splitPanel.buyerBps, 10);
+    if (!Number.isFinite(bps) || bps < 0 || bps > 10000) return;
+    setLoading(true);
+    try {
+      await resolveDisputeSplit(
+        splitPanel.contractId,
+        splitPanel.escrowId,
+        bps,
+        splitPanel.amount,
+        splitPanel.feeAmount,
+        splitPanel.tokenType,
+      );
+    } finally {
+      setLoading(false);
+      setSplitPanel(null);
+    }
+  };
+
   const summaryStats = [
     { label: 'Active Disputes', value: active.length.toString(), icon: Shield, warn: active.length > 0 },
-    { label: 'Avg Time Open', value: blocksToTime(avgTimeOpen, minutesPerBlock), icon: Clock, warn: false },
+    {
+      label: 'Avg Time Open',
+      // blocksToTime expects (blocks, min-per-block) — here we already have
+      // minutes, so feed it 1 min/block to keep the formatting.
+      value: blocksToTime(avgMinutesOpen, 1),
+      icon: Clock,
+      warn: false,
+    },
     { label: 'Near Timeout', value: nearTimeoutCount.toString(), icon: Timer, warn: nearTimeoutCount > 0 },
   ];
 
@@ -111,7 +171,8 @@ export default function DisputeQueue() {
           ) : (
             <div className="space-y-3">
               {active.map((e, idx) => {
-                const elapsed = currentBlock - (e.disputedAt || 0);
+                const minutesPerBlock = ratePerBlockFor(e.contractId);
+                const elapsed = tipFor(e.contractId) - (e.disputedAt || 0);
                 const urgencyRatio = elapsed / disputeTimeout;
                 const isNearTimeout = urgencyRatio > 0.75;
                 const isConfirming = confirmAction?.escrowId === e.id;
@@ -163,14 +224,97 @@ export default function DisputeQueue() {
                           </div>
                         </div>
 
-                        <DisputeTimeoutProgress disputedAt={e.disputedAt!} />
+                        <DisputeTimeoutProgress
+                          disputedAt={e.disputedAt!}
+                          contractId={e.contractId}
+                        />
 
                         <AnimatePresence mode="wait">
-                        {isConfirming ? (
+                        {/* Split-resolution panel — v7+ only. Lets admin allocate
+                            a custom percentage to each side (e.g. 60/40 for a
+                            partial-delivery case). Buyer-bps is the buyer's
+                            share; seller gets the remainder. Platform fee
+                            comes off whatever the seller receives. */}
+                        {splitPanel && splitPanel.escrowId === e.id ? (
+                          <motion.div
+                            variants={slideDown}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-3"
+                          >
+                            {(() => {
+                              const bps = parseInt(splitPanel.buyerBps, 10) || 0;
+                              const buyerShare = Math.floor((e.amount * bps) / 10000);
+                              const sellerGross = e.amount - buyerShare;
+                              const sellerNet = Math.max(0, sellerGross - e.feeAmount);
+                              const valid = bps >= 0 && bps <= 10000;
+                              return (
+                                <>
+                                  <div className="flex items-center gap-2 text-sm font-medium">
+                                    <Shield className="h-3.5 w-3.5 text-foreground" />
+                                    Split-resolve escrow #{e.id}
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <p className="text-xs text-muted-foreground">
+                                      Buyer's share (basis points, 0–10000 — e.g. 6000 = 60%)
+                                    </p>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      max={10000}
+                                      step={100}
+                                      value={splitPanel.buyerBps}
+                                      onChange={(ev) => setSplitPanel({ ...splitPanel, buyerBps: ev.target.value })}
+                                      className="font-mono text-sm w-32"
+                                    />
+                                  </div>
+                                  <div className="rounded-md border border-border bg-background p-2.5 text-xs space-y-1">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Buyer receives:</span>
+                                      <span className="font-mono">{formatAmount(buyerShare, e.tokenType)} ({(bps / 100).toFixed(2)}%)</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Seller receives (after fee):</span>
+                                      <span className="font-mono">{formatAmount(sellerNet, e.tokenType)} ({((10000 - bps) / 100).toFixed(2)}%)</span>
+                                    </div>
+                                    <div className="flex justify-between text-muted-foreground">
+                                      <span>Platform fee:</span>
+                                      <span className="font-mono">{formatAmount(e.feeAmount, e.tokenType)}</span>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    This action is final and cannot be undone.
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setSplitPanel(null)} disabled={loading}>
+                                      Cancel
+                                    </Button>
+                                    <Button size="sm" onClick={handleSplitResolve} disabled={loading || !valid}>
+                                      {loading ? 'Processing…' : 'Confirm Split'}
+                                    </Button>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </motion.div>
+                        ) : isConfirming ? (
                           <motion.div variants={slideDown} initial="initial" animate="animate" exit="exit" className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-2">
-                              <div className="flex items-center gap-2 text-sm font-medium">
-                                <AlertTriangle className="h-3.5 w-3.5 text-foreground" />
-                                Resolve escrow #{e.id} for <span className="font-semibold">{confirmAction.type}</span>?
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-foreground" />
+                                  Resolve escrow #{e.id} for{' '}
+                                  <span className="font-semibold">{confirmAction.type}</span>?
+                                </div>
+                                {/* Spell out the outcome so the admin doesn't conflate
+                                    "for buyer" with "buyer is right" — what it actually
+                                    means is the funds flow path. */}
+                                <p className="text-xs text-muted-foreground">
+                                  {confirmAction.type === 'buyer'
+                                    ? 'Funds will be refunded to the buyer. Seller receives nothing.'
+                                    : 'Funds will be released to the seller (minus the platform fee). Buyer receives nothing.'}{' '}
+                                  This action is final and cannot be undone.
+                                </p>
                               </div>
                               <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setConfirmAction(null)} disabled={loading}>Cancel</Button>
@@ -180,19 +324,51 @@ export default function DisputeQueue() {
                               </div>
                           </motion.div>
                         ) : (
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <Button size="sm" variant="outline" onClick={() => setConfirmAction({ contractId: e.contractId, escrowId: e.id, type: 'buyer', amount: e.amount, feeAmount: e.feeAmount, tokenType: e.tokenType })} className="gap-1.5">
                               <Shield className="h-3.5 w-3.5" /> Resolve for Buyer
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => setConfirmAction({ contractId: e.contractId, escrowId: e.id, type: 'seller', amount: e.amount, feeAmount: e.feeAmount, tokenType: e.tokenType })} className="gap-1.5">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Resolve for Seller
                             </Button>
+                            {/* Split path is v7+ only — older contracts lack
+                                resolve-dispute-split entirely. Hide the button
+                                rather than disable to avoid implying the
+                                feature is "temporarily" unavailable. */}
+                            {supportsOnChainDelivery(e.contractId) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setSplitPanel({
+                                    contractId: e.contractId,
+                                    escrowId: e.id,
+                                    amount: e.amount,
+                                    feeAmount: e.feeAmount,
+                                    tokenType: e.tokenType,
+                                    buyerBps: '5000',
+                                  })
+                                }
+                                className="gap-1.5"
+                              >
+                                <Shield className="h-3.5 w-3.5" /> Split…
+                              </Button>
+                            )}
                           </div>
                         )}
                         </AnimatePresence>
 
                         <p className="text-xs text-muted-foreground">
-                          Note: After timeout, buyer can self-recover via resolve-expired-dispute.
+                          Note: After the dispute window elapses, the <strong>buyer</strong>{' '}
+                          can self-recover via <span className="font-mono">resolve-expired-dispute</span>.
+                          {usesBurnBlockClock(e.contractId) && (
+                            <>
+                              {' '}On v3+ contracts, if the escrow was marked delivered and{' '}
+                              <strong>2× the timeout</strong> elapses, the{' '}
+                              <strong>seller</strong> can self-rescue via{' '}
+                              <span className="font-mono">resolve-expired-dispute-for-seller</span>.
+                            </>
+                          )}
                         </p>
                       </CardContent>
                     </Card>
