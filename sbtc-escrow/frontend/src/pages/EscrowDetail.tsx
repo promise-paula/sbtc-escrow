@@ -125,8 +125,21 @@ export default function EscrowDetail() {
   // is still used to project *future* blocks (e.g. expires_at_block) since
   // those haven't been mined yet.
   const { data: burnRate } = useBurnBlockRate();
-  const burnSecondsPerBlock = burnRate?.secondsPerBlock ?? BURN_BLOCK_MINUTES * 60;
-  const clockMinutesPerBlock = usesBurnClock ? burnRate?.minutesPerBlock ?? BURN_BLOCK_MINUTES : minutesPerBlock;
+  // For v3+ contracts the deadline is anchored to a specific Bitcoin block
+  // height. Bitcoin's difficulty retarget guarantees ~10 min/block long-run
+  // on mainnet (4 min on testnet/regtest). Short-term observed rate
+  // fluctuates ±20% as hashrate moves block-to-block — using the live rate
+  // for a 30-day projection extrapolates a transient deviation across the
+  // entire window. Concretely: when mainnet is mining at 8.5 min/block,
+  // a 30-day escrow would render as "25 days remaining" even though the
+  // contract's actual deadline (Bitcoin block N+4320) will arrive in ~30
+  // days once difficulty adjusts. Lock projections to the network-target
+  // constant; keep the observed rate only for past-block lookups (which
+  // have a real timestamp via `useBurnBlockTimestamps`).
+  // Same logic for future-block timestamp projection in `blockToHumanTime`:
+  // anchor to the network-target rate, not the live observed one.
+  const burnSecondsPerBlock = BURN_BLOCK_MINUTES * 60;
+  const clockMinutesPerBlock = usesBurnClock ? BURN_BLOCK_MINUTES : minutesPerBlock;
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
