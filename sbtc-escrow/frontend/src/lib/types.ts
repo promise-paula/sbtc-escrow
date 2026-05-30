@@ -90,6 +90,11 @@ export interface PlatformConfig {
   feeRecipient: string;
   platformFeeBps: number;
   isPaused: boolean;
+  // v3+: burn-block at which the admin can pause again. While
+  // current-burn-block < this value any pause attempt aborts with
+  // ERR_PAUSE_COOLDOWN_ACTIVE (u4003). Pre-v3 contracts omit this field,
+  // in which case it stays 0 and the admin UI behaves as before.
+  pauseCooldownUntil: number;
   minAmount: number;
   maxAmount: number;
   minAmountSbtc: number;
