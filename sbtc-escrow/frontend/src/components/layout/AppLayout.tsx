@@ -33,7 +33,15 @@ export function AppLayout() {
           <div className="px-4 sm:px-6 pt-3">
             <IndexerHealthBanner />
           </div>
-          <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
+          {/* pb on mobile reserves space for the fixed MobileNav. The
+              env(safe-area-inset-bottom) addition keeps content clear of
+              the iPhone home-indicator gesture region (the same offset is
+              applied to MobileNav itself, so the visible bar height stays
+              4rem on devices without a notch). */}
+          <main
+            id="main-content"
+            className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0"
+          >
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.key}
