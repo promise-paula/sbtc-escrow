@@ -2,11 +2,15 @@
  * sBTC Escrow SDK — public types.
  *
  * Mirrors the on-chain shape of:
- * - escrow-v7 (testnet, current default — adds DELIVERED status, review window,
- *   and partial dispute splits)
- * - escrow-mainnet-v2 (mainnet, current default — v7-equivalent)
- * - escrow-v6 / escrow-mainnet (legacy, still readable). Methods/fields specific
- *   to v7+ are marked.
+ * - escrow-v8 (testnet, current default — v3-equivalent: burn-block timing,
+ *   beneficiary delegation, seller self-rescue, time-bounded pause, sweep-orphans)
+ * - escrow-mainnet-v3 (mainnet, current default — same v3 feature set)
+ * - escrow-v7 / escrow-mainnet-v2 (legacy v7+: DELIVERED status, review window,
+ *   partial dispute splits)
+ * - escrow-v6 / escrow-mainnet (legacy pre-v7, still readable)
+ *
+ * Methods/fields specific to v3+ are marked. Use `supportsV3Features(contractId)`
+ * at runtime to gate them.
  */
 
 /**
