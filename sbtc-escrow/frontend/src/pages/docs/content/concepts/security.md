@@ -26,21 +26,30 @@ If the actual transfer differs from the post-condition, the entire transaction i
 ### Role-Based Access Control
 
 | Role | Permissions |
-|------|-------------|
+| --- | --- |
 | **Buyer** | Create, release, dispute, extend, resolve-expired-dispute |
-| **Seller** | Refund, dispute |
-| **Owner** | Resolve disputes, pause/unpause, set fees, transfer ownership |
-| **Anyone** | Refund expired escrows, read-only queries |
+| **Seller** | Refund, dispute, deliver *(v7+)*, resolve-expired-dispute-for-seller *(v3+)* |
+| **Beneficiary** *(v3+)* | Release, dispute, extend (same rights as buyer) |
+| **Owner** | Resolve disputes, partial split *(v7+)*, pause/unpause, sweep-orphans *(v3+)*, set fees, transfer ownership |
+| **Anyone** | Read-only queries |
 
 ### Pause Mechanism
 
-The contract owner can pause all new escrow creation in case of emergency:
+The contract owner can pause normal contract operations in case of emergency:
 
 ```clarity
+;; v3+: pause-contract requires a duration (in burn blocks). Contract
+;; auto-unpauses after that window AND blocks re-pause for an equal
+;; cooldown (anti-chaining safeguard found in v3 audit).
+(contract-call? .escrow-mainnet-v3 pause-contract u144)  ;; ~24h mainnet
+
+;; Legacy v6 / escrow-mainnet: no-arg, indefinite pause.
 (contract-call? .escrow-v6 set-paused true)
 ```
 
-> ℹ️ **Info:** Pausing only blocks `create-escrow`. Existing escrows can still be released, refunded, and disputed. This ensures funds are never locked by a pause.
+> ⚠️ **Important blast radius on v3+**: pause blocks `create-escrow`, `deliver`, `release`, `refund`, `dispute`, and `extend-escrow` at the contract level. Admin dispute resolutions and seller self-rescue (for previously-delivered escrows past timeout) still work — these are the escape hatches that ensure funds are never permanently locked.
+>
+> ℹ️ Manual unpause lifts the pause early but does NOT reset the cooldown. Re-pause is rejected until `2 × duration` blocks have elapsed since the original pause.
 
 ### Two-Step Ownership Transfer
 
@@ -101,7 +110,21 @@ The Chainhook webhook validates:
 ## Known Limitations
 
 1. **Single admin** — Only one contract owner can resolve disputes. No multisig support in the contract itself (use a multisig wallet instead).
-2. **No partial releases** — Funds are released all-or-nothing. No milestone splits within a single escrow.
-3. **Block time variability** — Block times are approximately 90 seconds but can vary. Duration calculations are approximate.
-4. **No on-chain metadata** — Escrow descriptions are stored on-chain but limited to 256 UTF-8 characters.
+2. **No mid-flight milestones** — An escrow is a single locked amount. Use multiple escrows for milestone-based payments. v7+ `resolve-dispute-split` allows partial payouts *only via admin arbitration* on disputed escrows — not as a normal release path.
+3. **Stacks-block timing on legacy contracts** — `escrow-v6` and `escrow-mainnet` use `stacks-block-height` for deadlines. Post-Nakamoto Stacks block time varies (5s to 2min), so "30-day" legacy escrows can resolve anywhere from ~10 to ~60 calendar days. v3+ contracts (`escrow-mainnet-v3`, `escrow-v8`) fix this by anchoring to burn-block-height (~10 min/block mainnet, stable via Bitcoin difficulty retarget).
+4. **No on-chain metadata** — Escrow descriptions are stored on-chain but limited to 256 UTF-8 characters. Dispute reasons live off-chain in Supabase.
 5. **sBTC dependency** — sBTC escrows depend on the sBTC token contract being deployed and functional on the network.
+6. **Indexer is a dependency for UX, not for funds** — The Supabase indexer makes the frontend fast and provides notifications, but it's purely derived state. If the indexer goes offline, the contract still holds funds correctly; only the dashboard / notifications degrade. All on-chain actions remain functional via the wallet directly or the SDK.
+
+## v3 audit history
+
+Four self-audit passes on the v3 contract before mainnet deploy:
+
+- **Pass 1**: lifecycle invariants, role authorization, fee math
+- **Pass 2**: cross-token edge cases (STX vs sBTC accounting separation)
+- **Pass 3**: time-anchor consistency (burn vs Stacks block confusion)
+- **Pass 4**: pause / cooldown / sweep-orphans interactions — caught the indefinite-pause griefing vector that led to the time-bound pause + cooldown design
+
+Full audit notes: see `docs/security/README.md` in the source repo.
+
+Invariant test suite: 50+ assertions in `tests/escrow-mainnet-v3-invariants.test.ts`, covering all six v3 features end-to-end on simnet with deterministic block-jump scenarios.
