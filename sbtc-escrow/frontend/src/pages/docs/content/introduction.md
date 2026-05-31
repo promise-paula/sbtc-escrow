@@ -34,9 +34,15 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 
 **Non-Custodial** — Funds are held by the smart contract, not a third party. The contract enforces all rules on-chain — no one can move funds outside the defined flows.
 
-**Dispute Resolution** — Either party can raise a dispute. The contract owner resolves disputes, or buyers can self-recover funds after a configurable timeout period (default ~30 days).
+**Dispute Resolution** — Either party can raise a dispute. The contract owner resolves it (full to buyer, full to seller, or a partial split). If no admin resolution lands within the dispute window, the buyer can self-recover. On v3+, a seller who already signaled delivery can self-rescue after 2× the timeout — prevents admin-griefing of legitimate work.
 
-**Automatic Expiry** — Escrows have a deadline. After expiry, anyone can trigger a refund to the buyer. Buyers can also extend the deadline before it passes.
+**Beneficiary Delegation (v3+)** — Optional third-party with the same release/refund/dispute rights as the buyer. Useful for marketplace platforms that need to act on behalf of buyers, or DAO-held escrows.
+
+**Automatic Expiry** — Escrows have a deadline. After expiry, the buyer can claim a refund. Buyers can also extend the deadline before it passes.
+
+**Burn-Block-Anchored Timing (v3+)** — All deadlines on v3+ contracts are anchored to Bitcoin block height, not Stacks block height. Bitcoin's ~10 min/block cadence is stable via difficulty retarget; Stacks block time post-Nakamoto varies (5s to 2min). A "30-day" v3 escrow expires in 30 days regardless of Stacks-side fluctuation.
+
+**Time-Bounded Admin Pause (v3+)** — Emergency pause requires a duration. The contract auto-unpauses after that window and blocks re-pause for an equal cooldown — closes an indefinite-pause griefing vector.
 
 **Contract-Caller Authorization** — All functions validate `contract-caller == tx-sender`, preventing phishing attacks through malicious intermediary contracts.
 
@@ -45,21 +51,25 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 ## Protocol Numbers
 
 | Parameter | Value |
-|-----------|-------|
+| --- | --- |
 | Platform Fee | 0.5% (50 BPS) |
 | Max Fee | 5% (500 BPS) |
 | STX Min/Max | 0.001 STX — 100M STX |
 | sBTC Min/Max | 0.0001 BTC — 100 BTC |
-| Max Duration | ~365 days (350,400 blocks) |
-| Dispute Timeout | ~30 days (28,800 blocks) |
-| Block Time | ~90 seconds (post-Nakamoto) |
+| Max Duration (v3+) | ~365 days (52,560 burn blocks) |
+| Max Duration (legacy v6/v7) | ~365 days (350,400 Stacks blocks) |
+| Dispute Timeout | ~30 days (28,800 burn blocks on v3+) |
+| Block Time (v3+ timing anchor) | Bitcoin ~10 min/block mainnet, ~4 min/block testnet |
+| Block Time (Stacks side) | ~90 seconds post-Nakamoto (variable) |
 
 ## Networks
 
-| Network     | Contract                                                   | Status |
-|-------------|------------------------------------------------------------|--------|
-| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v6`      | Live   |
-| **Mainnet** | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet` | Live   |
+| Network | Active Contract | Legacy (read-only) |
+| --- | --- | --- |
+| **Mainnet** | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3` | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2` |
+| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8` | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7` |
+
+Legacy contracts remain readable + actionable (release / refund / dispute / admin resolution) for existing escrows. New escrows target the active contract on each network.
 
 ## Architecture at a Glance
 
