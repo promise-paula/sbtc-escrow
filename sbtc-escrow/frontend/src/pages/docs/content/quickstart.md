@@ -12,7 +12,7 @@ This guide walks you through creating, releasing, and refunding an escrow on tes
 
 ## Option A: Use the App
 
-The fastest way to try sBTC Escrow is the hosted frontend at [sbtc-escrow.vercel.app](https://sbtc-escrow.vercel.app).
+The fastest way to try sBTC Escrow is the hosted frontend at [sbtcescrow.com](https://sbtcescrow.com) (mainnet).
 
 1. **Connect wallet** — Click "Connect Wallet" and approve the connection
 2. **Create escrow** — Navigate to "Create Escrow", enter the seller's address, amount, description, and duration
@@ -55,13 +55,20 @@ import { EscrowClient, TokenType } from 'sbtc-escrow-sdk';
 
 const client = new EscrowClient({ network: 'testnet' });
 
+// On v3+ contracts (`escrow-v8` testnet, `escrow-mainnet-v3` mainnet),
+// `durationBlocks` is measured in BURN blocks (~4 min/block testnet,
+// ~10 min/block mainnet). On legacy v6/v7 it's Stacks blocks.
+//   testnet 1 day  = 360 burn blocks
+//   mainnet 1 day  = 144 burn blocks
+//   mainnet 30 days = 4320 burn blocks
 const result = await client.createEscrow(
   {
     seller: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
     amount: 1_000_000,        // 1 STX in microSTX
     description: 'Logo design milestone 1',
-    durationBlocks: 960,      // ~1 day
+    durationBlocks: 360,      // ~1 day on testnet (burn-block math)
     tokenType: TokenType.STX,
+    // beneficiary: 'ST3PLATFORM…',  // optional v3+ co-buyer with release rights
   },
   {
     senderKey: 'your-private-key-hex',
@@ -108,17 +115,21 @@ clarinet console
 ```
 
 ```clarity
-;; Create an escrow (as wallet_1 → wallet_2)
-(contract-call? .escrow-v6 create-escrow
+;; Create an escrow (as wallet_1 → wallet_2) on the v3-equivalent testnet
+;; contract. Note the optional `beneficiary` (`none` here) and `duration`
+;; in burn blocks. The signature: seller, amount, description, duration,
+;; token-type, beneficiary.
+(contract-call? .escrow-v8 create-escrow
   'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG  ;; seller
   u1000000                                         ;; 1 STX
   u"Test escrow"                                   ;; description
-  u960                                             ;; ~1 day
+  u360                                             ;; ~1 day on testnet (burn blocks)
   u0                                               ;; STX token
+  none                                             ;; no beneficiary
 )
 
 ;; Check it
-(contract-call? .escrow-v6 get-escrow u1)
+(contract-call? .escrow-v8 get-escrow u1)
 ```
 
 ## Next Steps
