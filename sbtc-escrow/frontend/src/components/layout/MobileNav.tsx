@@ -15,7 +15,13 @@ export function MobileNav() {
   const location = useLocation();
 
   return (
-    <nav aria-label="Mobile navigation" className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t border-border bg-card">
+    <nav
+      aria-label="Mobile navigation"
+      // pb env(safe-area-inset-bottom) clears the iPhone home-indicator
+      // gesture region; without it the nav row collides with the OS
+      // swipe-up area on iPhone X+.
+      className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t border-border bg-card pb-[env(safe-area-inset-bottom)]"
+    >
       {items.map((item) => {
         const active = location.pathname === item.url;
         return (
