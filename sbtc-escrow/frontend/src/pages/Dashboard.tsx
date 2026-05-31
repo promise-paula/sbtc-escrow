@@ -88,8 +88,9 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Stat Cards. Mobile = 1 col, tablet portrait (sm 640-1023) = 2 col
+          so the cards aren't squeezed into thirds at ~700px, desktop = 3 col. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
           <Card className="shadow-glow-sm">
             <CardContent className="p-4">
@@ -131,7 +132,10 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
+        {/* Third card spans both columns on tablet so a row of 2 + 1 doesn't
+            leave the third card visually orphaned at half-width. On desktop
+            (≥lg) it falls back to a normal 1/3 column. */}
+        <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible" className="sm:col-span-2 lg:col-span-1">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
