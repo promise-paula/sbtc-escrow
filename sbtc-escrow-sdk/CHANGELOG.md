@@ -1,9 +1,25 @@
+<!-- markdownlint-disable MD024 -->
 # Changelog
 
 All notable changes to `sbtc-escrow-sdk` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.3.1] - 2026-05-31
+
+### Fixed
+
+- **Default contract names** — 0.3.0's CHANGELOG promised v3 defaults
+  (`escrow-mainnet-v3` on mainnet, `escrow-v8` on testnet) but the
+  shipped `DEFAULT_CONTRACTS` constant still pointed at v2/v7. Constructing
+  `new EscrowClient({ network: 'mainnet' })` returned a client targeting
+  `escrow-mainnet-v2` instead of v3. Fixed: defaults now correctly resolve
+  to v3. Callers who *want* legacy v2/v7 should pass `contractName`
+  explicitly (the SDK auto-dispatches by `contractId` for `getEscrow()`
+  on any escrow regardless of the client's default).
+
+If you installed 0.3.0, upgrade to 0.3.1.
 
 ## [0.3.0] - 2026-05-31
 

@@ -1,9 +1,11 @@
 /**
  * sBTC Escrow SDK — Client
  *
- * TypeScript client for the sBTC Escrow smart contract on Stacks
- * (escrow-v7 on testnet, escrow-mainnet-v2 on mainnet). Supports both
- * STX (native) and sBTC (SIP-010) escrows.
+ * TypeScript client for the sBTC Escrow smart contracts on Stacks.
+ * Defaults to `escrow-v8` on testnet and `escrow-mainnet-v3` on mainnet
+ * (both v3 feature set). Supports both STX (native) and sBTC (SIP-010)
+ * escrows. Legacy contracts (`escrow-v7`, `escrow-mainnet-v2`, etc.)
+ * are still callable by passing `contractName` explicitly.
  */
 
 import {
@@ -38,20 +40,25 @@ import {
 } from './types';
 
 /**
- * Default contract addresses. As of 0.3.0, defaults stay on the v2/v7
- * deployments until v3 is live on mainnet. Once `escrow-mainnet-v3` is
- * deployed and smoke-tested, this constant moves to v3 in a patch release
- * (consumers calling v2-only methods will be unaffected since v3 is a
- * superset). To opt into v3 today, pass `contractName` explicitly.
+ * Default contract addresses. v3+ deployments are now live on both networks
+ * (`escrow-v8` on testnet, `escrow-mainnet-v3` on mainnet) — the SDK
+ * targets them by default since v3 is a strict feature superset of v2/v7.
+ *
+ * To call a legacy contract (read or actions on existing v2/v7 escrows),
+ * pass `contractName` explicitly:
+ *
+ * ```ts
+ * new EscrowClient({ network: 'mainnet', contractName: 'escrow-mainnet-v2' });
+ * ```
  */
 const DEFAULT_CONTRACTS = {
   testnet: {
     address: 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N',
-    name: 'escrow-v7',
+    name: 'escrow-v8',
   },
   mainnet: {
     address: 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
-    name: 'escrow-mainnet-v2',
+    name: 'escrow-mainnet-v3',
   },
 };
 
@@ -67,7 +74,7 @@ const DEFAULT_CONTRACTS = {
  */
 const V3_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',           // testnet
-  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',   // mainnet (pending deploy)
+  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',   // mainnet
 ]);
 
 /** True iff the contract id targets a v3+ deployment. */
@@ -84,9 +91,10 @@ const DEFAULT_SBTC_CONTRACTS = {
 /**
  * sBTC Escrow Client
  *
- * Provides typed methods for interacting with the sBTC Escrow smart contract
- * (escrow-v7 on testnet, escrow-mainnet-v2 on mainnet). Supports both STX
- * (native) and sBTC (SIP-010 fungible token) escrows.
+ * Provides typed methods for interacting with the sBTC Escrow smart contracts
+ * on Stacks. Defaults to `escrow-v8` (testnet) / `escrow-mainnet-v3` (mainnet);
+ * pass `contractName` explicitly to target legacy contracts. Supports both
+ * STX (native) and sBTC (SIP-010 fungible token) escrows.
  *
  * @example
  * ```typescript
