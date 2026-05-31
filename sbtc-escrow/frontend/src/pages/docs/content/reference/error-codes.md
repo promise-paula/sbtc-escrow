@@ -1,84 +1,89 @@
 # Error Codes
 
-Reference for all error codes returned by the escrow-v6 smart contract.
+Reference for all error codes returned by the active `escrow-mainnet-v3`
+(mainnet) and `escrow-v8` (testnet) contracts. Older contract versions
+(v6/v7, escrow-mainnet, escrow-mainnet-v2) use a similar scheme; the
+frontend's error mapping handles both.
 
-## Authentication Errors (1xxx)
-
-| Code | Constant | Description |
-|------|----------|-------------|
-| 1000 | `err-owner-only` | Caller is not the contract owner. Admin functions require the deployer address. |
-| 1001 | `err-not-sender` | Caller is not the escrow sender. Only the sender can release or refund. |
-| 1002 | `err-not-participant` | Caller is neither the sender nor recipient. Only participants can dispute. |
-
-## Escrow Errors (2xxx)
+## Authorization (1xxx)
 
 | Code | Constant | Description |
-|------|----------|-------------|
-| 2000 | `err-escrow-not-found` | No escrow exists with the given ID. |
-| 2001 | `err-already-funded` | The escrow has already been funded. Cannot fund twice. |
-| 2002 | `err-not-funded` | The escrow is not in "funded" status. Cannot release or dispute. |
-| 2003 | `err-already-completed` | The escrow has already been completed. No further actions allowed. |
-| 2004 | `err-already-refunded` | The escrow has already been refunded. No further actions allowed. |
-| 2005 | `err-already-disputed` | The escrow is already in dispute. Cannot dispute again. |
-| 2006 | `err-not-disputed` | The escrow is not in dispute. Cannot resolve a non-disputed escrow. |
-| 2007 | `err-self-escrow` | Cannot create an escrow where sender equals recipient. |
-| 2008 | `err-invalid-amount` | The escrow amount must be greater than zero. |
-| 2009 | `err-invalid-expiry` | The expiry must be in the future (greater than current block height). |
+| --- | --- | --- |
+| `u1001` | `ERR_UNAUTHORIZED` | Caller is not the buyer / seller / beneficiary / admin for this action. |
+| `u1002` | `ERR_CONTRACT_PAUSED` | Contract is currently paused. Create / deliver / release / refund / dispute / extend are all blocked until the pause lifts. Admin dispute resolution and seller self-rescue still work. |
+| `u1003` | `ERR_OWNERSHIP_PENDING` | Ownership transfer is in progress; the new owner has not yet accepted. |
+| `u1004` | `ERR_NOT_PENDING_OWNER` | Only the address designated as the pending new owner can accept ownership. |
 
-## Transfer Errors (3xxx)
+## Escrow State (2xxx)
 
 | Code | Constant | Description |
-|------|----------|-------------|
-| 3000 | `err-transfer-failed` | The STX or token transfer failed. Check balance and post-conditions. |
-| 3001 | `err-insufficient-balance` | Insufficient balance to fund the escrow. |
+| --- | --- | --- |
+| `u2001` | `ERR_ESCROW_NOT_FOUND` | No escrow exists with the given ID. |
+| `u2002` | `ERR_ESCROW_ALREADY_COMPLETED` | Escrow has already been released, refunded, or otherwise finalised. Most commonly a race: the counterparty acted first. |
+| `u2003` | `ERR_ESCROW_EXPIRED` | The deadline has passed. Buyer can refund instead of releasing. |
+| `u2004` | `ERR_ESCROW_NOT_EXPIRED` | The deadline has not yet been reached. Refund / seller self-rescue paths reject until expiry. |
+| `u2005` | `ERR_INVALID_AMOUNT` | Amount outside the allowed bounds for the token type (see Protocol Numbers in the introduction). |
+| `u2006` | `ERR_INVALID_DURATION` | Duration outside `MIN_DURATION..MAX_DURATION` (1 burn block to ~365 days on v3+). |
+| `u2007` | `ERR_SELF_ESCROW` | Buyer address equals seller address. |
+| `u2008` | `ERR_DISPUTE_NOT_TIMED_OUT` | Buyer tried to claim an expired dispute before the dispute timeout elapsed. |
+| `u2009` | `ERR_NOT_DISPUTED` | Caller tried to resolve a dispute on an escrow that has no active dispute. |
+| `u2010` | `ERR_INVALID_EXTENSION` | Duration extension is zero or pushes total duration past the max. |
+| `u2011` | `ERR_INVALID_TIMEOUT` | Admin tried to set `dispute-timeout` outside its allowed range (1..MAX_DISPUTE_TIMEOUT). |
+| `u2012` | `ERR_INVALID_TOKEN` | Token-type uint is neither 0 (STX) nor 1 (sBTC). |
+| `u2013` | `ERR_INVALID_BPS` | Basis-point value out of range (0..10000 for split resolutions, 0..MAX_FEE_BPS for fee setting). |
+| `u2014` | `ERR_IN_REVIEW_PERIOD` | Buyer attempted to refund during the post-delivery review window. Must wait for the window to lapse or raise a dispute. |
+| `u2015` | `ERR_INVALID_STATUS` | Action incompatible with current escrow status (e.g. trying to deliver a Released escrow). |
+| `u2016` | `ERR_NOT_DELIVERED` | Seller tried to self-rescue without first signaling delivery on-chain. |
+| `u2017` | `ERR_SELF_BENEFICIARY` | Beneficiary address equals buyer or seller — must be a distinct third party. |
 
-## Expiry Errors (4xxx)
+## Transfer (3xxx)
 
 | Code | Constant | Description |
-|------|----------|-------------|
-| 4000 | `err-not-expired` | Cannot refund: the escrow has not yet expired. Wait until the expiry block. |
-| 4001 | `err-expired` | Cannot perform this action: the escrow has expired. Only refund is available. |
+| --- | --- | --- |
+| `u3001` | `ERR_TRANSFER_FAILED` | STX or sBTC `transfer?` call reverted. Usually a wallet balance issue or a post-condition mismatch. |
+| `u3002` | `ERR_INSUFFICIENT_BALANCE` | Contract noticed a balance shortfall mid-transfer. |
 
-## Dispute Errors (5xxx)
+## v3+ Specific (4xxx)
+
+These codes only fire on `escrow-mainnet-v3` and `escrow-v8`.
 
 | Code | Constant | Description |
-|------|----------|-------------|
-| 5000 | `err-invalid-resolution` | The dispute resolution value is invalid. Must be a valid resolution type. |
-| 5001 | `err-dispute-timeout` | The dispute timeout has passed. The dispute can be auto-resolved. |
+| --- | --- | --- |
+| `u4001` | `ERR_INVALID_PAUSE_DURATION` | Admin called `pause-contract(duration)` with `duration = 0` or `duration > MAX_PAUSE_DURATION`. |
+| `u4002` | `ERR_SWEEP_EXCEEDS_FREE_BALANCE` | Admin tried to `sweep-orphans` more than the un-locked balance. The contract enforces `amount ≤ balance − total_locked` so active escrows are never touched. |
+| `u4003` | `ERR_PAUSE_COOLDOWN_ACTIVE` | Admin tried to re-pause while the anti-chaining cooldown from a previous pause is still active. Cooldown ends `2 × duration` blocks after the original pause confirmed. |
 
----
+## Frontend handling
 
-## Handling Errors in the Frontend
-
-The frontend maps contract error codes to user-friendly messages:
+The frontend's [`categorizeTxError`](https://github.com/promise-paula/sbtc-escrow/blob/main/frontend/src/lib/tx-errors.ts) helper maps these codes to friendly toast messages. Wallet-rejection and network errors are caught first; then any `uXXXX` string in the wallet's error message is matched against this table.
 
 ```typescript
-const ERROR_MESSAGES: Record<number, string> = {
-  1000: "Only the contract admin can perform this action.",
-  1001: "Only the escrow sender can perform this action.",
-  1002: "Only escrow participants can perform this action.",
-  2000: "Escrow not found.",
-  2001: "This escrow has already been funded.",
-  2002: "This escrow must be funded first.",
-  2007: "You cannot create an escrow with yourself.",
-  2008: "Amount must be greater than zero.",
-  2009: "Expiry must be in the future.",
-  3000: "Token transfer failed. Check your balance.",
-  4000: "This escrow has not expired yet.",
-  4001: "This escrow has expired.",
-};
+// Example mappings shipped with the frontend:
+if (err.includes('u1002')) return { title: 'Contract is paused', ... };
+if (err.includes('u4003')) return { title: 'Pause cooldown still active', ... };
+if (err.includes('u2014')) return { title: 'Review period active', ... };
+if (err.includes('u2017')) return { title: 'Beneficiary must differ', ... };
 ```
 
-## Handling Errors in the SDK
+## SDK handling
 
 ```typescript
-import { EscrowClient } from "sbtc-escrow-sdk";
+import { EscrowClient } from 'sbtc-escrow-sdk';
 
 try {
-  await client.createEscrow({ ... });
+  await client.createEscrow({ /* … */ });
 } catch (error) {
-  if (error.code === 2007) {
-    console.log("Cannot escrow to yourself");
+  // Stacks contract errors come back as strings like "(err u2007)" or
+  // the wallet's error message containing the code. Match on substring.
+  const msg = error instanceof Error ? error.message : String(error);
+  if (msg.includes('u2007')) {
+    console.log('Cannot create an escrow to yourself');
+  } else if (msg.includes('u1002')) {
+    console.log('Contract is paused');
   }
 }
 ```
+
+## Notes on legacy contracts
+
+`escrow-v6` and `escrow-mainnet` use a different error code scheme (1000-5001 range, kebab-case `err-not-sender` names). The frontend handles both; if you're calling those contracts directly via the SDK, refer to the inline contract source in `contracts/escrow-v6.clar` or the explorer for the exact mapping.
