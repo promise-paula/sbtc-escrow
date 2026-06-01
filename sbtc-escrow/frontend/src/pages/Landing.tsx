@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -204,6 +204,29 @@ export default function Landing() {
   const location = useLocation();
   const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
+  // Track which in-page section is in view so the nav can mark it active.
+  // Only the two anchor sections (features, faq) matter — How it Works and
+  // Docs are separate routes. rootMargin shrinks the observation band to
+  // the middle ~5% of the viewport, so the underline only switches once
+  // a section is firmly in focus instead of flickering as you scroll past edges.
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  useEffect(() => {
+    const ids = ['features', 'faq'];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) setActiveSection(e.target.id);
+        });
+      },
+      { rootMargin: '-45% 0px -50% 0px', threshold: 0 },
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
   const handleGetStarted = async () => {
     if (isConnected) {
       navigate(destination);
@@ -232,8 +255,34 @@ export default function Landing() {
 
           <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
             <button onClick={() => navigate('/how-it-works')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">How it Works</button>
-            <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Features</button>
-            <button onClick={() => scrollTo('faq')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">FAQ</button>
+            <button
+              onClick={() => scrollTo('features')}
+              className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'features' ? 'text-foreground' : ''}`}
+            >
+              Features
+              {activeSection === 'features' && (
+                <motion.span
+                  layoutId="navActiveIndicator"
+                  aria-hidden="true"
+                  className="absolute left-3 right-3 -bottom-0.5 h-0.5 rounded-full bg-accent-warm"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+            </button>
+            <button
+              onClick={() => scrollTo('faq')}
+              className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'faq' ? 'text-foreground' : ''}`}
+            >
+              FAQ
+              {activeSection === 'faq' && (
+                <motion.span
+                  layoutId="navActiveIndicator"
+                  aria-hidden="true"
+                  className="absolute left-3 right-3 -bottom-0.5 h-0.5 rounded-full bg-accent-warm"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+            </button>
             <button onClick={() => navigate('/docs')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Docs</button>
           </div>
 
@@ -304,7 +353,27 @@ export default function Landing() {
                 is the eye's first stop in the entire hero. */}
             <h1 className="font-bold tracking-tight text-foreground leading-[1.05]" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
               Bitcoin escrow at{' '}
-              <span className="font-black text-accent-warm tracking-tighter">0.5%</span>.
+              <span className="relative inline-block">
+                {/* One-shot glow that pulses out behind the "0.5%" after the
+                    headline lands. Decorative — aria-hidden. Lives behind the
+                    glyph via z-0 and uses a heavy blur so it reads as warmth
+                    rather than a hard shape. */}
+                <motion.span
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-lg bg-accent-warm/30 blur-2xl z-0"
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: [0, 0.9, 0], scale: [0.7, 1.3, 1.5] }}
+                  transition={{ duration: dur(1500), delay: dur(700), ease: 'easeOut' as const, times: [0, 0.4, 1] }}
+                />
+                <motion.span
+                  className="relative z-10 font-black text-accent-warm tracking-tighter inline-block"
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: dur(450), delay: dur(600), ease: [0.34, 1.56, 0.64, 1] }}
+                >
+                  0.5%
+                </motion.span>
+              </span>.
             </h1>
             <p className="mt-5 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
               Lock STX or sBTC in a smart contract. It sits there until both sides agree the deal is done. 0.5% flat — we never custody your funds.
@@ -364,7 +433,7 @@ export default function Landing() {
               <motion.div
                 key={f.title}
                 variants={revealVariants}
-                className={`rounded-lg border border-border/60 bg-surface-1 p-6 transition-all hover:shadow-glow-sm ${isViolet ? 'hover:border-accent-violet/30' : 'hover:border-primary/20'}`}
+                className={`rounded-lg border border-border/60 bg-surface-1 p-6 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-glow-sm ${isViolet ? 'hover:border-accent-violet/30' : 'hover:border-primary/20'}`}
               >
                 <div className={`inline-flex items-center justify-center rounded-md p-2.5 mb-5 ${isViolet ? 'bg-accent-violet/10' : 'bg-muted'}`}>
                   <f.icon className={`h-5 w-5 ${isViolet ? 'text-accent-violet' : 'text-primary'}`} />
