@@ -612,7 +612,7 @@ export default function CreateEscrow() {
                     id="desc-disclosure"
                     className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] text-muted-foreground"
                   >
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-warning" />
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" />
                     <span>
                       This description is stored <span className="font-medium text-foreground">on-chain in plaintext</span> and is
                       permanently visible to anyone — including future viewers. Avoid personal
