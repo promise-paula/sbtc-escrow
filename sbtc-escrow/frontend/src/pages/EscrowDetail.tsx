@@ -575,7 +575,7 @@ export default function EscrowDetail() {
 
       {isPaused && (
         <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 flex items-start gap-2 text-sm">
-          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
           <div className="space-y-1">
             <p className="font-medium text-foreground">Contract is paused</p>
             <p className="text-xs text-muted-foreground">
@@ -907,7 +907,7 @@ export default function EscrowDetail() {
                     className="text-sm resize-none"
                   />
                   {isPaused && (
-                    <p className="text-xs text-warning flex items-center gap-1.5">
+                    <p className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5" />
                       Contract is paused — delivery signal is blocked at the contract level. Try again once the pause lifts.
                     </p>
@@ -983,7 +983,7 @@ export default function EscrowDetail() {
                   the public anon key, so users should self-censor sensitive
                   info the same way they would on-chain. */}
               <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] text-muted-foreground">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-warning" />
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" />
                 <span>
                   Messages here are visible to anyone reading the platform.
                   Avoid personal info, contact details, or anything sensitive
