@@ -3,19 +3,21 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { PlatformConfig } from '@/lib/types';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_PRINCIPAL, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_PRINCIPAL, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE, supportsV3Features } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
+import { useContractFreeBalance } from '@/hooks/use-contract-free-balance';
 import { BURN_BLOCK_MINUTES } from '@/lib/stacks-config';
-import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership } from '@/lib/admin-service';
+import { TokenType } from '@/lib/types';
+import { pauseContract, unpauseContract, setPlatformFee, setFeeRecipient, setDisputeTimeout, transferOwnership, sweepOrphans } from '@/lib/admin-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { DashboardSkeleton } from '@/components/shared/PageSkeletons';
 import { cardVariants } from '@/lib/motion';
-import { AlertTriangle, DollarSign, Clock, UserCheck, Info } from 'lucide-react';
+import { AlertTriangle, DollarSign, Clock, UserCheck, Info, Recycle } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 
 // Presets use fixed block counts (at 1.5 min/block) so the value sent on-chain
@@ -53,6 +55,13 @@ export default function ContractControls() {
   // Default to 24h. v3 mandates an explicit duration on pause; the same
   // value becomes the anti-chaining cooldown after the pause auto-lifts.
   const [pauseBlocks, setPauseBlocks] = useState('144');
+  // Sweep-orphans state. Default token is STX since most v3 contracts hold
+  // mixed but typically more STX. Amount left empty initially — populated
+  // when admin clicks "Sweep all".
+  const [sweepToken, setSweepToken] = useState<TokenType>(TokenType.STX);
+  const [sweepAmount, setSweepAmount] = useState('');
+  const supportsSweep = supportsV3Features(CONTRACT_PRINCIPAL);
+  const { data: freeBal } = useContractFreeBalance(CONTRACT_PRINCIPAL);
   // Tracks a pause/unpause tx that's been broadcast but not yet reflected on
   // the chain read. Previously we optimistically flipped local state right
   // after the wallet returned a txid, which lied to the operator when the tx
@@ -158,11 +167,18 @@ export default function ContractControls() {
       icon: AlertTriangle,
       title: 'Emergency Controls',
       content: (
-        <Card className={`border-l-4 ${chainIsPaused ? 'border-l-destructive' : 'border-l-success'}`}>
+        // Paused state uses warning (orange), not destructive (red).
+        // Destructive is reserved for actual problems — disputes pending,
+        // indexer down, tx aborted. Pause is an intentional operational
+        // state the admin chose; warning is the right urgency tier. This
+        // also matches the AdminDashboard "Needs Attention" treatment so
+        // an admin glancing at one page learns the color = state mapping
+        // once, not twice.
+        <Card className={`border-l-4 ${chainIsPaused ? 'border-l-warning' : 'border-l-success'}`}>
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className={`h-3 w-3 rounded-full ${chainIsPaused ? 'bg-destructive' : 'bg-success'}`} />
+                <div className={`h-3 w-3 rounded-full ${chainIsPaused ? 'bg-warning' : 'bg-success'}`} />
                 <div>
                   <p className="text-sm font-medium">{chainIsPaused ? 'Contract Paused' : 'Contract Active'}</p>
                   <p className="text-xs text-muted-foreground">
@@ -173,8 +189,10 @@ export default function ContractControls() {
                 </div>
               </div>
               {chainIsPaused && !pendingPauseTx && (
+                // Unpause is the recovery / safe action, not a destructive
+                // one. Default button variant; the Pause button below
+                // (which blocks the platform) keeps its destructive look.
                 <Button
-                  variant="destructive"
                   size="sm"
                   onClick={handleUnpause}
                   disabled={loading === 'pause'}
@@ -222,7 +240,7 @@ export default function ContractControls() {
             {!chainIsPaused && !pendingPauseTx && cooldownActive && (
               <div className="space-y-2 border-t border-border pt-4">
                 <div className="rounded-md border border-warning/40 bg-warning/5 p-3 flex items-start gap-2 text-xs text-foreground">
-                  <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning" />
+                  <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
                   <div>
                     <p className="font-medium">Pause cooldown active</p>
                     <p className="text-muted-foreground mt-0.5">
@@ -424,6 +442,145 @@ export default function ContractControls() {
         </Card>
       ),
     },
+    // Sweep-orphans — v3+ only. Recovers funds that landed at the contract
+    // address outside any escrow (misdirected transfers). The contract
+    // enforces `amount ≤ balance − total_locked`, so this can never touch
+    // an active escrow's funds even if the UI's locked-total is stale.
+    // Hidden entirely on pre-v3 contracts.
+    ...(supportsSweep
+      ? [
+          {
+            key: 'sweep',
+            icon: Recycle,
+            title: 'Sweep Orphan Funds',
+            content: (() => {
+              const selectedFree =
+                sweepToken === TokenType.STX ? (freeBal?.freeStx ?? 0n) : (freeBal?.freeSbtc ?? 0n);
+              const selectedBalance =
+                sweepToken === TokenType.STX ? (freeBal?.balanceStx ?? 0n) : (freeBal?.balanceSbtc ?? 0n);
+              const selectedLocked =
+                sweepToken === TokenType.STX ? (freeBal?.lockedStx ?? 0n) : (freeBal?.lockedSbtc ?? 0n);
+              const tokenLabel = sweepToken === TokenType.STX ? 'STX' : 'sBTC';
+              const fmt = (v: bigint) =>
+                sweepToken === TokenType.STX ? `${formatSTX(Number(v))} STX` : `${formatSBTC(Number(v))} sBTC`;
+              const parsedAmount = parseInt(sweepAmount, 10);
+              const amountValid =
+                Number.isFinite(parsedAmount) &&
+                parsedAmount > 0 &&
+                BigInt(parsedAmount) <= selectedFree;
+              return (
+                <Card>
+                  <CardContent className="p-4 space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Recover STX or sBTC sent directly to the contract address
+                      outside an escrow (misdirected transfers, fee dust, etc.).
+                      Funds go to the configured fee-recipient. The contract
+                      enforces that you can&apos;t touch active escrow funds
+                      regardless of what you enter here.
+                    </p>
+
+                    {/* Token selector + live free-balance readout */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Token</Label>
+                      <div className="flex gap-2">
+                        {[TokenType.STX, TokenType.SBTC].map((t) => (
+                          <Button
+                            key={t}
+                            type="button"
+                            size="sm"
+                            variant={sweepToken === t ? 'default' : 'outline'}
+                            onClick={() => { setSweepToken(t); setSweepAmount(''); }}
+                          >
+                            {t === TokenType.STX ? 'STX' : 'sBTC'}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Contract balance</span>
+                        <span className="font-mono">{fmt(selectedBalance)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Locked in {freeBal?.liveCount ?? 0} active escrow{(freeBal?.liveCount ?? 0) !== 1 ? 's' : ''}
+                        </span>
+                        <span className="font-mono">{fmt(selectedLocked)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-border pt-1.5 mt-1.5">
+                        <span className="font-medium text-foreground">Sweepable</span>
+                        <span className="font-mono font-medium text-foreground">{fmt(selectedFree)}</span>
+                      </div>
+                    </div>
+
+                    {/* Amount + sweep-all shortcut */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">
+                          Amount ({sweepToken === TokenType.STX ? 'µSTX' : 'sats'})
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          disabled={selectedFree === 0n}
+                          onClick={() => setSweepAmount(selectedFree.toString())}
+                        >
+                          Sweep all
+                        </Button>
+                      </div>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={sweepAmount}
+                        onChange={(e) => setSweepAmount(e.target.value)}
+                        placeholder="0"
+                        className="font-mono text-sm"
+                      />
+                      {sweepAmount && !amountValid && (
+                        <p className="text-xs text-destructive">
+                          {parsedAmount <= 0
+                            ? 'Amount must be positive.'
+                            : `Exceeds sweepable balance (${fmt(selectedFree)}).`}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground shrink-0">Recipient</span>
+                      <span className="font-mono text-foreground truncate">{cfg.feeRecipient || '—'}</span>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      disabled={!amountValid || loading === 'sweep'}
+                      onClick={async () => {
+                        if (!amountValid) return;
+                        setLoading('sweep');
+                        try {
+                          await sweepOrphans(CONTRACT_PRINCIPAL, sweepToken, parsedAmount);
+                          setSweepAmount('');
+                          // Free balance will refetch on the hook's 60s
+                          // interval; invalidate now for instant feedback.
+                          queryClient.invalidateQueries({ queryKey: ['contract-free-balance', CONTRACT_PRINCIPAL] });
+                        } catch {
+                          // toasted upstream by admin-service
+                        } finally {
+                          setLoading(null);
+                        }
+                      }}
+                    >
+                      {loading === 'sweep' ? 'Sweeping…' : `Sweep ${tokenLabel} to recipient`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })(),
+          },
+        ]
+      : []),
     {
       key: 'info',
       icon: Info,
