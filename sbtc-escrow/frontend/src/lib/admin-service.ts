@@ -180,3 +180,31 @@ export function resolveDisputeSplit(
     [contractSendPc(contractId, totalOutflow, tokenType)],
   );
 }
+
+/**
+ * v3+ only: sweep "orphan" funds — STX or sBTC that landed at the contract
+ * principal outside any escrow (misdirected transfers, etc.). The contract
+ * enforces `amount ≤ balance − total_locked` so active escrows are never
+ * touched. Funds are sent to the configured fee-recipient.
+ *
+ *   token-type: u0 = STX, u1 = sBTC
+ *   amount: in micro-units (microSTX or satoshis)
+ *
+ * Wraps the same outflow in a post-condition so the wallet displays the
+ * exact value being moved.
+ */
+export function sweepOrphans(
+  contractId: string,
+  tokenType: TokenType,
+  amount: number,
+): Promise<string> {
+  const tokenLabel = tokenType === TokenType.STX ? 'STX' : 'sBTC';
+  return adminCall(
+    contractId,
+    'sweep-orphans',
+    [Cl.uint(tokenType), Cl.uint(amount)],
+    `Sweep tx submitted (${amount.toLocaleString()} ${tokenLabel === 'STX' ? 'µSTX' : 'sats'})`,
+    'sweep orphan funds',
+    [contractSendPc(contractId, amount, tokenType)],
+  );
+}
