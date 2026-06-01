@@ -1,18 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { usePlatformStats, usePlatformConfig } from '@/hooks/use-admin';
+import { usePlatformStats, usePlatformConfig, useDisputedEscrows } from '@/hooks/use-admin';
+import { useIndexerHealth } from '@/hooks/use-indexer-health';
+import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
 import { formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useUsdEstimate } from '@/hooks/use-usd-estimate';
 import { TokenType } from '@/lib/types';
-import { DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, DEFAULT_MINUTES_PER_BLOCK, BURN_BLOCK_MINUTES, usesBurnBlockClock } from '@/lib/stacks-config';
 import { cardVariants } from '@/lib/motion';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
 import { ContractStatusIndicator } from '@/components/shared/ContractStatusIndicator';
 import { DashboardSkeleton } from '@/components/shared/PageSkeletons';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Sliders, ArrowRightLeft, DollarSign, Coins, CheckCircle2, ShieldAlert, ShieldCheck, RotateCcw, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Sliders, ArrowRightLeft, DollarSign, Coins, CheckCircle2, ShieldAlert, ShieldCheck, RotateCcw, TrendingUp, Pause, Activity, ArrowRight, Clock } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 
 export default function AdminDashboard() {
@@ -21,6 +24,10 @@ export default function AdminDashboard() {
   const { data: config, isLoading: configLoading, isError: configError } = usePlatformConfig();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  // Alerts-first signals: pull live data for what needs admin attention.
+  const { data: disputes } = useDisputedEscrows();
+  const { data: indexer } = useIndexerHealth();
+  const { data: currentBurnBlock = 0 } = useBurnBlockHeight();
 
   // USD estimate hooks must be called unconditionally before any early return.
   // Pass 0 as a safe fallback while data loads — the values aren't rendered
@@ -53,11 +60,171 @@ export default function AdminDashboard() {
     { label: 'Resolved Disputes', value: ps.resolvedDisputes.toLocaleString(), icon: ShieldCheck },
   ] as Array<{ label: string; value: string; icon: typeof ArrowRightLeft; sub?: string | null; warn?: boolean }>;
 
+  // ── Compute "needs attention" alerts ─────────────────────────────────
+  // Each block returns null if the corresponding state isn't actionable.
+  // The Needs-Attention container then only renders if at least one alert
+  // is live, so an idle admin sees clean Quick Actions + stats below.
+
+  // Disputes — the most common admin action. Show count + most urgent age.
+  const activeDisputeCount = ps.activeDisputes;
+  // Pause status — boolean signal only. The auto-unpause target block isn't
+  // exposed via get-config, so we can't show a precise countdown here; the
+  // cooldown-until block IS exposed and gives a soft upper bound (cooldown
+  // ends at pause-until + duration), so when pause is active and cooldown
+  // is set we can give a rough "clears no later than" hint.
+  const isPaused = cfg.isPaused;
+  const cooldownUntil = (cfg.pauseCooldownUntil ?? 0);
+  const cooldownActive = !isPaused && cooldownUntil > currentBurnBlock;
+  const cooldownBlocksRemaining = cooldownActive ? cooldownUntil - currentBurnBlock : 0;
+  // Indexer lag — alert when not healthy OR clearly behind. The
+  // chainhook-webhook normally lands within a block; >5 blocks behind
+  // means deliveries are queueing.
+  const indexerUnhealthy = indexer && (!indexer.healthy || (indexer.blockLag ?? 0) > 5);
+  // v3+ contracts measure in burn blocks (~10 min mainnet, ~4 min testnet).
+  // Use the right rate so "~X min" doesn't lie.
+  const blockMinutes = usesBurnBlockClock(CONTRACT_PRINCIPAL) ? BURN_BLOCK_MINUTES : minutesPerBlock;
+  const hasAlerts = activeDisputeCount > 0 || isPaused || cooldownActive || indexerUnhealthy;
+
   return (
     <div className="p-4 sm:p-6 pb-8 max-w-5xl mx-auto space-y-6">
       <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Admin Dashboard</h1>
 
       {(statsError || configError) && <ErrorBanner message="Failed to load platform data. Showing cached data." />}
+
+      {/* ── Needs Attention ────────────────────────────────────── */}
+      {/* Only renders when something is actionable. Replaces the previous
+          pattern of burying disputes link under 9 stat cards + 5 revenue
+          cards. The admin is an operator first; stats live below. */}
+      {hasAlerts && (
+        <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+              Needs attention
+            </h2>
+            <div className="space-y-2">
+              {activeDisputeCount > 0 && (
+                <Card className="border-l-4 border-l-destructive">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="rounded-lg p-2 bg-destructive/10">
+                      <ShieldAlert className="h-4 w-4 text-destructive" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">
+                        {activeDisputeCount} active dispute{activeDisputeCount !== 1 ? 's' : ''} awaiting resolution
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {disputes && disputes.length > 0
+                          ? `Oldest disputed at burn block ${Math.min(...disputes.map(d => d.disputedAt ?? Infinity)).toLocaleString()}`
+                          : 'Open the queue to triage.'}
+                      </p>
+                    </div>
+                    <Button size="sm" onClick={() => navigate('/admin/disputes')} className="gap-1.5 shrink-0">
+                      Resolve <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {isPaused && (
+                <Card className="border-l-4 border-l-warning">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="rounded-lg p-2 bg-warning/10">
+                      <Pause className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Contract is paused</p>
+                      <p className="text-xs text-muted-foreground">
+                        New escrow creation is blocked. Cooldown ends no later than burn block{' '}
+                        <span className="font-mono">{cooldownUntil.toLocaleString()}</span>. Manage to unpause early or check the auto-lift target.
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/admin/controls')} className="gap-1.5 shrink-0">
+                      Manage <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {cooldownActive && (
+                <Card className="border-l-4 border-l-warning/60">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="rounded-lg p-2 bg-warning/10">
+                      <Clock className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Pause cooldown active</p>
+                      <p className="text-xs text-muted-foreground">
+                        Cannot pause again until burn block {cooldownUntil.toLocaleString()} — about{' '}
+                        {cooldownBlocksRemaining} block{cooldownBlocksRemaining === 1 ? '' : 's'}{' '}
+                        (~{Math.ceil(cooldownBlocksRemaining * blockMinutes)} min) from now.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {indexerUnhealthy && (
+                <Card className="border-l-4 border-l-destructive">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="rounded-lg p-2 bg-destructive/10">
+                      <Activity className="h-4 w-4 text-destructive" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Indexer is behind</p>
+                      <p className="text-xs text-muted-foreground">
+                        {indexer?.note || 'Chainhook deliveries may be queueing.'}
+                        {indexer?.blockLag != null && ` Currently ${indexer.blockLag} blocks behind chain tip.`}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Quick Actions — promoted above the fold whether or not anything
+          needs attention, so the admin can always two-click into the
+          dispute queue or contract controls. */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
+            <Card
+              className="cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20"
+              onClick={() => navigate('/admin/disputes')}
+            >
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={`rounded-lg p-2 ${activeDisputeCount > 0 ? 'bg-warning/10 text-foreground' : 'bg-muted text-muted-foreground'}`}>
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Dispute Queue</p>
+                  <p className="text-xs text-muted-foreground">{activeDisputeCount} active dispute{activeDisputeCount !== 1 ? 's' : ''} · {ps.resolvedDisputes.toLocaleString()} resolved total</p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
+            <Card
+              className="cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20"
+              onClick={() => navigate('/admin/controls')}
+            >
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="rounded-lg p-2 bg-muted text-muted-foreground">
+                  <Sliders className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Contract Controls</p>
+                  <p className="text-xs text-muted-foreground">Pause, fees, dispute timeout, sweep orphans, ownership</p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </div>
 
       {/* Health Banner */}
       <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
@@ -142,44 +309,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <motion.div custom={10} variants={cardVariants} initial="hidden" animate="visible">
-            <Card
-              className="cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20"
-              onClick={() => navigate('/admin/disputes')}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`rounded-lg p-2 ${ps.activeDisputes > 0 ? 'bg-warning/10 text-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Dispute Queue</p>
-                  <p className="text-xs text-muted-foreground">{ps.activeDisputes} active dispute{ps.activeDisputes !== 1 ? 's' : ''} awaiting resolution</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div custom={11} variants={cardVariants} initial="hidden" animate="visible">
-            <Card
-              className="cursor-pointer transition-all hover:shadow-glow-sm hover:border-primary/20"
-              onClick={() => navigate('/admin/controls')}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="rounded-lg p-2 bg-muted text-muted-foreground">
-                  <Sliders className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Contract Controls</p>
-                  <p className="text-xs text-muted-foreground">Manage fees, timeouts, and emergency settings</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
     </div>
   );
 }
