@@ -24,7 +24,7 @@ const eventConfig: Record<string, { icon: typeof PlusCircle; color: string; labe
   'escrow-disputed': { icon: AlertTriangle, color: 'text-destructive', label: 'Dispute Filed' },
   'dispute-resolved-for-buyer': { icon: Shield, color: 'text-success', label: 'Dispute Resolved (Buyer)' },
   'dispute-resolved-for-seller': { icon: Shield, color: 'text-success', label: 'Dispute Resolved (Seller)' },
-  'dispute-expired-resolved': { icon: Clock, color: 'text-warning', label: 'Dispute Timeout Resolved' },
+  'dispute-expired-resolved': { icon: Clock, color: 'text-amber-700 dark:text-amber-300', label: 'Dispute Timeout Resolved' },
   'escrow-extended': { icon: Clock, color: 'text-primary', label: 'Escrow Extended' },
 };
 
