@@ -119,6 +119,13 @@ export default function EscrowDetail() {
   // contract's stored block numbers.
   const usesBurnClock = usesBurnBlockClock(escrow?.contractId ?? '');
   const currentBlock = usesBurnClock ? burnBlock : stacksBlock;
+  // True only when the relevant block-height hook has returned a real value.
+  // When Hiro rate-limits or CORS-blocks the /v2/info call, `burnBlock` (or
+  // `stacksBlock`) defaults to 0 — which makes every downstream `block - 0`
+  // delta render as "in 6612d" garbage. Time-display sites must check this
+  // flag and degrade to '—' or an indexer-time fallback instead of computing
+  // against a zero anchor.
+  const clockReady = currentBlock > 0;
   // For v3+ contracts we display "X ago" / "in X" using REAL Bitcoin block
   // timestamps (fetched from /extended/v2/burn-blocks/{h}) instead of
   // multiplying block deltas by a constant. The observed burn-block rate
@@ -381,7 +388,16 @@ export default function EscrowDetail() {
           ? formatRelative(diffMs, 'ago')
           : formatRelative(-diffMs, 'in');
       }
+      // Burn clock anchor unavailable (Hiro rate-limited or unreachable).
+      // Refuse to fall through to stacks-block math — it would compare a
+      // burn block (~952,000) against a stacks block (~3,990,000 or 0),
+      // producing "in 6612d" nonsense. The caller can substitute the
+      // indexer-side wall-clock if it has access to it.
+      return '—';
     }
+    // Legacy stacks-block path. Still need a real anchor; without one the
+    // delta against 0 would project a future date thousands of days out.
+    if (currentBlock <= 0) return '—';
     const diff = block - currentBlock;
     if (diff > 0) return `in ${blocksToTime(diff, clockMinutesPerBlock)}`;
     if (diff < 0) return `${blocksToTime(-diff, clockMinutesPerBlock)} ago`;
@@ -708,7 +724,7 @@ export default function EscrowDetail() {
                   <Shield className="h-3 w-3" /> You: Seller
                 </Badge>
               )}
-              {isActive && !isExpired && blocksToExpiry > 0 && (
+              {clockReady && isActive && !isExpired && blocksToExpiry > 0 && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {formatCountdown(remainingSeconds)} remaining
@@ -1217,8 +1233,16 @@ export default function EscrowDetail() {
                                     stays consistent with the rest of the UI on
                                     v3+ contracts. The DB timestamp can drift
                                     from the actual on-chain time when the
-                                    chainhook lags or events are replayed. */}
-                                <span>{blockToHumanTime(event.blockHeight)}</span>
+                                    chainhook lags or events are replayed.
+                                    When the clock anchor is unavailable (Hiro
+                                    rate-limited), fall back to indexer time so
+                                    the row still shows something useful instead
+                                    of a bare '—'. */}
+                                {clockReady ? (
+                                  <span>{blockToHumanTime(event.blockHeight)}</span>
+                                ) : (
+                                  <span className="italic">{relativeTime(event.timestamp)} (indexer)</span>
+                                )}
                               </>
                             ) : (
                               // Fall back to indexed_at — not on-chain truth, but
