@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchCallReadOnlyFunction, cvToJSON } from '@stacks/transactions';
-import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { PlatformStats, PlatformConfig, Escrow, EscrowStatus, TokenType } from '@/lib/types';
 import {
   CONTRACT_ADDRESS,
   CONTRACT_NAME,
   CONTRACT_PRINCIPAL,
-  STACKS_API_URL,
-  STACKS_NETWORK,
+  getStacksNetwork,
   DEFAULT_DISPUTE_TIMEOUT,
   MAX_DURATION_BLOCKS,
   MIN_AMOUNT_STX,
@@ -98,10 +96,7 @@ export function usePlatformStats() {
  */
 async function readPlatformConfigFromChain(): Promise<Partial<PlatformConfig> | null> {
   try {
-    const network = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
-    if (STACKS_API_URL) {
-      network.client = { ...network.client, baseUrl: STACKS_API_URL };
-    }
+    const network = getStacksNetwork();
     const result = await fetchCallReadOnlyFunction({
       contractAddress: CONTRACT_ADDRESS,
       contractName: CONTRACT_NAME,
