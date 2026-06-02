@@ -1,7 +1,32 @@
+import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
+
 // Network & contract configuration — all environment-driven for mainnet safety
 export const STACKS_NETWORK = (import.meta.env.VITE_STACKS_NETWORK || 'testnet') as 'mainnet' | 'testnet';
 export const STACKS_API_URL = import.meta.env.VITE_STACKS_API_URL ||
   (STACKS_NETWORK === 'mainnet' ? 'https://api.mainnet.hiro.so' : 'https://api.testnet.hiro.so');
+
+/**
+ * Returns a fresh Stacks network object with our proxy baseUrl applied.
+ *
+ * Why fresh: `STACKS_MAINNET` / `STACKS_TESTNET` from `@stacks/network` are
+ * module-level singletons. Doing `net.client = { ...net.client, baseUrl }`
+ * directly on them mutates the singleton — every other consumer in the app
+ * (including any path that imports the singleton straight from
+ * @stacks/network) inherits that mutation. For an escrow product that's a
+ * defense-in-depth concern: a single mutation point can redirect every
+ * read-only contract call in the app to a different endpoint.
+ *
+ * This helper returns a NEW object on each call, so the override stays
+ * scoped to the call site that asked for it. Pass the returned object to
+ * `fetchCallReadOnlyFunction` / equivalent and nothing else is affected.
+ */
+export function getStacksNetwork() {
+  const base = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
+  return {
+    ...base,
+    client: { ...base.client, baseUrl: STACKS_API_URL },
+  };
+}
 
 export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
 // Default targets the latest active contract on each network. Override with
