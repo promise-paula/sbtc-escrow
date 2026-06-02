@@ -4,16 +4,9 @@ import {
   cvToJSON,
   principalCV,
 } from '@stacks/transactions';
-import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
 import { useWallet } from '@/contexts/WalletContext';
-import { STACKS_NETWORK, STACKS_API_URL, SBTC_CONTRACT } from '@/lib/stacks-config';
+import { STACKS_NETWORK, STACKS_API_URL, SBTC_CONTRACT, getStacksNetwork } from '@/lib/stacks-config';
 import { TokenType } from '@/lib/types';
-
-const network = () => {
-  const net = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
-  if (STACKS_API_URL) net.client = { ...net.client, baseUrl: STACKS_API_URL };
-  return net;
-};
 
 async function fetchStxBalance(address: string): Promise<bigint> {
   const res = await fetch(`${STACKS_API_URL}/v2/accounts/${address}?proof=0`);
@@ -30,7 +23,7 @@ async function fetchSbtcBalance(address: string): Promise<bigint> {
     contractName,
     functionName: 'get-balance',
     functionArgs: [principalCV(address)],
-    network: network(),
+    network: getStacksNetwork(),
     senderAddress: address,
   });
   const json = cvToJSON(result);
