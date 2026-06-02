@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchCallReadOnlyFunction, cvToJSON, principalCV } from '@stacks/transactions';
-import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
-import { STACKS_API_URL, STACKS_NETWORK, SBTC_CONTRACT } from '@/lib/stacks-config';
+import { STACKS_API_URL, SBTC_CONTRACT, getStacksNetwork } from '@/lib/stacks-config';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 /**
@@ -20,12 +19,6 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
  * sweep call, so any UI under-reading just causes the operator to attempt
  * a slightly smaller sweep than possible, never an unsafe one.
  */
-
-const network = () => {
-  const net = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
-  if (STACKS_API_URL) net.client = { ...net.client, baseUrl: STACKS_API_URL };
-  return net;
-};
 
 interface FreeBalance {
   balanceStx: bigint;
@@ -53,7 +46,7 @@ async function fetchContractSbtcBalance(principal: string): Promise<bigint> {
       contractName,
       functionName: 'get-balance',
       functionArgs: [principalCV(principal)],
-      network: network(),
+      network: getStacksNetwork(),
       senderAddress: contractAddress,
     });
     const json = cvToJSON(result);
