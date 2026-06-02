@@ -404,6 +404,21 @@ export default function EscrowDetail() {
     return 'now';
   };
 
+  // For historical state timestamps (Created / Delivered / Completed /
+  // Disputed badges) we want "when did the user act," not "when was the
+  // burn block mined." On v3+ contracts those diverge by 0–10 min because
+  // the contract stamps the CURRENT burn tip at execution time and that
+  // tip can be ~10 min stale before the next Bitcoin block arrives.
+  // Indexer time (≈ Stacks-block mine time) is the closer proxy. This
+  // helper looks up the matching on-chain event by block_height and
+  // returns its indexed_at; falls back to the escrow's own indexed_at
+  // (good enough for the Created row before any other events exist).
+  const indexedTimeForBlock = (block: number | null | undefined): string | null => {
+    if (!block) return null;
+    const evt = escrowEvents.find((e) => e.blockHeight === block);
+    return evt?.timestamp ?? null;
+  };
+
   const handleSaveContact = (role: 'buyer' | 'seller') => {
     const name = contactName.trim();
     if (!name) return;
@@ -707,8 +722,13 @@ export default function EscrowDetail() {
                       ? escrow.disputedAt
                       : escrow.createdAt;
                 if (!txBlock) return null;
+                // Prefer the matching event's indexer time so the badge reflects
+                // when the action happened, not when the burn-block anchor was
+                // mined. Falls back to escrow.indexedAt for the Pending case
+                // (when no completion/dispute event exists yet).
+                const iso = indexedTimeForBlock(txBlock) ?? escrow.indexedAt;
                 return (
-                  <span className="text-xs text-muted-foreground">{blockToHumanTime(txBlock)}</span>
+                  <span className="text-xs text-muted-foreground">{iso ? relativeTime(iso) : blockToHumanTime(txBlock)}</span>
                 );
               })()}
               {isExpired && isActive && (
@@ -828,7 +848,7 @@ export default function EscrowDetail() {
                   {escrow.createdAt > 0 ? (
                     <>
                       Block {escrow.createdAt.toLocaleString()}
-                      <span className="text-muted-foreground"> · {blockToHumanTime(escrow.createdAt)}</span>
+                      <span className="text-muted-foreground"> · {escrow.indexedAt ? relativeTime(escrow.indexedAt) : blockToHumanTime(escrow.createdAt)}</span>
                     </>
                   ) : (
                     <span className="text-muted-foreground italic">Pending indexer…</span>
@@ -843,15 +863,18 @@ export default function EscrowDetail() {
                   {blocksToExpiry <= 0 && <span className="text-destructive"> (Expired)</span>}
                 </span>
               </div>
-              {escrow.completedAt && (
-                <div className="flex items-center justify-between gap-3 py-2.5">
-                  <span className="text-xs text-muted-foreground shrink-0">Completed</span>
-                  <span className="font-mono text-xs text-foreground text-right">
-                    Block {escrow.completedAt.toLocaleString()}
-                    <span className="text-muted-foreground"> · {blockToHumanTime(escrow.completedAt)}</span>
-                  </span>
-                </div>
-              )}
+              {escrow.completedAt && (() => {
+                const iso = indexedTimeForBlock(escrow.completedAt);
+                return (
+                  <div className="flex items-center justify-between gap-3 py-2.5">
+                    <span className="text-xs text-muted-foreground shrink-0">Completed</span>
+                    <span className="font-mono text-xs text-foreground text-right">
+                      Block {escrow.completedAt.toLocaleString()}
+                      <span className="text-muted-foreground"> · {iso ? relativeTime(iso) : blockToHumanTime(escrow.completedAt)}</span>
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-xs text-muted-foreground">Platform Fee</span>
                 <AmountDisplay micro={escrow.feeAmount} tokenType={escrow.tokenType} showUsd={false} />
