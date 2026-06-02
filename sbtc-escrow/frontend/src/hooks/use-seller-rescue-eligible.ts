@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchCallReadOnlyFunction, cvToJSON, uintCV } from '@stacks/transactions';
-import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
-import { STACKS_API_URL, STACKS_NETWORK, supportsV3Features } from '@/lib/stacks-config';
+import { getStacksNetwork, supportsV3Features } from '@/lib/stacks-config';
 
 /**
  * v3+ only. Read-only check whether an escrow has crossed the seller's
@@ -20,8 +19,6 @@ export function useSellerRescueEligible(contractId: string | undefined, escrowId
       if (!supportsV3Features(contractId)) return false;
 
       const [address, name] = contractId.split('.');
-      const net = STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
-      if (STACKS_API_URL) net.client = { ...net.client, baseUrl: STACKS_API_URL };
 
       try {
         const result = await fetchCallReadOnlyFunction({
@@ -29,7 +26,7 @@ export function useSellerRescueEligible(contractId: string | undefined, escrowId
           contractName: name,
           functionName: 'is-seller-rescue-eligible',
           functionArgs: [uintCV(escrowId)],
-          network: net,
+          network: getStacksNetwork(),
           senderAddress: address,
         });
         return cvToJSON(result).value === true;
