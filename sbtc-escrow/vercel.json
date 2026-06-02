@@ -39,6 +39,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/hiro/:path*",
+      "destination": "/api/hiro?_p=:path*"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
