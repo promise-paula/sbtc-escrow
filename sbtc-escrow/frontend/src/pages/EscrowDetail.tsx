@@ -1228,21 +1228,20 @@ export default function EscrowDetail() {
                               <>
                                 <span className="font-mono">Block {event.blockHeight}</span>
                                 <span>·</span>
-                                {/* Use the on-chain block as the time anchor (not
-                                    event.timestamp / indexed_at) so the Timeline
-                                    stays consistent with the rest of the UI on
-                                    v3+ contracts. The DB timestamp can drift
-                                    from the actual on-chain time when the
-                                    chainhook lags or events are replayed.
-                                    When the clock anchor is unavailable (Hiro
-                                    rate-limited), fall back to indexer time so
-                                    the row still shows something useful instead
-                                    of a bare '—'. */}
-                                {clockReady ? (
-                                  <span>{blockToHumanTime(event.blockHeight)}</span>
-                                ) : (
-                                  <span className="italic">{relativeTime(event.timestamp)} (indexer)</span>
-                                )}
+                                {/* "X ago" anchors to indexer time (≈ when the
+                                    Stacks block was mined), not to the burn-block
+                                    mine time. On v3+ contracts the recorded
+                                    block_height is a BURN block, which can have
+                                    been mined up to ~10 min before the user
+                                    actually signed — so anchoring to it would
+                                    show "Delivery signaled 25m ago" alongside the
+                                    off-chain delivery row's "11m ago" for the
+                                    SAME human action. Indexer time lines those up
+                                    and answers the question users actually have
+                                    ("when did this happen?"). The block height
+                                    column already exposes the on-chain anchor for
+                                    anyone who needs the immutable reference. */}
+                                <span>{relativeTime(event.timestamp)}</span>
                               </>
                             ) : (
                               // Fall back to indexed_at — not on-chain truth, but
