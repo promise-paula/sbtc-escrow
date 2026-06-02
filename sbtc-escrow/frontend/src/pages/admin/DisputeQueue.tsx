@@ -63,20 +63,28 @@ export default function DisputeQueue() {
   const active = (disputed || []).sort((a, b) => (a.disputedAt || 0) - (b.disputedAt || 0));
   const resolved = resolvedDisputes;
 
+  // Skip rows whose clock anchor isn't loaded yet — when Hiro rate-limits
+  // /v2/info, `tipFor()` returns 0, which would yield `elapsed = -disputedAt`
+  // (large negative) and silently exclude every v3 dispute from this count.
   const nearTimeoutCount = active.filter(e => {
-    const elapsed = tipFor(e.contractId) - (e.disputedAt || 0);
+    const tip = tipFor(e.contractId);
+    if (tip <= 0) return false;
+    const elapsed = tip - (e.disputedAt || 0);
     return elapsed / disputeTimeout > 0.75;
   }).length;
 
   // Aggregate as wall-clock minutes since the per-row "blocks" are mixed-
   // clock (v3 disputes use burn blocks, legacy uses stacks blocks). Summing
   // raw blocks would compare different units and produce nonsense averages.
-  const avgMinutesOpen = active.length > 0
+  // Skip rows with an unresolved tip so they don't poison the average with
+  // -9.5M-minute contributions.
+  const measurable = active.filter(e => tipFor(e.contractId) > 0);
+  const avgMinutesOpen = measurable.length > 0
     ? Math.round(
-        active.reduce((sum, e) => {
+        measurable.reduce((sum, e) => {
           const blocks = tipFor(e.contractId) - (e.disputedAt || 0);
           return sum + blocks * ratePerBlockFor(e.contractId);
-        }, 0) / active.length,
+        }, 0) / measurable.length,
       )
     : 0;
 
@@ -123,8 +131,10 @@ export default function DisputeQueue() {
     {
       label: 'Avg Time Open',
       // blocksToTime expects (blocks, min-per-block) — here we already have
-      // minutes, so feed it 1 min/block to keep the formatting.
-      value: blocksToTime(avgMinutesOpen, 1),
+      // minutes, so feed it 1 min/block to keep the formatting. When no
+      // rows are measurable (Hiro down across the board) show a placeholder
+      // rather than "0m", which would falsely imply disputes just opened.
+      value: measurable.length > 0 ? blocksToTime(avgMinutesOpen, 1) : '—',
       icon: Clock,
       warn: false,
     },
@@ -172,9 +182,15 @@ export default function DisputeQueue() {
             <div className="space-y-3">
               {active.map((e, idx) => {
                 const minutesPerBlock = ratePerBlockFor(e.contractId);
-                const elapsed = tipFor(e.contractId) - (e.disputedAt || 0);
-                const urgencyRatio = elapsed / disputeTimeout;
-                const isNearTimeout = urgencyRatio > 0.75;
+                const tip = tipFor(e.contractId);
+                // tip <= 0 means Hiro hasn't returned the block height yet
+                // (or rate-limited). Treat as "not measurable" so urgency
+                // badges don't flip on/off and the elapsed display can swap
+                // to a placeholder rather than "-9510000m ago".
+                const clockReady = tip > 0;
+                const elapsed = clockReady ? tip - (e.disputedAt || 0) : 0;
+                const urgencyRatio = clockReady ? elapsed / disputeTimeout : 0;
+                const isNearTimeout = clockReady && urgencyRatio > 0.75;
                 const isConfirming = confirmAction?.escrowId === e.id;
 
                 return (
@@ -219,7 +235,11 @@ export default function DisputeQueue() {
                               );
                             })()}
                             <p className="text-xs text-muted-foreground">
-                              Disputed {blocksToTime(elapsed, minutesPerBlock)} ago · Block {e.disputedAt?.toLocaleString()}
+                              {clockReady ? (
+                                <>Disputed {blocksToTime(elapsed, minutesPerBlock)} ago · Block {e.disputedAt?.toLocaleString()}</>
+                              ) : (
+                                <>Disputed at Block {e.disputedAt?.toLocaleString()}</>
+                              )}
                             </p>
                           </div>
                         </div>
