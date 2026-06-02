@@ -13,9 +13,9 @@ clarity_version = 4
 epoch = 'latest'
 
 [contracts.escrow-v8]
-#path = 'contracts/escrow-v8.clar'
+path = 'contracts/escrow-v8.clar'
 clarity_version = 4
-#epoch = 'latest'
+epoch = 'latest'
 [repl.analysis]
 passes = []
 
