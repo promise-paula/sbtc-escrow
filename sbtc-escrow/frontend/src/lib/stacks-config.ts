@@ -35,6 +35,13 @@ export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST1HK6
 // dispatch in escrow-service.ts — only NEW creates respect this default).
 export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v8';
 export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${string}.${string}`;
+// Semantic version of the active contract, taken from its Clarity source
+// header (e.g. escrow-v8 declares `;; version: 3.0.0`). The contract does NOT
+// expose this on-chain, so it's a per-environment constant kept in sync with
+// the deployed `.clar` — override with VITE_CONTRACT_VERSION on mainnet
+// (escrow-mainnet-v2 is 2.0.0). The name suffix (v8) is a deploy counter,
+// separate from this semver.
+export const CONTRACT_VERSION = import.meta.env.VITE_CONTRACT_VERSION || '3.0.0';
 
 export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
   (STACKS_NETWORK === 'mainnet'
