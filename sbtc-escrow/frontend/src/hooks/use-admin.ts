@@ -115,6 +115,16 @@ async function readPlatformConfigFromChain(): Promise<Partial<PlatformConfig> | 
       // and means "no cooldown" (consistent with the contract default).
       pauseCooldownUntil: parseInt(data['pause-cooldown-until']?.value ?? '0'),
       disputeTimeout: parseInt(data['dispute-timeout']?.value ?? String(DEFAULT_DISPUTE_TIMEOUT)),
+      // Amount limits + max duration are part of get-config too. These used to
+      // be dropped here and replaced with hardcoded frontend constants, which
+      // showed wrong values (e.g. max-duration is in burn blocks on v3+ but the
+      // constant was the stacks-block figure). Read them from chain; the `??`
+      // fallbacks only apply if a field is absent (older contracts).
+      minAmount: parseInt(data['min-amount-stx']?.value ?? String(MIN_AMOUNT_STX)),
+      maxAmount: parseInt(data['max-amount-stx']?.value ?? String(MAX_AMOUNT_STX)),
+      minAmountSbtc: parseInt(data['min-amount-sbtc']?.value ?? String(MIN_AMOUNT_SBTC)),
+      maxAmountSbtc: parseInt(data['max-amount-sbtc']?.value ?? String(MAX_AMOUNT_SBTC)),
+      maxDuration: parseInt(data['max-duration']?.value ?? String(MAX_DURATION_BLOCKS)),
     };
   } catch (err) {
     console.warn('[usePlatformConfig] chain read failed, falling back to DB cache:', err);
@@ -148,12 +158,18 @@ export function usePlatformConfig() {
         platformFeeBps: chainCfg?.platformFeeBps ?? data?.fee_bps ?? 50,
         isPaused: chainCfg?.isPaused ?? data?.contract_paused ?? false,
         pauseCooldownUntil: chainCfg?.pauseCooldownUntil ?? 0,
-        minAmount: MIN_AMOUNT_STX,
-        maxAmount: MAX_AMOUNT_STX,
-        minAmountSbtc: MIN_AMOUNT_SBTC,
-        maxAmountSbtc: MAX_AMOUNT_SBTC,
-        maxDuration: MAX_DURATION_BLOCKS,
-        disputeTimeout: data.dispute_timeout ?? DEFAULT_DISPUTE_TIMEOUT,
+        // Amount limits + max duration come from chain (get-config). The
+        // hardcoded constants are only a last resort when the chain read failed
+        // (chainCfg null) or a legacy contract omits the field.
+        minAmount: chainCfg?.minAmount ?? MIN_AMOUNT_STX,
+        maxAmount: chainCfg?.maxAmount ?? MAX_AMOUNT_STX,
+        minAmountSbtc: chainCfg?.minAmountSbtc ?? MIN_AMOUNT_SBTC,
+        maxAmountSbtc: chainCfg?.maxAmountSbtc ?? MAX_AMOUNT_SBTC,
+        maxDuration: chainCfg?.maxDuration ?? MAX_DURATION_BLOCKS,
+        // Chain wins; the DB cache only fills in when the chain read failed.
+        // (Was `data.dispute_timeout`, which both ignored the chain value and
+        // threw when `data` was null — e.g. Supabase unconfigured.)
+        disputeTimeout: chainCfg?.disputeTimeout ?? data?.dispute_timeout ?? DEFAULT_DISPUTE_TIMEOUT,
       };
     },
   });
