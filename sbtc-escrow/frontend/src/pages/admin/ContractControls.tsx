@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { PlatformConfig } from '@/lib/types';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_PRINCIPAL, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE, supportsV3Features } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_VERSION, CONTRACT_PRINCIPAL, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE, supportsV3Features } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
@@ -281,6 +281,10 @@ export default function ContractControls() {
                         variant={pauseBlocks === p.blocks.toString() ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setPauseBlocks(p.blocks.toString())}
+                        // Buttons are whitespace-nowrap by default; the longest
+                        // preset ("10 blocks (~40 min testnet / ~1.7h mainnet)")
+                        // clips at 320px. Let preset labels wrap instead.
+                        className="h-auto whitespace-normal text-left leading-snug"
                       >
                         {p.label}
                       </Button>
@@ -359,7 +363,7 @@ export default function ContractControls() {
                   variant={timeoutValue === p.blocks ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => { setTimeoutVal(p.blocks.toString()); setAcknowledgeUnsafeTimeout(false); }}
-                  className="text-xs"
+                  className="text-xs h-auto whitespace-normal text-left leading-snug"
                 >
                   {p.label}
                 </Button>
@@ -590,7 +594,7 @@ export default function ContractControls() {
           <CardContent className="p-0">
             {[
               { label: 'Address', value: `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`, mono: true },
-              { label: 'Version', value: 'v5.0.0', mono: true },
+              { label: 'Version', value: `v${CONTRACT_VERSION}`, mono: true },
               { label: 'Network', value: STACKS_NETWORK, capitalize: true },
               { label: 'Dispute Timeout', value: `${cfg.disputeTimeout.toLocaleString()} blocks` },
               { label: 'Min Amount (STX)', value: `${formatSTX(cfg.minAmount)} STX`, mono: true },
