@@ -48,18 +48,18 @@ const useCases = [
 // "Both parties agree to extend" is misleading — only the buyer (or v3
 // beneficiary) can extend. We say what the contract actually does.
 const features = [
-  { icon: Shield, title: 'Trustless settlement', desc: 'Funds locked in a Clarity smart contract. Release follows the rules in the contract — no platform discretion.' },
+  { icon: Shield, title: 'Trustless settlement', desc: 'Funds locked in a Clarity smart contract. Release follows the rules in the contract, with no platform discretion.' },
   { icon: Scale, title: 'Dispute resolution', desc: 'Either party can open a dispute. Admin arbitrates within a configurable timeout window.', accent: 'violet' as const },
-  { icon: Clock, title: 'Refund after expiry', desc: "Once the deadline passes, the buyer can claim a refund directly from the contract — no waiting on the seller's signature." },
-  { icon: CalendarPlus, title: 'Extend the deadline', desc: 'The buyer can push the deadline forward at any time before expiry — no new escrow needed.' },
+  { icon: Clock, title: 'Refund after expiry', desc: "Once the deadline passes, the buyer can claim a refund directly from the contract. No waiting on the seller's signature." },
+  { icon: CalendarPlus, title: 'Extend the deadline', desc: 'The buyer can push the deadline forward at any time before expiry. No new escrow needed.' },
   { icon: Activity, title: 'Live on-chain status', desc: 'Escrow state, block confirmations, and dispute progress update in real time as the chain advances.' },
-  { icon: Users, title: 'Multi-party roles', desc: 'Buyer, seller, and an optional beneficiary with buyer-equivalent rights — each role scoped on-chain.', accent: 'violet' as const },
+  { icon: Users, title: 'Multi-party roles', desc: 'Buyer, seller, and an optional beneficiary with buyer-equivalent rights, each role scoped on-chain.', accent: 'violet' as const },
 ];
 
 // Two-digit mono indices to match the `01–06` ledger numbering in the
 // Features section — one numbering dialect across the whole page.
 const steps = [
-  { num: '01', title: 'Connect wallet', desc: 'Sign in with your Stacks wallet — Leather, Xverse, or any compatible wallet.' },
+  { num: '01', title: 'Connect wallet', desc: 'Sign in with your Stacks wallet: Leather, Xverse, or any compatible wallet.' },
   { num: '02', title: 'Create escrow', desc: 'Pick the seller, amount, deadline, and a short description. Funds lock on-chain when you sign.' },
   { num: '03', title: 'Release or refund', desc: "Release when you're satisfied with the work, refund yourself after expiry, or open a dispute if something goes wrong." },
 ];
@@ -369,38 +369,27 @@ export default function Landing() {
               Built on Stacks · {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'} Live
             </div>
 
-            {/* Headline with the "0.5%" treated as a typographic anchor —
-                same font family but heavier (font-black) and explicitly
-                tracking-tighter so the percent reads as a single visual
-                glyph. Slight color shift to accent-warm so the number
-                is the eye's first stop in the entire hero. */}
-            <h1 className="font-bold tracking-tight text-foreground leading-[1.05]" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
-              Bitcoin escrow at{' '}
-              <span className="relative inline-block">
-                {/* One-shot glow that pulses out behind the "0.5%" after the
-                    headline lands. Decorative — aria-hidden. Lives behind the
-                    glyph via z-0 and uses a heavy blur so it reads as warmth
-                    rather than a hard shape. */}
-                <motion.span
-                  aria-hidden="true"
-                  className="absolute inset-0 rounded-lg bg-accent-warm/30 blur-2xl z-0"
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: [0, 0.9, 0], scale: [0.7, 1.3, 1.5] }}
-                  transition={{ duration: dur(1500), delay: dur(700), ease: 'easeOut' as const, times: [0, 0.4, 1] }}
-                />
-                <motion.span
-                  className="relative z-10 font-black text-accent-warm tracking-tighter inline-block"
-                  initial={{ scale: 0.85, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: dur(450), delay: dur(600), ease: [0.34, 1.56, 0.64, 1] }}
-                >
-                  0.5%
-                </motion.span>
-              </span>.
+            {/* Value-led headline: tells a first-time visitor what the product
+                DOES, in plain words (no "trustless"/"non-custodial" jargon up
+                top). The 0.5% anchor moves out of the headline into the proof
+                line below, where it stays loud but supports the value instead
+                of leading with price. */}
+            <h1 className="font-bold tracking-tight text-foreground leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
+              Lock the payment until the deal is done.
             </h1>
             <p className="mt-5 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
-              Lock STX or sBTC in a smart contract. It sits there until both sides agree the deal is done. 0.5% flat — we never custody your funds.
+              Put STX or sBTC in a smart contract that releases only when both sides agree, or refunds if they don't. No middleman ever holds your funds.
             </p>
+
+            {/* Proof line — the 0.5% anchor, kept as the eye's bright stop
+                (font-black + accent-warm, the original anchor weight) but now
+                supporting the value above rather than being the headline. */}
+            <div className="mt-6 flex items-baseline flex-wrap gap-x-3 gap-y-1 text-sm sm:text-base text-muted-foreground">
+              <span className="text-3xl lg:text-4xl font-black text-accent-warm tracking-tight leading-none">0.5%</span>
+              <span>flat, charged only on release.</span>
+              <span aria-hidden="true" className="text-muted-foreground/40">·</span>
+              <span>Non-custodial.</span>
+            </div>
 
             {/* Inline social proof — only show once we have data */}
             {(ps?.totalEscrows ?? 0) > 0 && (
@@ -459,7 +448,7 @@ export default function Landing() {
           >
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">What the contract does</h2>
             <p className="mt-4 text-base text-muted-foreground leading-relaxed text-pretty">
-              Six guarantees, each enforced on-chain by Clarity — not by us. No platform discretion sits between you and your funds.
+              Six guarantees, each enforced on-chain by Clarity, not by us. No platform discretion sits between you and your funds.
             </p>
           </motion.div>
 
@@ -575,7 +564,7 @@ export default function Landing() {
           </span>
           <span className="inline-flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
-            Non-custodial — your keys never leave your wallet
+            Non-custodial: your keys never leave your wallet
           </span>
         </motion.div>
       </section>
@@ -607,23 +596,23 @@ export default function Landing() {
               <AccordionItem value="why-stacks">
                 <AccordionTrigger className="text-left">Why Stacks instead of Bitcoin L1?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                  Bitcoin L1 doesn't support arbitrary smart contracts — the only way to do escrow there is via multisig (which still requires a trusted third signer) or HTLCs (limited use cases). Stacks anchors to Bitcoin for security and adds Clarity, a decidable contract language that lets us encode the full escrow lifecycle on-chain. The funds remain trustless; only the contract logic moves up a layer.
+                  Bitcoin L1 doesn't support arbitrary smart contracts. The only way to do escrow there is via multisig (which still requires a trusted third signer) or HTLCs (limited use cases). Stacks anchors to Bitcoin for security and adds Clarity, a decidable contract language that lets us encode the full escrow lifecycle on-chain. The funds remain trustless; only the contract logic moves up a layer.
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="admin-power">
                 <AccordionTrigger className="text-left">Can the admin freeze or steal my funds?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                  No. The admin's only privileges are resolving an active <em>dispute</em> (release to seller, refund to buyer, or split between them) and pausing new escrow creation for emergencies. The admin cannot touch a non-disputed escrow, cannot pause indefinitely (the pause has a hard duration + anti-chaining cooldown built in), and cannot prevent dispute timeouts from firing — buyers self-recover after the dispute window elapses, sellers self-rescue after 2× that window if they signaled delivery. The contract enforces every one of these constraints on-chain.
+                  No. The admin's only privileges are resolving an active <em>dispute</em> (release to seller, refund to buyer, or split between them) and pausing new escrow creation for emergencies. The admin cannot touch a non-disputed escrow, cannot pause indefinitely (the pause has a hard duration + anti-chaining cooldown built in), and cannot prevent dispute timeouts from firing. Buyers self-recover after the dispute window elapses, and sellers self-rescue after 2× that window if they signaled delivery. The contract enforces every one of these constraints on-chain.
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="bugs">
                 <AccordionTrigger className="text-left">What if there's a bug in the contract?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                  The contract went through four self-audit passes before mainnet, with 50+ invariant tests passing — including the funds-conservation invariant (contract STX/sBTC balance ≥ locked balance at all times). Source is{' '}
+                  The contract went through four self-audit passes before mainnet, with 50+ invariant tests passing, including the funds-conservation invariant (contract STX/sBTC balance ≥ locked balance at all times). Source is{' '}
                   <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">open on GitHub</a>{' '}
-                  for independent review. If a bug were discovered, the time-bounded pause gives admins a way to halt new escrows while existing ones unwind through their normal flows — funds remain owned by the contract under its original rules.
+                  for independent review. If a bug were discovered, the time-bounded pause gives admins a way to halt new escrows while existing ones unwind through their normal flows. Funds remain owned by the contract under its original rules.
                 </AccordionContent>
               </AccordionItem>
 
@@ -631,15 +620,14 @@ export default function Landing() {
                 <AccordionTrigger className="text-left">How do I get sBTC?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
                   Use the{' '}
-                  <a href="https://bridge.sbtc.tech/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">official sBTC bridge</a>{' '}
-                  — deposit BTC, receive sBTC on Stacks 1:1. The reverse works the same way. You can also create STX escrows here without ever needing sBTC — the contract supports both tokens natively.
+                  <a href="https://bridge.sbtc.tech/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">official sBTC bridge</a>: deposit BTC, receive sBTC on Stacks 1:1. The reverse works the same way. You can also create STX escrows here without ever needing sBTC. The contract supports both tokens natively.
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="fee">
                 <AccordionTrigger className="text-left">What does the 0.5% fee cover?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                  Maintenance of the contract, indexer infrastructure, the frontend, and the dispute-resolution path. The fee is charged only on successful release (not on refunds) and is hard-capped at 5% in the contract — the admin cannot raise it beyond that without a new deployment. There are no other costs to use the platform beyond standard Stacks network fees for signing transactions.
+                  Maintenance of the contract, indexer infrastructure, the frontend, and the dispute-resolution path. The fee is charged only on successful release (not on refunds) and is hard-capped at 5% in the contract, so the admin cannot raise it beyond that without a new deployment. There are no other costs to use the platform beyond standard Stacks network fees for signing transactions.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
