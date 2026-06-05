@@ -10,6 +10,7 @@ import { useBlockRate } from '@/hooks/use-block-rate';
 import {
   CONTRACT_ADDRESS,
   CONTRACT_NAME,
+  CONTRACT_VERSION,
   CONTRACT_PRINCIPAL,
   STACKS_NETWORK,
   DEFAULT_MINUTES_PER_BLOCK,
@@ -131,7 +132,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground mb-1">Connected Address</p>
                   <AddressDisplay address={address} truncateChars={8} showExplorer />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Site Network</p>
                     <p className="text-sm capitalize">{STACKS_NETWORK}</p>
@@ -319,7 +320,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-border divide-y divide-border text-sm">
-              <Row label="Version" value="v5.0.0" mono />
+              <Row label="Version" value={`v${CONTRACT_VERSION}`} mono />
               <Row label="Contract" value={`${CONTRACT_ADDRESS}.${CONTRACT_NAME}`} mono small />
               <Row label="Network" value={STACKS_NETWORK} capitalize />
               <Row label="Block Rate" value={`~${minutesPerBlock.toFixed(1)} min`} />
