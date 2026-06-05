@@ -190,8 +190,10 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Quick Actions */}
-        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+        {/* Quick Actions. When there's no Status Distribution chart to pair
+            with (no escrows yet), span the full row so the card doesn't strand
+            in a half-width column with an empty void beside it. */}
+        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible" className={pieData.length === 0 ? 'sm:col-span-2' : undefined}>
           <Card>
             <CardContent className="p-4 space-y-2">
               <h2 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h2>
