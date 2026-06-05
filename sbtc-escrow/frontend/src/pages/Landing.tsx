@@ -12,7 +12,6 @@ import { useBlockRate } from '@/hooks/use-block-rate';
 import { EscrowStatus, TokenType, STATUS_LABELS } from '@/lib/types';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { dur, revealVariants, staggerContainer } from '@/lib/motion';
 import { Logo } from '@/components/shared/Logo';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -57,10 +56,12 @@ const features = [
   { icon: Users, title: 'Multi-party roles', desc: 'Buyer, seller, and an optional beneficiary with buyer-equivalent rights — each role scoped on-chain.', accent: 'violet' as const },
 ];
 
+// Two-digit mono indices to match the `01–06` ledger numbering in the
+// Features section — one numbering dialect across the whole page.
 const steps = [
-  { num: '1', title: 'Connect wallet', desc: 'Sign in with your Stacks wallet — Leather, Xverse, or any compatible wallet.' },
-  { num: '2', title: 'Create escrow', desc: 'Pick the seller, amount, deadline, and a short description. Funds lock on-chain when you sign.' },
-  { num: '3', title: 'Release or refund', desc: "Release when you're satisfied with the work, refund yourself after expiry, or open a dispute if something goes wrong." },
+  { num: '01', title: 'Connect wallet', desc: 'Sign in with your Stacks wallet — Leather, Xverse, or any compatible wallet.' },
+  { num: '02', title: 'Create escrow', desc: 'Pick the seller, amount, deadline, and a short description. Funds lock on-chain when you sign.' },
+  { num: '03', title: 'Release or refund', desc: "Release when you're satisfied with the work, refund yourself after expiry, or open a dispute if something goes wrong." },
 ];
 
 
@@ -126,17 +127,25 @@ function DashboardPreview() {
 
   return (
     <div className="relative">
-      {/* Floating badge */}
-      <div className="absolute -top-3 -right-2 z-10">
-        <Badge variant="outline" className="bg-background text-xs font-medium shadow-sm border-accent-warm/40 text-accent-warm">
-          Live on {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
-        </Badge>
-      </div>
-
       <div
         aria-hidden="true"
         className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg shadow-glow-sm overflow-hidden select-none pointer-events-none"
       >
+        {/* Window header — an integrated live indicator (replacing the old
+            floating "Live" sticker) that frames the preview as a live feed of
+            real escrows. Deliberately no contract principal or version here:
+            that's technical noise for a first-time visitor and would advertise
+            version churn. The mono voice ties it to the `;;`/ledger identity. */}
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-status-released animate-pulse" />
+            <span className="text-foreground">Live escrows</span>
+            <span className="text-muted-foreground/50">·</span>
+            <span className="text-muted-foreground">{STACKS_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'}</span>
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">on-chain</span>
+        </div>
+
         {/* Mini stat bar */}
         <div className="grid grid-cols-3 gap-px bg-border">
           {[
@@ -334,8 +343,22 @@ export default function Landing() {
           On phones we let it auto-size so the headline + DashboardPreview
           stack without forcing a min-height that would push the preview
           below the fold. */}
-      <section style={{ background: 'var(--gradient-hero)' }} className="lg:min-h-[calc(100svh-4rem)] flex items-center">
-        <div className="w-full max-w-6xl mx-auto px-4 py-14 lg:py-20 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+      <section style={{ background: 'var(--gradient-hero)' }} className="relative overflow-hidden lg:min-h-[calc(100svh-4rem)] flex items-center">
+        {/* Faint ledger grid — reads as the graph-paper a contract is drafted
+            on. Masked to fade out so it's depth, not decoration. Kept very low
+            opacity so it never competes with the copy. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, oklch(var(--border)) 1px, transparent 1px), linear-gradient(to bottom, oklch(var(--border)) 1px, transparent 1px)',
+            backgroundSize: '56px 56px',
+            maskImage: 'radial-gradient(ellipse 75% 65% at 50% 35%, black 10%, transparent 72%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 75% 65% at 50% 35%, black 10%, transparent 72%)',
+          }}
+        />
+        <div className="relative z-10 w-full max-w-6xl mx-auto px-4 py-14 lg:py-20 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left — copy */}
           <motion.div variants={heroLeftVariants} initial="hidden" animate="visible">
             {/* Status pill — single signal, no provenance attribution.
@@ -419,38 +442,68 @@ export default function Landing() {
       </section>
 
       {/* ── Features ───────────────────────────────────────────── */}
-      <section id="features" className="max-w-6xl mx-auto px-4 py-20 sm:py-28">
-        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }}>
-          <p className="text-xs uppercase tracking-[0.18em] text-primary font-semibold mb-3">Platform</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Everything you need to escrow</h2>
-          <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed">A complete toolkit for trustless settlements — from creation through dispute resolution.</p>
-        </motion.div>
+      {/* Editorial enumerated layout rather than an identical 6-card grid.
+          These six are the contract's terms — what it actually enforces —
+          so reading them as a numbered ledger of clauses (left heading rail,
+          right enumerated rows split by hairlines) is both more distinctive
+          and more honest than six interchangeable cards. */}
+      <section id="features" className="border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-12 gap-y-12 gap-x-10 lg:gap-x-16">
+          {/* Left — heading rail. Sticks alongside the list on wide screens. */}
+          <motion.div
+            variants={revealVariants}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            className="lg:col-span-4 lg:sticky lg:top-24 self-start"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">What the contract does</h2>
+            <p className="mt-4 text-base text-muted-foreground leading-relaxed text-pretty">
+              Six guarantees, each enforced on-chain by Clarity — not by us. No platform discretion sits between you and your funds.
+            </p>
+          </motion.div>
 
-        <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.1 }} className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((f) => {
-            const isViolet = f.accent === 'violet';
-            return (
-              <motion.div
-                key={f.title}
-                variants={revealVariants}
-                className={`rounded-lg border border-border/60 bg-surface-1 p-6 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-glow-sm ${isViolet ? 'hover:border-accent-violet/30' : 'hover:border-primary/20'}`}
-              >
-                <div className={`inline-flex items-center justify-center rounded-md p-2.5 mb-5 ${isViolet ? 'bg-accent-violet/10' : 'bg-muted'}`}>
-                  <f.icon className={`h-5 w-5 ${isViolet ? 'text-accent-violet' : 'text-primary'}`} />
-                </div>
-                <h3 className="text-base font-bold text-foreground">{f.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+          {/* Right — enumerated terms. Each row is a ledger line: index, icon,
+              title, description, divided by a hairline from the one above. */}
+          <motion.div
+            variants={staggerContainer}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.1 }}
+            className="lg:col-span-8"
+          >
+            {features.map((f, i) => {
+              const isViolet = f.accent === 'violet';
+              return (
+                <motion.div
+                  key={f.title}
+                  variants={revealVariants}
+                  className="group grid grid-cols-[2.5rem_1fr] sm:grid-cols-[3rem_1fr] gap-x-3 sm:gap-x-6 py-6 border-t border-border/70 first:border-t-0 transition-colors duration-200"
+                >
+                  {/* Index + icon stack — the "line number" of the clause */}
+                  <div className="flex flex-col items-center gap-3 pt-1">
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground/50 group-hover:text-primary/80 transition-colors">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <span className={`inline-flex items-center justify-center rounded-md p-2 transition-colors ${isViolet ? 'bg-accent-violet/10 group-hover:bg-accent-violet/15' : 'bg-primary/10 group-hover:bg-primary/15'}`}>
+                      <f.icon className={`h-5 w-5 ${isViolet ? 'text-accent-violet' : 'text-primary'}`} />
+                    </span>
+                  </div>
+                  <div className="pt-0.5">
+                    <h3 className="text-base sm:text-lg font-bold text-foreground tracking-tight">{f.title}</h3>
+                    <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed max-w-xl text-pretty">{f.desc}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
       </section>
 
       {/* ── How it Works ───────────────────────────────────────── */}
       <section id="how-it-works" className="border-t border-border bg-surface-2">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28">
           <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <p className="text-xs uppercase tracking-[0.18em] text-primary font-semibold mb-3">Flow</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">How it Works</h2>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">Three steps from wallet to settlement.</p>
           </motion.div>
@@ -536,7 +589,6 @@ export default function Landing() {
       <section id="faq" className="border-t border-border">
         <div className="max-w-3xl mx-auto px-4 py-20 sm:py-28">
           <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <p className="text-xs uppercase tracking-[0.18em] text-primary font-semibold mb-3">Questions</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Frequently asked</h2>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">If you've never used a Bitcoin escrow before, start here.</p>
           </motion.div>
@@ -601,12 +653,19 @@ export default function Landing() {
           rather than a separate chapter. The alternating bg pattern also
           stays intact: Security (surface-2) → FAQ (default) → CTA (surface-2). */}
       <section className="border-t border-border bg-surface-2">
-        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-3xl mx-auto px-4 py-14 sm:py-20 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Ready to get started?</h2>
-          <p className="mt-4 text-base sm:text-lg text-muted-foreground">Create your first escrow in under a minute.</p>
-          <Button size="lg" onClick={handleGetStarted} className="mt-8 gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
-            Get Started <ArrowRight className="h-4 w-4" />
-          </Button>
+        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-2xl mx-auto px-4 py-16 sm:py-24 text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">Create your first escrow</h2>
+          <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed text-pretty">
+            Connect a wallet, set the terms, and your funds sit on-chain until the deal closes. 0.5% on release, nothing on refunds. Your keys never leave your wallet.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Button size="lg" onClick={handleGetStarted} className="gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
+              {isConnected ? 'Open Dashboard' : 'Connect & Create'} <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button size="lg" variant="ghost" onClick={() => scrollTo('faq')} className="gap-2 text-muted-foreground hover:text-foreground">
+              Still have questions?
+            </Button>
+          </div>
         </motion.div>
       </section>
 
