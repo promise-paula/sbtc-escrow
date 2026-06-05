@@ -6,7 +6,6 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { EscrowStatus } from '@/lib/types';
 import { TrendingUp, Hash, Coins, Calculator } from 'lucide-react';
 import { cardVariants } from '@/lib/motion';
-import { AmountDisplay } from '@/components/shared/AmountDisplay';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -18,6 +17,10 @@ interface MonthlyBucket {
   volumeStx: number;
   volumeSbtc: number;
   escrowCount: number;
+  // Per-token counts so per-token averages don't divide a single token's
+  // volume by the combined escrow count.
+  stxCount: number;
+  sbtcCount: number;
   feesStx: number;
   feesSbtc: number;
   released: number;
@@ -43,16 +46,18 @@ function useMonthlyAnalytics() {
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
         if (!buckets.has(key)) {
-          buckets.set(key, { month: label, volumeStx: 0, volumeSbtc: 0, escrowCount: 0, feesStx: 0, feesSbtc: 0, released: 0, refunded: 0, disputed: 0 });
+          buckets.set(key, { month: label, volumeStx: 0, volumeSbtc: 0, escrowCount: 0, stxCount: 0, sbtcCount: 0, feesStx: 0, feesSbtc: 0, released: 0, refunded: 0, disputed: 0 });
         }
         const b = buckets.get(key)!;
         const isSbtc = (row.token_type ?? 0) === 1;
         if (isSbtc) {
           b.volumeSbtc += (row.amount ?? 0) / 1e8;
           b.feesSbtc += (row.fee_amount ?? 0) / 1e8;
+          b.sbtcCount += 1;
         } else {
           b.volumeStx += (row.amount ?? 0) / 1e6;
           b.feesStx += (row.fee_amount ?? 0) / 1e6;
+          b.stxCount += 1;
         }
         b.escrowCount += 1;
         if (row.status === EscrowStatus.Released) b.released += 1;
@@ -114,7 +119,18 @@ export default function Analytics() {
   const totalEscrows = monthlyData.reduce((s, m) => s + m.escrowCount, 0);
   const totalFeesStx = monthlyData.reduce((s, m) => s + m.feesStx, 0);
   const totalFeesSbtc = monthlyData.reduce((s, m) => s + m.feesSbtc, 0);
-  const avgEscrowStx = totalEscrows > 0 ? totalVolumeStx / totalEscrows : 0;
+  const totalStxCount = monthlyData.reduce((s, m) => s + m.stxCount, 0);
+  // Avg STX escrow size = STX volume / STX-escrow count (not the combined
+  // count, which would dilute the average with sBTC escrows).
+  const avgEscrowStx = totalStxCount > 0 ? totalVolumeStx / totalStxCount : 0;
+
+  // Time-series are only meaningful with at least two months of history. Below
+  // that the "over time" charts render a single point and look broken, so we
+  // gate them and show current-state views (totals + outcome mix) instead.
+  const hasTrends = monthlyData.length >= 2;
+  const onlyMonth = monthlyData[0]?.month ?? 'this month';
+  const hasSbtcVolume = totalVolumeSbtc > 0;
+  const hasSbtcFees = totalFeesSbtc > 0;
 
   const summaryCards = [
     { title: 'Volume (STX)', value: `${totalVolumeStx.toFixed(2)} STX`, icon: TrendingUp },
@@ -129,76 +145,111 @@ export default function Analytics() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
 
       {/* ── Page Header ─────────────────────────────────────── */}
-      <div className="mb-10">
+      <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Analytics</h1>
         <p className="text-sm text-muted-foreground mt-1">Platform-wide performance across all escrows</p>
       </div>
 
-      {/* ── Overview Stats ──────────────────────────────────── */}
-      <section className="mb-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-4">Overview</p>
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          {summaryCards.map((card, i) => (
-            <motion.div key={card.title} custom={i} variants={cardVariants} initial="hidden" animate="visible">
-              <Card className="hover:shadow-glow-sm transition-shadow">
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex items-center gap-1.5 text-muted-foreground mb-3">
-                    <card.icon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-xs font-medium truncate">{card.title}</span>
-                  </div>
-                  <p className="text-xl sm:text-2xl font-mono font-bold text-foreground leading-none">
-                    {card.value}
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+      {/* ── Totals ──────────────────────────────────────────── */}
+      {/* Headline numbers — meaningful at any data volume, so always shown. */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-8">
+        {summaryCards.map((card, i) => (
+          <motion.div key={card.title} custom={i} variants={cardVariants} initial="hidden" animate="visible">
+            <Card className="hover:shadow-glow-sm transition-shadow">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center gap-1.5 text-muted-foreground mb-3">
+                  <card.icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="text-xs font-medium truncate">{card.title}</span>
+                </div>
+                <p className="text-xl sm:text-2xl font-mono font-bold text-foreground leading-none">
+                  {card.value}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
 
-      {/* ── Volume ──────────────────────────────────────────── */}
-      <section className="mb-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-4">Volume</p>
-        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
-          <Card>
-            <CardHeader className="pb-2 pt-5 px-5">
-              <CardTitle className="text-sm font-semibold">Volume Over Time</CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-5">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={volumeData} barCategoryGap="35%">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={40} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="stx" name="STX" fill="oklch(var(--primary))" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="sbtc" name="sBTC" fill="oklch(var(--accent-warm))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+      {/* ── Outcome breakdown ───────────────────────────────── */}
+      {/* Where escrows end up — donut paired with an enumerated legend that
+          carries the actual counts and percentages (a donut alone can't be
+          read precisely at low volume). Meaningful with a single escrow. */}
+      <motion.div custom={summaryCards.length} variants={cardVariants} initial="hidden" animate="visible" className="mb-8">
+        <Card>
+          <CardHeader className="pb-2 pt-5 px-5">
+            <CardTitle className="text-sm font-semibold">Outcome breakdown</CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            {statusTotals.length === 0 ? (
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">No escrow data yet.</div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-6 items-center">
+                <div className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={statusTotals} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
+                        {statusTotals.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2.5">
+                  {statusTotals.map((s) => {
+                    const pct = totalEscrows > 0 ? (s.value / totalEscrows) * 100 : 0;
+                    return (
+                      <div key={s.name} className="flex items-center gap-3">
+                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        <span className="text-sm text-foreground flex-1">{s.name}</span>
+                        <span className="font-mono text-sm text-foreground tabular-nums">{s.value}</span>
+                        <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-right">{pct.toFixed(1)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </section>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
-      {/* ── Activity ────────────────────────────────────────── */}
-      <section className="mb-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-4">Activity</p>
-        <div className="grid gap-4 md:grid-cols-5">
-          {/* Count trend — wider (3/5) */}
-          <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible" className="md:col-span-3">
-            <Card className="h-full">
-              <CardHeader className="pb-2 pt-5 px-5">
-                <CardTitle className="text-sm font-semibold">Escrow Count Trend</CardTitle>
-              </CardHeader>
+      {/* ── Trends over time ────────────────────────────────── */}
+      {/* Gated behind ≥2 months of history. STX and sBTC sit on separate axes
+          (their magnitudes differ by orders of magnitude, so on one axis the
+          smaller series is always invisible); the sBTC axis/series only appear
+          when there's sBTC data to show. */}
+      <motion.div custom={summaryCards.length + 1} variants={cardVariants} initial="hidden" animate="visible">
+        {hasTrends ? (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2 pt-5 px-5"><CardTitle className="text-sm font-semibold">Volume over time</CardTitle></CardHeader>
+              <CardContent className="px-5 pb-5">
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={volumeData} barCategoryGap="35%">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="stx" tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={44} />
+                      {hasSbtcVolume && <YAxis yAxisId="sbtc" orientation="right" tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={56} />}
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend iconType="circle" iconSize={8} formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>} />
+                      <Bar yAxisId="stx" dataKey="stx" name="STX" fill="oklch(var(--primary))" radius={[4, 4, 0, 0]} />
+                      {hasSbtcVolume && <Bar yAxisId="sbtc" dataKey="sbtc" name="sBTC" fill="oklch(var(--accent-warm))" radius={[4, 4, 0, 0]} />}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2 pt-5 px-5"><CardTitle className="text-sm font-semibold">Escrows created per month</CardTitle></CardHeader>
               <CardContent className="px-5 pb-5">
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={countData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={30} />
+                      <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={30} allowDecimals={false} />
                       <Tooltip contentStyle={tooltipStyle} />
                       <Line type="monotone" dataKey="count" name="Escrows" stroke="oklch(var(--primary))" strokeWidth={2} dot={{ fill: 'oklch(var(--primary))', r: 3 }} activeDot={{ r: 5 }} />
                     </LineChart>
@@ -206,61 +257,42 @@ export default function Analytics() {
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
 
-          {/* Status breakdown — narrower (2/5) */}
-          <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible" className="md:col-span-2">
-            <Card className="h-full">
-              <CardHeader className="pb-2 pt-5 px-5">
-                <CardTitle className="text-sm font-semibold">Status Breakdown</CardTitle>
-              </CardHeader>
+            <Card>
+              <CardHeader className="pb-2 pt-5 px-5"><CardTitle className="text-sm font-semibold">Fee revenue over time</CardTitle></CardHeader>
               <CardContent className="px-5 pb-5">
-                <div className="h-56 flex items-center justify-center">
-                  {statusTotals.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No escrow data yet.</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={statusTotals} cx="50%" cy="42%" innerRadius={45} outerRadius={68} paddingAngle={3} dataKey="value">
-                          {statusTotals.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                        </Pie>
-                        <Tooltip contentStyle={tooltipStyle} />
-                        <Legend verticalAlign="bottom" iconType="circle" iconSize={8} formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={feeData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="stx" tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={44} />
+                      {hasSbtcFees && <YAxis yAxisId="sbtc" orientation="right" tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={60} />}
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend iconType="circle" iconSize={8} formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>} />
+                      <Area yAxisId="stx" type="monotone" dataKey="stx" name="STX Fees" stroke="oklch(var(--primary))" fill="oklch(var(--primary) / 0.12)" strokeWidth={2} />
+                      {hasSbtcFees && <Area yAxisId="sbtc" type="monotone" dataKey="sbtc" name="sBTC Fees" stroke="oklch(var(--accent-warm))" fill="oklch(var(--accent-warm) / 0.12)" strokeWidth={2} />}
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── Fees ────────────────────────────────────────────── */}
-      <section>
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-4">Fees</p>
-        <motion.div custom={7} variants={cardVariants} initial="hidden" animate="visible">
+          </div>
+        ) : (
           <Card>
-            <CardHeader className="pb-2 pt-5 px-5">
-              <CardTitle className="text-sm font-semibold">Fee Revenue Over Time</CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-2 pt-5 px-5"><CardTitle className="text-sm font-semibold">Trends over time</CardTitle></CardHeader>
             <CardContent className="px-5 pb-5">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={feeData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" interval="preserveStartEnd" axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" axisLine={false} tickLine={false} width={40} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Area type="monotone" dataKey="stx" name="STX Fees" stroke="oklch(var(--primary))" fill="oklch(var(--primary) / 0.12)" strokeWidth={2} />
-                    <Area type="monotone" dataKey="sbtc" name="sBTC Fees" stroke="oklch(var(--accent-warm))" fill="oklch(var(--accent-warm) / 0.12)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="flex flex-col items-center justify-center text-center py-14 gap-3">
+                <div className="rounded-full bg-muted p-3"><TrendingUp className="h-5 w-5 text-muted-foreground" /></div>
+                <p className="text-sm font-medium text-foreground">Not enough history yet</p>
+                <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
+                  Volume, activity, and fee trends appear here once there are at least two months of escrow activity. So far everything falls within {onlyMonth}.
+                </p>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
-      </section>
+        )}
+      </motion.div>
 
     </div>
   );
