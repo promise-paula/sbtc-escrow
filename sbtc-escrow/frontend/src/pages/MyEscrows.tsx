@@ -169,9 +169,9 @@ export default function MyEscrows() {
           My Escrows{' '}
           <span className="text-muted-foreground font-normal">({allEscrows.length})</span>
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-36 h-10 text-sm">
+            <SelectTrigger className="w-full sm:w-36 h-10 text-sm">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -181,7 +181,7 @@ export default function MyEscrows() {
               <SelectItem value="amount-low">Amount: Low → High</SelectItem>
             </SelectContent>
           </Select>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2.5 top-3 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Search..."
