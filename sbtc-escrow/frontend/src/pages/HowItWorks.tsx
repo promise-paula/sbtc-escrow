@@ -4,6 +4,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
+import { Seo } from '@/components/shared/Seo';
 import {
   Accordion,
   AccordionContent,
@@ -102,6 +103,11 @@ export default function HowItWorks() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        title="How It Works"
+        description="Three steps from wallet to settlement: connect, create an escrow with the terms, then release or refund on-chain. See how trustless Bitcoin escrow works end to end."
+        path="/how-it-works"
+      />
       {/* ── Nav ──────────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-6xl mx-auto flex items-center justify-between h-16 px-4">

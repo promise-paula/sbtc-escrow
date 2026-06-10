@@ -4,7 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { DocsLayout } from "./DocsLayout";
-import { getAdjacentPages } from "./docs-config";
+import { getAdjacentPages, getAllPages } from "./docs-config";
+import { Seo } from "@/components/shared/Seo";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
 
@@ -158,9 +159,19 @@ export default function DocsPage() {
   }, [currentSlug]);
 
   const { prev, next } = getAdjacentPages(currentSlug);
+  const currentDoc = getAllPages().find((p) => p.slug === currentSlug);
+  const docTitle = currentDoc ? `${currentDoc.title} · Docs` : 'Docs';
+  // "introduction" is served at the bare /docs path; everything else at /docs/<slug>.
+  const docPath = currentSlug === 'introduction' ? '/docs' : `/docs/${currentSlug}`;
 
   return (
     <DocsLayout>
+      <Seo
+        title={docTitle}
+        description={`${currentDoc?.title ?? 'Documentation'}. sBTC Escrow developer docs: contracts, SDK, frontend integration, and guides for trustless Bitcoin escrow on Stacks.`}
+        path={docPath}
+        noindex={!currentDoc}
+      />
       {loading && (
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
