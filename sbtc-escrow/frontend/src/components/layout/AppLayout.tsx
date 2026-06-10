@@ -9,13 +9,33 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useEscrowRealtime } from '@/hooks/use-escrow-realtime';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pageVariants } from '@/lib/motion';
+import { Seo } from '@/components/shared/Seo';
+
+// Tab titles for the authenticated app routes. These are all noindexed (they
+// require a wallet and hold no crawlable content), so the title is for the
+// browser tab, not search.
+const APP_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/create': 'Create Escrow',
+  '/escrows': 'My Escrows',
+  '/activity': 'Activity',
+  '/analytics': 'Analytics',
+  '/settings': 'Settings',
+  '/admin': 'Admin',
+  '/admin/disputes': 'Disputes',
+  '/admin/controls': 'Contract Controls',
+};
 
 export function AppLayout() {
   useEscrowRealtime();
   const location = useLocation();
+  const appTitle =
+    APP_TITLES[location.pathname] ??
+    (location.pathname.startsWith('/escrow/') ? 'Escrow' : 'App');
 
   return (
     <SidebarProvider>
+      <Seo title={appTitle} noindex />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:text-sm focus:font-medium"
