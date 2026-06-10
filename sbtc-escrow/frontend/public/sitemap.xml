@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://sbtcescrow.com/</loc><changefreq>weekly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/how-it-works</loc><changefreq>weekly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs</loc><changefreq>weekly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/quickstart</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/architecture</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/concepts/escrow-lifecycle</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/concepts/token-support</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/concepts/fees-and-limits</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/concepts/security</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/contract/overview</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/contract/public-functions</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/contract/read-only-functions</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/contract/admin-functions</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/contract/data-structures</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/overview</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/installation</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/client</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/read-methods</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/write-methods</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/admin-methods</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/sdk/types</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/frontend/overview</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/frontend/setup</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/frontend/wallet-integration</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/frontend/hooks</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/frontend/services</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/frontend/supabase</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/guides/testing</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/guides/deployment</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/guides/faq</loc><changefreq>monthly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/docs/reference/error-codes</loc><changefreq>monthly</changefreq></url>
+</urlset>
