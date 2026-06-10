@@ -11,6 +11,9 @@
     <meta name="theme-color" content="#F7931A" />
     <meta name="color-scheme" content="dark light" />
     <meta name="application-name" content="sBTC Escrow" />
+    <!-- Canonical is set per-route by react-helmet-async (<Seo>), so it isn't
+         hardcoded here. A non-JS crawler self-canonicalizes to the served URL,
+         which is correct for an SPA where index.html backs every route. -->
 
     <!-- Favicons — all platforms -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -19,22 +22,24 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph. Absolute URLs are required: social scrapers don't resolve
+         relative paths. og:image is a dedicated 1200x630 card for rich previews. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="sBTC Escrow" />
-    <meta property="og:title" content="sBTC Escrow — Trustless Escrow on Bitcoin" />
-    <meta property="og:description" content="Secure peer-to-peer escrow payments on the Stacks blockchain with smart contract protection." />
-    <meta property="og:image" content="/android-chrome-512x512.png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
-    <meta property="og:image:alt" content="sBTC Escrow — shield and lock logo" />
+    <meta property="og:url" content="https://sbtcescrow.com/" />
+    <meta property="og:title" content="sBTC Escrow: Trustless Escrow on Bitcoin" />
+    <meta property="og:description" content="Lock STX or sBTC in a smart contract that releases only when both sides agree. Non-custodial, 0.5% flat." />
+    <meta property="og:image" content="https://sbtcescrow.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="sBTC Escrow: trustless escrow on Bitcoin, 0.5% flat" />
 
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="sBTC Escrow — Trustless Escrow on Bitcoin" />
-    <meta name="twitter:description" content="Secure peer-to-peer escrow payments on the Stacks blockchain with smart contract protection." />
-    <meta name="twitter:image" content="/android-chrome-512x512.png" />
-    <meta name="twitter:image:alt" content="sBTC Escrow — shield and lock logo" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="sBTC Escrow: Trustless Escrow on Bitcoin" />
+    <meta name="twitter:description" content="Lock STX or sBTC in a smart contract that releases only when both sides agree. Non-custodial, 0.5% flat." />
+    <meta name="twitter:image" content="https://sbtcescrow.com/og.png" />
+    <meta name="twitter:image:alt" content="sBTC Escrow: trustless escrow on Bitcoin, 0.5% flat" />
 
     <!-- Structured Data -->
     <script type="application/ld+json">
@@ -42,6 +47,7 @@
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "sBTC Escrow",
+        "url": "https://sbtcescrow.com/",
         "description": "Trustless peer-to-peer escrow payments on the Stacks blockchain with smart contract protection.",
         "applicationCategory": "FinanceApplication",
         "operatingSystem": "All",
