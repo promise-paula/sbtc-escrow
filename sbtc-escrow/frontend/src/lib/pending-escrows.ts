@@ -80,6 +80,19 @@ function key(address: string): string {
   return address.toLowerCase();
 }
 
+/**
+ * Normalize a Stacks tx id to the form Hiro and the chainhook use (lowercase,
+ * `0x`-prefixed). The wallet's `request()` response returns the bare hex
+ * (no prefix), while the indexer writes the `0x`-prefixed form to Supabase.
+ * Without this, `reconcileAgainstIndexed` does `Set.has(noPrefix)` against a
+ * set of prefixed values and never matches — the placeholder shows forever
+ * even after the real row lands. Normalize everywhere we read or compare.
+ */
+function normalizeTxId(txId: string): string {
+  const lower = txId.toLowerCase();
+  return lower.startsWith('0x') ? lower : `0x${lower}`;
+}
+
 function pruneStale(entries: PendingEscrow[]): PendingEscrow[] {
   const cutoff = Date.now() - MAX_AGE_MS;
   return entries.filter((e) => new Date(e.submittedAt).getTime() > cutoff);
@@ -107,9 +120,11 @@ export function addPending(entry: PendingEscrow): void {
   const all = read();
   const k = key(entry.buyer);
   const existing = pruneStale(all[k] ?? []);
-  // Dedupe by txId in case of accidental double-submit.
-  const filtered = existing.filter((e) => e.txId !== entry.txId);
-  all[k] = [entry, ...filtered];
+  // Normalize the txId on the way in so every downstream comparison just works.
+  const normalized: PendingEscrow = { ...entry, txId: normalizeTxId(entry.txId) };
+  // Dedupe by normalized txId in case of accidental double-submit.
+  const filtered = existing.filter((e) => e.txId !== normalized.txId);
+  all[k] = [normalized, ...filtered];
   write(all);
 }
 
@@ -122,7 +137,8 @@ export function updatePendingStatus(
   const k = key(address);
   const list = all[k];
   if (!list) return;
-  const idx = list.findIndex((e) => e.txId === txId);
+  const target = normalizeTxId(txId);
+  const idx = list.findIndex((e) => e.txId === target);
   if (idx === -1) return;
   list[idx] = { ...list[idx], txStatus };
   all[k] = list;
@@ -134,7 +150,8 @@ export function removePending(address: string, txId: string): void {
   const k = key(address);
   const list = all[k];
   if (!list) return;
-  const filtered = list.filter((e) => e.txId !== txId);
+  const target = normalizeTxId(txId);
+  const filtered = list.filter((e) => e.txId !== target);
   if (filtered.length === list.length) return;
   all[k] = filtered;
   write(all);
@@ -152,8 +169,11 @@ export function reconcileAgainstIndexed(
   const k = key(address);
   const list = all[k];
   if (!list?.length) return 0;
-  const indexedSet = new Set(indexedTxIds);
-  const kept = list.filter((e) => !indexedSet.has(e.txId));
+  // Normalize both sides — the wallet returns un-prefixed hex while the
+  // chainhook stores `0x`-prefixed. Without this, the set comparison never
+  // matches and the placeholder lingers indefinitely.
+  const indexedSet = new Set(Array.from(indexedTxIds, normalizeTxId));
+  const kept = list.filter((e) => !indexedSet.has(normalizeTxId(e.txId)));
   const removed = list.length - kept.length;
   if (removed > 0) {
     all[k] = kept;
