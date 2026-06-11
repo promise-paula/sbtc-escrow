@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "build:static": "vite build && node scripts/prerender.mjs",
+    "build:static": "vite build && (node scripts/prerender.mjs || true)",
     "prerender": "node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
