@@ -9,7 +9,6 @@
     "build:dev": "vite build --mode development",
     "build:static": "vite build && node scripts/prerender.mjs",
     "prerender": "node scripts/prerender.mjs",
-    "og": "node scripts/generate-og.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
