@@ -11,13 +11,42 @@
 // path is flaky in non-Next.js Vercel projects with custom build commands.
 // A static filename + rewrite is the documented robust pattern.
 //
+// Network selection: the upstream target (mainnet vs testnet Hiro API) is
+// chosen from the STACKS_NETWORK env var, set per-deployment on Vercel.
+// Production at sbtcescrow.com → STACKS_NETWORK=mainnet. A separate testnet
+// deploy (e.g. testnet preview, or an sbtc-escrow-testnet.vercel.app) sets
+// STACKS_NETWORK=testnet. Defaults to mainnet so an unconfigured deploy
+// fails toward production-safe behavior rather than silently hitting
+// testnet for real-money flows.
+//
 // Wired in via VITE_STACKS_API_URL=/api/hiro at build time. When that env
 // is unset (local dev), the frontend calls Hiro directly — preserving the
 // no-setup `npm run dev` path. Production sets it on Vercel.
 
 export const config = { runtime: 'edge' };
 
-const HIRO_MAINNET = 'https://api.mainnet.hiro.so';
+// Vercel Edge runtime exposes a minimal `process.env` for reading env vars
+// at request time. The frontend's tsconfig doesn't load @types/node (it's
+// a browser bundle), so we declare just the surface this file uses. The
+// `typeof process !== 'undefined'` guards still handle runtimes that
+// don't have it at all.
+declare const process: { env: Record<string, string | undefined> } | undefined;
+
+const HIRO_UPSTREAM = {
+  mainnet: 'https://api.mainnet.hiro.so',
+  testnet: 'https://api.testnet.hiro.so',
+} as const;
+
+type StacksNetwork = keyof typeof HIRO_UPSTREAM;
+
+function resolveNetwork(): StacksNetwork {
+  const raw = typeof process !== 'undefined' ? process.env.STACKS_NETWORK : undefined;
+  // Anything that isn't explicitly 'testnet' defaults to mainnet. This is
+  // deliberately conservative — if STACKS_NETWORK is misspelled or unset on
+  // a production deploy, the proxy still serves mainnet correctly rather
+  // than silently dropping to testnet and breaking the live app.
+  return raw === 'testnet' ? 'testnet' : 'mainnet';
+}
 
 // Per-endpoint cache policy. Hiro responses fall into three buckets:
 //   1. Immutable past data (a specific burn block by its height) — safe to
@@ -95,6 +124,8 @@ export default async function handler(req: Request): Promise<Response> {
   const apiKey: string | undefined =
     typeof process !== 'undefined' ? process.env.HIRO_API_KEY : undefined;
 
+  const network = resolveNetwork();
+  const upstreamBase = HIRO_UPSTREAM[network];
   const url = new URL(req.url);
 
   // The rewrite in vercel.json passes the upstream Hiro path as `_p`.
@@ -105,7 +136,7 @@ export default async function handler(req: Request): Promise<Response> {
   params.delete('_p');
   const remainingQuery = params.toString();
   const upstream =
-    `${HIRO_MAINNET}/${path}` +
+    `${upstreamBase}/${path}` +
     (remainingQuery ? `?${remainingQuery}` : '');
 
   // Build forwarded headers — strip the unsafe ones, attach the API key.
@@ -147,6 +178,11 @@ export default async function handler(req: Request): Promise<Response> {
       respHeaders.set('cache-control', 'no-store');
     }
 
+    // Surface the chosen network so a deployment's actual routing target
+    // is verifiable by inspecting any response from DevTools. Catches the
+    // "STACKS_NETWORK env var was misspelled" class of misconfig at a glance.
+    respHeaders.set('x-proxy-network', network);
+
     return new Response(upstreamRes.body, {
       status: upstreamRes.status,
       headers: respHeaders,
@@ -156,10 +192,14 @@ export default async function handler(req: Request): Promise<Response> {
     // fallbacks (clockReady=false, indexer-time substitution) kick in
     // rather than the UI computing against a zero anchor.
     return new Response(
-      JSON.stringify({ error: 'Upstream fetch failed', detail: String(err) }),
+      JSON.stringify({ error: 'Upstream fetch failed', network, detail: String(err) }),
       {
         status: 503,
-        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+          'x-proxy-network': network,
+        },
       },
     );
   }
