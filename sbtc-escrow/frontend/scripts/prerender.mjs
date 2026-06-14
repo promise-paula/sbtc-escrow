@@ -1,110 +1,191 @@
-// Prerender the public routes to static HTML.
-//
-// Why a real browser (not react-dom/server / jsdom): the app runs browser-only
-// code at module load (wallet SDK, window redirects, localStorage), which would
-// crash a server-string render. So we serve the built SPA, drive it with
-// headless Chrome, and snapshot the fully-rendered HTML (content + the per-route
-// <head> tags react-helmet-async injects). Non-JS crawlers and social scrapers
-// then get real content and correct previews per route; the client still boots
-// the SPA on top as usual.
-//
-// Browser: local Chrome in dev; @sparticuz/chromium in CI/Vercel builds (their
-// containers have no Chrome). Routes come from the generated sitemap.
-//
-// BEST-EFFORT: any failure here is caught and the process exits 0, so a
-// prerender problem can NEVER break the deploy — worst case you ship the plain
-// SPA (today's behavior). Check the build log for "[prerender] done — N routes"
-// to confirm it ran.
+/**
+ * Postbuild prerender — snapshots the public routes into static HTML so crawlers
+ * and social/AI bots receive content-filled markup (and per-route <head> tags)
+ * instead of an empty SPA shell.
+ *
+ * Why a real browser (not react-dom/server / jsdom): the app runs browser-only
+ * code at module load (wallet SDK, window redirects, localStorage) that would
+ * crash a server-string render. So we serve dist/ locally, drive headless Chrome
+ * through each route, let the app render, and write dist/<route>/index.html.
+ * The client still uses createRoot and re-renders on real visits; this output is
+ * for first paint + bots.
+ *
+ * Browser: @sparticuz/chromium on serverless builds (Vercel — its container has
+ * no Chrome), local system Chrome in dev. This mirrors the proven setup in the
+ * sibling sbtc-pay project (in-process static server, no `vite preview` spawn,
+ * which was the fragile part that made earlier runs silently skip on Vercel).
+ *
+ * Routes come from public/sitemap.xml (single source of truth).
+ *
+ * SAFETY: an enhancement, never the critical path. Any failure logs a warning
+ * and exits 0 so a prerender problem can never block a deploy.
+ */
+import { createServer } from "node:http";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, statSync } from "node:fs";
+import { join, extname, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import puppeteer from 'puppeteer-core';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, "..");
+const DIST = join(ROOT, "dist");
+const SITEMAP = join(ROOT, "public", "sitemap.xml");
+const ORIGIN = "https://sbtcescrow.com";
 
-const ROOT = resolve(fileURLToPath(import.meta.url), '../..'); // frontend/
-const DIST = join(ROOT, 'dist');
-const PORT = 4178;
-const ORIGIN = `http://localhost:${PORT}`;
+const warn = (msg) => console.warn(`\x1b[33m[prerender] ${msg}\x1b[0m`);
+const info = (msg) => console.log(`[prerender] ${msg}`);
 
+function bail(msg) {
+  warn(`${msg} — skipping prerender (the SPA still works, just unprerendered).`);
+  process.exit(0);
+}
+
+if (!existsSync(DIST) || !existsSync(join(DIST, "index.html"))) bail("dist/index.html not found");
+
+// Derive routes from the sitemap (paths only).
+let routes = ["/"];
+try {
+  const xml = readFileSync(SITEMAP, "utf8");
+  routes = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
+    .map((m) => m[1].replace(ORIGIN, "").replace(/\/$/, "") || "/")
+    .filter((r, i, a) => a.indexOf(r) === i);
+} catch {
+  warn("could not read sitemap.xml; prerendering only '/'");
+}
+
+// On Vercel (serverless Linux build) puppeteer's bundled Chromium can't launch —
+// missing shared libraries — so use the self-contained @sparticuz/chromium.
+// Locally, use an installed system Chrome.
 function findLocalChrome() {
   return [
-    process.env.CHROME_PATH,
     process.env.PUPPETEER_EXECUTABLE_PATH,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ].filter(Boolean).find((p) => { try { return existsSync(p); } catch { return false; } });
+    process.env.CHROME_PATH,
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+  ].find((p) => p && existsSync(p));
 }
 
-async function browserLaunchOptions() {
-  const local = findLocalChrome();
-  if (local) {
-    return { executablePath: local, headless: 'new', args: ['--no-sandbox'] };
+let puppeteer;
+try {
+  ({ default: puppeteer } = await import("puppeteer-core"));
+} catch {
+  bail("puppeteer-core not installed");
+}
+
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV);
+
+async function launchBrowser() {
+  if (isServerless) {
+    const { default: chromium } = await import("@sparticuz/chromium");
+    info("launching @sparticuz/chromium (serverless build)");
+    return puppeteer.launch({
+      args: [...chromium.args, "--hide-scrollbars"],
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
   }
-  // No local Chrome (CI / Vercel build) — use the bundled serverless Chromium.
-  const chromium = (await import('@sparticuz/chromium')).default;
-  return {
-    executablePath: await chromium.executablePath(),
-    args: chromium.args,
-    headless: chromium.headless,
-    defaultViewport: { width: 1280, height: 900 },
-  };
+  const executablePath = findLocalChrome();
+  if (!executablePath) bail("no local Chrome found (set PUPPETEER_EXECUTABLE_PATH)");
+  info(`launching local Chrome: ${executablePath}`);
+  return puppeteer.launch({
+    headless: "new",
+    executablePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--hide-scrollbars"],
+  });
 }
 
-function routesFromSitemap() {
-  const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf8');
-  return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
-}
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".webmanifest": "application/manifest+json",
+  ".xml": "application/xml",
+  ".txt": "text/plain; charset=utf-8",
+};
 
-async function waitForServer(url, timeoutMs = 25000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try { if ((await fetch(url)).ok) return; } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error('preview server did not start in time');
-}
-
-async function main() {
-  if (!existsSync(DIST)) throw new Error('dist/ not found — run `vite build` first.');
-
-  const vite = join(ROOT, 'node_modules', '.bin', 'vite');
-  const server = spawn(vite, ['preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
-  const stop = () => { try { server.kill(); } catch { /* already gone */ } };
-  process.on('exit', stop);
-
+// Static server with SPA fallback to index.html for extensionless routes.
+const indexHtml = readFileSync(join(DIST, "index.html"));
+const server = createServer((req, res) => {
   try {
-    await waitForServer(`${ORIGIN}/`);
-    const routes = routesFromSitemap();
-    const browser = await puppeteer.launch(await browserLaunchOptions());
-
-    for (const route of routes) {
-      const page = await browser.newPage();
-      await page.goto(`${ORIGIN}${route}`, { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
-      await page.waitForSelector('#root > *', { timeout: 10000 }).catch(() => {});
-      await new Promise((r) => setTimeout(r, 1200)); // let helmet + lazy content settle
-      const html = await page.evaluate(() => `<!doctype html>\n${document.documentElement.outerHTML}`);
-      await page.close();
-
-      const outPath = route === '/' ? join(DIST, 'index.html') : join(DIST, route, 'index.html');
-      mkdirSync(dirname(outPath), { recursive: true });
-      writeFileSync(outPath, html);
-      console.log(`[prerender] ${route} -> ${outPath.replace(DIST, 'dist')}`);
+    const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
+    const filePath = join(DIST, urlPath);
+    if (existsSync(filePath) && statSync(filePath).isFile()) {
+      res.writeHead(200, { "Content-Type": MIME[extname(filePath)] || "application/octet-stream" });
+      res.end(readFileSync(filePath));
+      return;
     }
-
-    await browser.close();
-    console.log(`[prerender] done — ${routes.length} routes`);
-  } finally {
-    stop();
+    res.writeHead(200, { "Content-Type": MIME[".html"] });
+    res.end(indexHtml);
+  } catch (e) {
+    res.writeHead(500);
+    res.end(String(e));
   }
+});
+
+const PORT = 4100 + Math.floor(Math.random() * 800);
+await new Promise((r) => server.listen(PORT, r));
+info(`serving dist/ on :${PORT}, prerendering ${routes.length} routes`);
+
+let browser;
+let ok = 0;
+try {
+  browser = await launchBrowser();
+
+  for (const route of routes) {
+    const page = await browser.newPage();
+    try {
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "domcontentloaded", timeout: 20000 });
+      // Wait until the app has rendered real content (bounded; never hang).
+      await page
+        .waitForFunction(
+          () => {
+            const root = document.getElementById("root");
+            return !!root && root.childElementCount > 0 && !!document.querySelector("h1");
+          },
+          { timeout: 12000 },
+        )
+        .catch(() => warn(`content signal timed out for ${route}, capturing as-is`));
+      await new Promise((r) => setTimeout(r, 500)); // settle late renders
+
+      const html = await page.content();
+
+      // Sanity: never overwrite a good file with an empty shell.
+      if (!/<div id="root">\s*<\w/.test(html)) {
+        warn(`${route} rendered empty; leaving its file untouched`);
+        await page.close();
+        continue;
+      }
+
+      const outDir = route === "/" ? DIST : join(DIST, route);
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(join(outDir, "index.html"), html);
+      ok++;
+      info(`✓ ${route} -> ${join(outDir, "index.html").replace(ROOT + "/", "")}`);
+    } catch (e) {
+      warn(`failed ${route}: ${e.message || e}`);
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+} catch (e) {
+  warn(`browser error: ${e.message || e}`);
+} finally {
+  if (browser) await browser.close().catch(() => {});
+  server.close();
 }
 
-main().catch((err) => {
-  // Best-effort: never fail the build. Worst case ships the SPA unchanged.
-  console.warn(`[prerender] skipped (${err?.message || err}). Shipping SPA without prerendered routes.`);
-  process.exit(0);
-});
+info(`done: ${ok}/${routes.length} routes prerendered`);
+process.exit(0);
