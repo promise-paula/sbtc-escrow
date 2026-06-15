@@ -1,20 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
 import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { formatSTX, formatSBTC, formatAmount, relativeTime } from '@/lib/utils';
+import { formatSTX, formatSBTC } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
-import { EscrowStatus, TokenType, STATUS_LABELS } from '@/lib/types';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { dur, revealVariants, staggerContainer } from '@/lib/motion';
 import { Logo } from '@/components/shared/Logo';
 import { Seo } from '@/components/shared/Seo';
+import { EscrowMock } from '@/components/landing/EscrowMock';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
@@ -80,124 +78,6 @@ const heroRightVariants = {
   hidden: { opacity: 0, x: 20 },
   visible: { opacity: 1, x: 0, transition: { duration: dur(500), delay: dur(200), ease: 'easeOut' as const } },
 };
-
-/* ------------------------------------------------------------------ */
-/*  Dashboard Preview (decorative)                                    */
-/* ------------------------------------------------------------------ */
-
-const STATUS_COLOR: Record<number, string> = {
-  [EscrowStatus.Pending]: 'bg-status-pending',
-  [EscrowStatus.Delivered]: 'bg-status-delivered',
-  [EscrowStatus.Released]: 'bg-status-released',
-  [EscrowStatus.Refunded]: 'bg-status-refunded',
-  [EscrowStatus.Disputed]: 'bg-status-disputed',
-};
-
-function useRecentEscrows() {
-  return useQuery({
-    queryKey: ['landing-recent-escrows'],
-    queryFn: async () => {
-      if (!isSupabaseConfigured) return [];
-      // Order by `indexed_at` (DB wall-clock when the chainhook recorded the
-      // create event) rather than `created_at_block`. Block numbers are
-      // mixed-clock across contract versions — v3+ stores burn blocks
-      // (~178,000) while legacy v2/v7 store Stacks blocks (~3,998,000), so
-      // a numeric DESC on created_at_block puts every legacy escrow ahead
-      // of every v3 escrow regardless of when they actually happened. The
-      // landing page used to show only "Released" because the 4 entries
-      // that won the numeric race all happened to be old legacy ones.
-      const { data } = await supabase
-        .from('escrows')
-        .select('id, contract_id, amount, status, token_type, created_at_block, indexed_at')
-        .order('indexed_at', { ascending: false })
-        .limit(4);
-      return data ?? [];
-    },
-    staleTime: 60_000,
-  });
-}
-
-function DashboardPreview() {
-  const { data: ps } = usePlatformStats();
-  const { data: rows } = useRecentEscrows();
-
-  const pending = ps?.totalEscrows
-    ? ps.totalEscrows - ps.totalReleased - ps.totalRefunded - ps.activeDisputes
-    : 0;
-  const completed = ps ? ps.totalReleased + ps.totalRefunded : 0;
-
-  return (
-    <div className="relative">
-      <div
-        aria-hidden="true"
-        className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg shadow-glow-sm overflow-hidden select-none pointer-events-none"
-      >
-        {/* Window header — an integrated live indicator (replacing the old
-            floating "Live" sticker) that frames the preview as a live feed of
-            real escrows. Deliberately no contract principal or version here:
-            that's technical noise for a first-time visitor and would advertise
-            version churn. The mono voice ties it to the `;;`/ledger identity. */}
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
-          <div className="flex items-center gap-2 font-mono text-xs">
-            <span className="h-1.5 w-1.5 rounded-full bg-status-released animate-pulse" />
-            <span className="text-foreground">Live escrows</span>
-            <span className="text-muted-foreground/50">·</span>
-            <span className="text-muted-foreground">{STACKS_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'}</span>
-          </div>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">on-chain</span>
-        </div>
-
-        {/* Mini stat bar */}
-        <div className="grid grid-cols-3 gap-px bg-border">
-          {[
-            { v: ps ? formatSTX(ps.totalVolumeStx) + ' STX' : '—', v2: ps && ps.totalVolumeSbtc > 0 ? formatSBTC(ps.totalVolumeSbtc) + ' sBTC' : null, l: 'Volume' },
-            { v: `${pending + (ps?.activeDisputes ?? 0)}`, v2: null, l: 'Active' },
-            { v: `${completed}`, v2: null, l: 'Completed' },
-          ].map((s) => (
-            <div key={s.l} className="bg-card px-4 py-3 text-center overflow-hidden">
-              <p className="font-mono text-sm font-medium text-foreground truncate">{s.v}</p>
-              {s.v2 && <p className="font-mono text-xs font-medium text-foreground truncate">{s.v2}</p>}
-              <p className="text-xs text-muted-foreground">{s.l}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Table header — Created (relative time) replaces the numeric #id
-            column, which is a technical identifier that has no meaning to a
-            casual landing-page visitor. The id still lives in the URL and the
-            in-app My Escrows list for users who own escrows. */}
-        <div className="grid grid-cols-3 px-4 py-2 text-xs font-medium text-muted-foreground border-t border-border bg-muted/40">
-          <span>Created</span>
-          <span>Amount</span>
-          <span>Status</span>
-        </div>
-
-        {/* Rows */}
-        {(rows ?? []).map((r) => {
-          // Use composite key — escrow ids collide across contract versions.
-          const rowKey = `${r.contract_id}/${r.id}`;
-          return (
-            <div key={rowKey} className="grid grid-cols-3 items-center px-4 py-2.5 text-sm border-t border-border">
-              <span className="text-xs text-foreground">
-                {r.indexed_at ? relativeTime(r.indexed_at) : '—'}
-              </span>
-              <span className="font-mono text-xs text-foreground truncate">
-                {formatAmount(r.amount, (r.token_type ?? 0) as TokenType)} {(r.token_type ?? 0) === 1 ? 'sBTC' : 'STX'}
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
-                <span className={`h-1.5 w-1.5 rounded-full ${STATUS_COLOR[r.status] ?? 'bg-muted-foreground'}`} />
-                {STATUS_LABELS[r.status as EscrowStatus] ?? 'Unknown'}
-              </span>
-            </div>
-          );
-        })}
-        {(!rows || rows.length === 0) && (
-          <div className="px-4 py-6 text-center text-xs text-muted-foreground">No escrows yet</div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Landing Page                                                      */
@@ -346,9 +226,9 @@ export default function Landing() {
       {/* ── Hero ───────────────────────────────────────────────── */}
       {/* Hero claims the visible viewport (minus the 4rem sticky nav) so
           the first scroll reveals a clean break into the Features section.
-          On phones we let it auto-size so the headline + DashboardPreview
-          stack without forcing a min-height that would push the preview
-          below the fold. */}
+          On phones we let it auto-size so the headline + escrow mock stack
+          without forcing a min-height that would push the mock below the
+          fold. */}
       <section style={{ background: 'var(--gradient-hero)' }} className="relative overflow-hidden lg:min-h-[calc(100svh-4rem)] flex items-center">
         {/* Faint ledger grid — reads as the graph-paper a contract is drafted
             on. Masked to fade out so it's depth, not decoration. Kept very low
@@ -421,9 +301,11 @@ export default function Landing() {
             </p>
           </motion.div>
 
-          {/* Right — dashboard preview */}
+          {/* Right — animated escrow mock (cycles through real scenarios +
+              the escrow lifecycle). Replaced the old live-data table, which
+              read as an operator widget and showed weak numbers at low volume. */}
           <motion.div variants={heroRightVariants} initial="hidden" animate="visible" className="lg:pl-4">
-            <DashboardPreview />
+            <EscrowMock />
           </motion.div>
         </div>
       </section>
@@ -545,11 +427,9 @@ export default function Landing() {
 
       {/* ── Contract terms ──────────────────────────────────────── */}
       {/* Standalone slim band carrying the two on-chain constants users
-          most often want to know: platform fee and dispute window. These
-          previously sat at the bottom of a redundant "By the numbers"
-          stats section — kept here because they're useful, dropped the
-          surrounding stat grid because DashboardPreview already shows
-          volume/active/completed. */}
+          most often want to know: platform fee and dispute window. The
+          aggregate "X escrows created · Y secured" lives in the hero's
+          social-proof line, so this band stays focused on the constants. */}
       <section className="border-t border-border">
         <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-6xl mx-auto px-4 py-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-2">
