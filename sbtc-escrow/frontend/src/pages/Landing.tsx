@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { dur, revealVariants, staggerContainer } from '@/lib/motion';
 import { Logo } from '@/components/shared/Logo';
 import { Seo } from '@/components/shared/Seo';
+import { Helmet } from 'react-helmet-async';
 import { EscrowMock } from '@/components/landing/EscrowMock';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -20,6 +21,7 @@ import {
   Activity, Scale, CalendarPlus, Users,
   Timer, Percent,
   Menu,
+  Briefcase, ArrowLeftRight, Landmark, Store,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -63,7 +65,44 @@ const steps = [
   { num: '03', title: 'Release or refund', desc: "Release when you're satisfied with the work, refund yourself after expiry, or open a dispute if something goes wrong." },
 ];
 
+// The "Who it's for" section — the hero footnote is too quiet to do real
+// self-identification work. Keeps the product horizontal; each card gives an
+// audience a concrete "that's my situation" line. Two of four use the violet
+// accent for the same two-color rhythm as the Features grid.
+const useCaseDetails = [
+  { icon: Briefcase, title: 'Freelance milestones', desc: "Lock the client's payment up front; it releases when the work ships. Neither side fronts the risk." },
+  { icon: ArrowLeftRight, title: 'OTC & P2P trades', desc: "Deal with a counterparty you don't know. Funds stay locked in the contract until the trade is settled.", accent: 'violet' as const },
+  { icon: Landmark, title: 'DAO grants & bounties', desc: 'Release grant and bounty payments on milestones, with a dispute path if deliverables fall short.', accent: 'violet' as const },
+  { icon: Store, title: 'Marketplace settlements', desc: 'Hold buyer funds until goods or services are delivered; refund on expiry if they never arrive.' },
+];
 
+
+
+// FAQ structured data (Google FAQ rich-result eligibility). Plain-text mirror
+// of the accordion below — KEEP IN SYNC when editing FAQ copy. (The visible
+// accordion keeps its inline links; JSON-LD wants plain text.)
+const faqStructuredData: { q: string; a: string }[] = [
+  { q: 'Is sBTC the same as Bitcoin?', a: 'sBTC is a 1:1 Bitcoin-backed token on the Stacks blockchain. Every sBTC is collateralised by real BTC held in a multisig threshold-signed by a permissionless signer set, and you can peg it back to BTC at any time. For escrows, sBTC moves at Stacks speed with smart-contract programmability that Bitcoin L1 does not have.' },
+  { q: 'Why Stacks instead of Bitcoin L1?', a: 'Bitcoin L1 does not support arbitrary smart contracts; the only way to do escrow there is via multisig (which still needs a trusted third signer) or limited HTLCs. Stacks anchors to Bitcoin for security and adds Clarity, a decidable contract language that encodes the full escrow lifecycle on-chain. The funds stay trustless; only the contract logic moves up a layer.' },
+  { q: 'Can the admin freeze or steal my funds?', a: 'No. The admin can only resolve an active dispute (release to seller, refund to buyer, or split) and pause new escrow creation for emergencies. The admin cannot touch a non-disputed escrow, cannot pause indefinitely (the pause has a hard duration and anti-chaining cooldown), and cannot stop dispute timeouts from firing. Buyers self-recover after the dispute window; sellers self-rescue after twice that window if they signaled delivery. The contract enforces every constraint on-chain.' },
+  { q: "What if there's a bug in the contract?", a: 'The contract went through four self-audit passes before mainnet with 50+ invariant tests passing, including funds-conservation (the contract balance is always at least the locked balance). The source is open on GitHub for independent review. If a bug were found, the time-bounded pause lets admins halt new escrows while existing ones unwind through their normal flows; funds remain owned by the contract under its original rules.' },
+  { q: 'How do I get sBTC?', a: 'Use the official sBTC bridge (bridge.sbtc.tech): deposit BTC, receive sBTC on Stacks 1:1, and reverse it the same way. You can also create STX escrows without ever needing sBTC; the contract supports both tokens natively.' },
+  { q: 'What does the 0.5% fee cover?', a: 'Maintenance of the contract, indexer infrastructure, the frontend, and the dispute-resolution path. The fee is charged only on successful release (not on refunds) and is hard-capped at 5% in the contract, so the admin cannot raise it beyond that without a new deployment. There are no other costs beyond standard Stacks network fees.' },
+  { q: 'What if the seller never delivers?', a: "Once the deadline passes, you (the buyer) reclaim the full amount directly from the contract; the seller's approval is not required. While the escrow is active, either party can open a dispute for admin arbitration. Funds never sit with the platform either way." },
+  { q: 'Is there a minimum or maximum amount?', a: 'Yes. The contract enforces a small minimum (to avoid dust amounts) and a high ceiling, set separately for STX and sBTC. The create-escrow form shows the exact current limits before you sign.' },
+  { q: 'Which wallets are supported?', a: 'Any Stacks wallet that supports the standard connect flow; Leather and Xverse are the most common. You review and sign every action in your own wallet, and the platform never holds your keys.' },
+  { q: 'How fast does an escrow settle?', a: 'Every action (create, release, refund, dispute) is a single Stacks transaction. It confirms in a block or two, usually within a few minutes, and anchors to Bitcoin for finality. Escrow state and confirmations update live in the app.' },
+];
+
+const faqJsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqStructuredData.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+});
 
 /* ------------------------------------------------------------------ */
 /*  Animation variants                                                */
@@ -95,13 +134,13 @@ export default function Landing() {
   const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
   // Track which in-page section is in view so the nav can mark it active.
-  // Only the two anchor sections (features, faq) matter — How it Works and
-  // Docs are separate routes. rootMargin shrinks the observation band to
-  // the middle ~5% of the viewport, so the underline only switches once
-  // a section is firmly in focus instead of flickering as you scroll past edges.
+  // These are the on-page anchor sections (nav scrolls to them rather than
+  // routing away). rootMargin shrinks the observation band to the middle ~5%
+  // of the viewport, so the underline only switches once a section is firmly
+  // in focus instead of flickering as you scroll past edges.
   const [activeSection, setActiveSection] = useState<string | null>(null);
   useEffect(() => {
-    const ids = ['features', 'faq'];
+    const ids = ['features', 'how-it-works', 'faq'];
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
@@ -140,6 +179,11 @@ export default function Landing() {
         description="Lock STX or sBTC in a smart contract that releases only when both sides agree, or refunds if they don't. Non-custodial escrow on Bitcoin, 0.5% flat."
         path="/"
       />
+      {/* FAQ structured data — Google FAQ rich-result eligibility. Prerendered
+          into the static HTML head so crawlers see it without running JS. */}
+      <Helmet>
+        <script type="application/ld+json">{faqJsonLd}</script>
+      </Helmet>
       {/* ── Navbar ─────────────────────────────────────────────── */}
       <nav aria-label="Main" className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-6xl mx-auto flex items-center justify-between h-16 px-4">
@@ -149,7 +193,20 @@ export default function Landing() {
           </div>
 
           <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
-            <button onClick={() => navigate('/how-it-works')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">How it Works</button>
+            <button
+              onClick={() => scrollTo('how-it-works')}
+              className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'how-it-works' ? 'text-foreground' : ''}`}
+            >
+              How it Works
+              {activeSection === 'how-it-works' && (
+                <motion.span
+                  layoutId="navActiveIndicator"
+                  aria-hidden="true"
+                  className="absolute left-3 right-3 -bottom-0.5 h-0.5 rounded-full bg-accent-warm"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+            </button>
             <button
               onClick={() => scrollTo('features')}
               className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'features' ? 'text-foreground' : ''}`}
@@ -203,7 +260,7 @@ export default function Landing() {
               <SheetContent side="right" className="w-72 flex flex-col gap-1 pt-12">
                 <SheetTitle className="sr-only">Site navigation</SheetTitle>
                 <SheetDescription className="sr-only">Jump to a section of the landing page or open the docs.</SheetDescription>
-                <button onClick={() => navigate('/how-it-works')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">How it Works</button>
+                <button onClick={() => scrollTo('how-it-works')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">How it Works</button>
                 <button onClick={() => scrollTo('features')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">Features</button>
                 <button onClick={() => scrollTo('faq')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">FAQ</button>
                 <button onClick={() => navigate('/docs')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">Docs</button>
@@ -372,6 +429,42 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── Who it's for ────────────────────────────────────────── */}
+      {/* A real self-identification surface — the hero footnote is too quiet to
+          do this job. Keeps the product horizontal but gives each audience a
+          concrete "that's my situation" line. Cards here deliberately contrast
+          the Features ledger rows and the How-it-Works number columns, so three
+          adjacent sections read as three distinct layouts. */}
+      <section id="use-cases" className="border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28">
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Who it's for</h2>
+            <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed text-pretty max-w-2xl">
+              Any deal where you'd otherwise have to trust the other side first. A few of the most common:
+            </p>
+          </motion.div>
+
+          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.15 }} className="mt-12 grid gap-5 sm:grid-cols-2">
+            {useCaseDetails.map((u) => {
+              const isViolet = u.accent === 'violet';
+              return (
+                <motion.div
+                  key={u.title}
+                  variants={revealVariants}
+                  className={`rounded-lg border border-border/60 bg-surface-1 p-6 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-glow-sm ${isViolet ? 'hover:border-accent-violet/30' : 'hover:border-primary/20'}`}
+                >
+                  <div className={`inline-flex items-center justify-center rounded-md p-2.5 mb-4 ${isViolet ? 'bg-accent-violet/10' : 'bg-primary/10'}`}>
+                    <u.icon className={`h-5 w-5 ${isViolet ? 'text-accent-violet' : 'text-primary'}`} />
+                  </div>
+                  <h3 className="text-base font-bold text-foreground tracking-tight">{u.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed text-pretty">{u.desc}</p>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
+      </section>
+
       {/* ── How it Works ───────────────────────────────────────── */}
       {/* Sharpened to "what YOU do" (three user actions) — complements the hero
           mock (the contract's state) and Features (what the contract
@@ -492,7 +585,76 @@ export default function Landing() {
                   Maintenance of the contract, indexer infrastructure, the frontend, and the dispute-resolution path. The fee is charged only on successful release (not on refunds) and is hard-capped at 5% in the contract, so the admin cannot raise it beyond that without a new deployment. There are no other costs to use the platform beyond standard Stacks network fees for signing transactions.
                 </AccordionContent>
               </AccordionItem>
+
+              <AccordionItem value="no-delivery">
+                <AccordionTrigger className="text-left">What if the seller never delivers?</AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
+                  Once the deadline passes, you (the buyer) reclaim the full amount directly from the contract; the seller's approval isn't required. While the escrow is still active, if there's a genuine disagreement, either party can open a dispute for admin arbitration. Funds never sit with the platform either way.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="amount-limits">
+                <AccordionTrigger className="text-left">Is there a minimum or maximum amount?</AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
+                  Yes. The contract enforces a small minimum (to avoid dust amounts) and a high ceiling, set separately for STX and sBTC. The create-escrow form shows the exact current limits before you sign.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="wallets">
+                <AccordionTrigger className="text-left">Which wallets are supported?</AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
+                  Any Stacks wallet that supports the standard connect flow; Leather and Xverse are the most common. You review and sign every action in your own wallet, and the platform never holds your keys.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="settle-speed">
+                <AccordionTrigger className="text-left">How fast does an escrow settle?</AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
+                  Every action (create, release, refund, dispute) is a single Stacks transaction. It confirms in a block or two, usually within a few minutes, and anchors to Bitcoin for finality. Escrow state and confirmations update live in the app as the chain advances.
+                </AccordionContent>
+              </AccordionItem>
             </Accordion>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── For developers ─────────────────────────────────────── */}
+      {/* Signals escrow is a composable primitive, not just an app: a real,
+          published SDK over the same audited contract. The code window ties to
+          the mono/ledger identity and gives builders a concrete entry point. */}
+      <section className="border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">Build escrow into your product</h2>
+            <p className="mt-4 text-base text-muted-foreground leading-relaxed text-pretty max-w-md">
+              A typed TypeScript SDK over the same audited contract. Create escrows, read their on-chain state, and settle releases from your own app. No Clarity required.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button size="lg" onClick={() => navigate('/docs/sdk/overview')} className="gap-2">
+                Read the SDK docs <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => window.open(REPO_URL, '_blank', 'noopener,noreferrer')} className="gap-2">
+                View on GitHub
+              </Button>
+            </div>
+          </motion.div>
+
+          <motion.div
+            variants={revealVariants}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            className="min-w-0 rounded-xl border border-border bg-card overflow-hidden shadow-lg shadow-glow-sm"
+          >
+            <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border bg-muted/30">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
+              <span className="ml-2 font-mono text-[11px] text-muted-foreground">escrow.ts</span>
+            </div>
+            <pre className="p-5 overflow-x-auto text-[13px] leading-relaxed font-mono text-foreground">
+<code><span className="text-muted-foreground/70">$ npm install </span><span className="text-primary">sbtc-escrow-sdk</span>{'\n\n'}<span className="text-accent-violet">import</span> {'{ EscrowClient }'} <span className="text-accent-violet">from</span> <span className="text-status-released">'sbtc-escrow-sdk'</span>;{'\n\n'}<span className="text-muted-foreground/60">{'// Read on-chain escrow state, no wallet needed'}</span>{'\n'}<span className="text-accent-violet">const</span> client = <span className="text-accent-violet">new</span> <span className="text-primary">EscrowClient</span>({'{ network: '}<span className="text-status-released">'mainnet'</span>{' });'}{'\n'}<span className="text-accent-violet">const</span> escrow = <span className="text-accent-violet">await</span> client.<span className="text-primary">getEscrow</span>(1042);{'\n\n'}console.<span className="text-primary">log</span>(escrow.status); <span className="text-muted-foreground/60">{"// 'released'"}</span></code>
+            </pre>
           </motion.div>
         </div>
       </section>
@@ -558,7 +720,7 @@ export default function Landing() {
             {/* Resources */}
             <nav aria-label="Resources" className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold text-foreground">Resources</h3>
-              <button onClick={() => navigate('/how-it-works')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">How it Works</button>
+              <button onClick={() => scrollTo('how-it-works')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">How it Works</button>
               <button onClick={() => navigate('/docs')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">Docs</button>
               <button onClick={() => scrollTo('faq')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">FAQ</button>
               <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Explorer</a>
