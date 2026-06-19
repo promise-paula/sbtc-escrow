@@ -191,24 +191,45 @@ export function disputeTimeoutBoundsFor(contractId: string): {
 }
 
 /**
+ * Format a block count as a wall-clock duration for preset labels. Kept local
+ * to stacks-config to avoid a cycle with utils.ts (which imports from here).
+ * Returns "~10 hours" / "~1.5 days" / "~30 days" style strings.
+ */
+function formatBlocksAsWallClock(blocks: number, minutesPerBlock: number): string {
+  const totalMinutes = blocks * minutesPerBlock;
+  if (totalMinutes < 60) return `~${Math.round(totalMinutes)} min`;
+  if (totalMinutes < 1440) return `~${Math.round(totalMinutes / 60)} hours`;
+  const days = totalMinutes / 1440;
+  return days < 10 ? `~${days.toFixed(1)} days` : `~${Math.round(days)} days`;
+}
+
+/**
  * Dispute-timeout preset choices for the admin UI. Picks burn-block-calibrated
  * values for v3+ and stacks-block-calibrated values for legacy contracts.
+ *
+ * Labels are computed from the live `BURN_BLOCK_MINUTES` (network-aware) so
+ * that a "4,320 blocks" preset reads as "~30 days" on mainnet (~10 min/block)
+ * but "~12 days" on testnet (~4 min/block) — honest about what the user is
+ * actually buying on the current network. Without this, the same block count
+ * would show "30 days" on both networks while behaving very differently.
  */
 export function disputeTimeoutPresetsFor(contractId: string): Array<{ label: string; blocks: number }> {
   if (usesBurnBlockClock(contractId)) {
-    return [
-      { label: '5 blocks (testing)', blocks: 5 },
-      { label: '1 day (144 blocks)', blocks: 144 },
-      { label: '1 week (1,008 blocks)', blocks: 1_008 },
-      { label: '30 days (4,320 blocks)', blocks: 4_320 },
-    ];
+    const blockCounts = [5, 144, 1_008, 4_320];
+    return blockCounts.map((blocks) => ({
+      blocks,
+      label: blocks === 5
+        ? '5 blocks (testing)'
+        : `${formatBlocksAsWallClock(blocks, BURN_BLOCK_MINUTES)} (${blocks.toLocaleString()} blocks)`,
+    }));
   }
-  return [
-    { label: '5 blocks (testing)', blocks: 5 },
-    { label: '1 day (~960 blocks)', blocks: 960 },
-    { label: '1 week (~6,720 blocks)', blocks: 6_720 },
-    { label: '30 days (~28,800 blocks)', blocks: 28_800 },
-  ];
+  const blockCounts = [5, 960, 6_720, 28_800];
+  return blockCounts.map((blocks) => ({
+    blocks,
+    label: blocks === 5
+      ? '5 blocks (testing)'
+      : `${formatBlocksAsWallClock(blocks, DEFAULT_MINUTES_PER_BLOCK)} (${blocks.toLocaleString()} blocks)`,
+  }));
 }
 
 // Per-token amount bounds (from V5 contract constants)
