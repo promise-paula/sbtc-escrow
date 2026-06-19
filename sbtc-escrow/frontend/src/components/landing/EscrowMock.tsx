@@ -199,6 +199,9 @@ export function EscrowMock() {
 
   useEffect(() => {
     if (paused) return;
+    // Respect prefers-reduced-motion: don't auto-advance. The scenario dots
+    // still let a visitor step through manually.
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const id = setInterval(advance, INTERVAL_MS);
     return () => clearInterval(id);
   }, [paused, advance]);

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { PlatformConfig } from '@/lib/types';
-import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_VERSION, CONTRACT_PRINCIPAL, MAX_FEE_BPS, MIN_DISPUTE_TIMEOUT, MAX_DISPUTE_TIMEOUT, SAFE_MIN_DISPUTE_TIMEOUT, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE, supportsV3Features } from '@/lib/stacks-config';
+import { CONTRACT_ADDRESS, CONTRACT_NAME, CONTRACT_VERSION, CONTRACT_PRINCIPAL, MAX_FEE_BPS, STACKS_NETWORK, DEFAULT_MINUTES_PER_BLOCK, EXPLORER_BASE, supportsV3Features, disputeTimeoutBoundsFor, disputeTimeoutPresetsFor, effectiveMinutesPerBlock } from '@/lib/stacks-config';
 import { isValidStacksAddress, formatSTX, formatSBTC, blocksToTime } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
@@ -20,14 +20,11 @@ import { cardVariants } from '@/lib/motion';
 import { AlertTriangle, DollarSign, Clock, UserCheck, Info, Recycle } from 'lucide-react';
 import { ErrorBanner } from '@/components/shared/ErrorBanner';
 
-// Presets use fixed block counts (at 1.5 min/block) so the value sent on-chain
-// is deterministic and doesn't fluctuate with the live block rate.
-const timeoutPresets = [
-  { label: '5 blocks (testing)', blocks: 5 },
-  { label: '1 day (~960 blocks)', blocks: 960 },
-  { label: '1 week (~6,720 blocks)', blocks: 6_720 },
-  { label: '30 days (~28,800 blocks)', blocks: 28_800 },
-];
+// Presets are picked per-contract via `disputeTimeoutPresetsFor()`. v3+
+// contracts use burn-block math (e.g. 4_320 = 30 days); legacy v2/v7 use
+// stacks-block math (e.g. 28_800 = 30 days). Hard-coding either set causes
+// the wrong-clock failure mode where the user picks "30 days" and the
+// contract rejects with ERR_INVALID_TIMEOUT (u2011).
 
 // v3 pause is bounded by burn-block duration. Presets calibrated for testnet
 // (~4 min/burn block) AND mainnet (~10 min/burn block) by anchoring on burn
@@ -44,7 +41,15 @@ export default function ContractControls() {
   const { data: config, isLoading, isError } = usePlatformConfig();
   const queryClient = useQueryClient();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  const stacksMinutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  // Use the contract's actual clock for display labels. v3 contracts run on
+  // burn blocks (~10 min); legacy v2/v7 use the live stacks block rate.
+  const minutesPerBlock = effectiveMinutesPerBlock(CONTRACT_PRINCIPAL, stacksMinutesPerBlock);
+  // Dispute-timeout bounds and presets are contract-aware. v3 contracts use
+  // burn-block math (4_320 = 30 days, max 8_640); legacy v2/v7 use stacks
+  // block math (28_800 = 30 days, max 57_600).
+  const timeoutBounds = disputeTimeoutBoundsFor(CONTRACT_PRINCIPAL);
+  const timeoutPresets = disputeTimeoutPresetsFor(CONTRACT_PRINCIPAL);
   const [feeBps, setFeeBps] = useState('');
   const [feeRecip, setFeeRecip] = useState('');
   const [timeout, setTimeoutVal] = useState('');
@@ -375,19 +380,19 @@ export default function ContractControls() {
                 value={timeout}
                 onChange={e => { setTimeoutVal(e.target.value); setAcknowledgeUnsafeTimeout(false); }}
                 className="font-mono text-sm w-40"
-                min={MIN_DISPUTE_TIMEOUT}
-                max={MAX_DISPUTE_TIMEOUT}
+                min={timeoutBounds.min}
+                max={timeoutBounds.max}
               />
-              <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue)})</span>
+              <span className="text-xs text-muted-foreground">blocks (~{blocksToTime(timeoutValue, minutesPerBlock)})</span>
             </div>
-            {timeoutValue >= MIN_DISPUTE_TIMEOUT && timeoutValue < SAFE_MIN_DISPUTE_TIMEOUT && (
+            {timeoutValue >= timeoutBounds.min && timeoutValue < timeoutBounds.safeMin && (
               <div className="rounded-md border border-warning/40 bg-warning/5 p-3 space-y-2">
                 <div className="flex items-start gap-2 text-xs text-foreground">
                   <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-medium">Very short dispute window</p>
                     <p className="text-muted-foreground mt-0.5">
-                      {timeoutValue} block{timeoutValue === 1 ? '' : 's'} (~{blocksToTime(timeoutValue, minutesPerBlock)}) is below {SAFE_MIN_DISPUTE_TIMEOUT} blocks. On mainnet this can let buyers self-recover before an admin can review a dispute. Use only for testing.
+                      {timeoutValue} block{timeoutValue === 1 ? '' : 's'} (~{blocksToTime(timeoutValue, minutesPerBlock)}) is below {timeoutBounds.safeMin} blocks. On mainnet this can let buyers self-recover before an admin can review a dispute. Use only for testing.
                     </p>
                   </div>
                 </div>
@@ -405,10 +410,10 @@ export default function ContractControls() {
             <Button
               size="sm"
               disabled={
-                timeoutValue < MIN_DISPUTE_TIMEOUT ||
-                timeoutValue > MAX_DISPUTE_TIMEOUT ||
+                timeoutValue < timeoutBounds.min ||
+                timeoutValue > timeoutBounds.max ||
                 loading === 'timeout' ||
-                (timeoutValue < SAFE_MIN_DISPUTE_TIMEOUT && !acknowledgeUnsafeTimeout)
+                (timeoutValue < timeoutBounds.safeMin && !acknowledgeUnsafeTimeout)
               }
               onClick={async () => {
                 setLoading('timeout');

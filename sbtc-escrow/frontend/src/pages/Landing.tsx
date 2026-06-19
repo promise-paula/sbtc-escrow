@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
-import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL } from '@/lib/stacks-config';
+import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL, CONTRACT_PRINCIPAL, effectiveMinutesPerBlock } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { formatSTX, formatSBTC } from '@/lib/utils';
@@ -269,8 +269,11 @@ export default function Landing() {
               <span>Non-custodial.</span>
             </div>
 
-            {/* Inline social proof — only show once we have data */}
-            {(ps?.totalEscrows ?? 0) > 0 && (
+            {/* Inline social proof — only once the count is high enough to read
+                as real traction. A tiny number ("2 escrows created") undercuts
+                credibility more than showing nothing, so gate it. Tune the
+                threshold as adoption grows. */}
+            {(ps?.totalEscrows ?? 0) >= 25 && (
               <p className="mt-3 text-sm text-muted-foreground/70 font-mono">
                 {ps!.totalEscrows.toLocaleString()} escrows created · {formatSTX(ps!.totalVolumeStx)} STX{(ps!.totalVolumeSbtc ?? 0) > 0 ? ` + ${formatSBTC(ps!.totalVolumeSbtc)} sBTC` : ''} secured
               </p>
@@ -370,55 +373,31 @@ export default function Landing() {
       </section>
 
       {/* ── How it Works ───────────────────────────────────────── */}
+      {/* Sharpened to "what YOU do" (three user actions) — complements the hero
+          mock (the contract's state) and Features (what the contract
+          guarantees) rather than re-treading the lifecycle. Re-cut in the
+          page's editorial language: large mono indices as the sequence anchor,
+          left-aligned, no decorative circles. Cohesive with the Features
+          ledger; distinct in expression (a short ordered flow, not a list). */}
       <section id="how-it-works" className="border-t border-border bg-surface-2">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28">
           <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">How it Works</h2>
-            <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">Three steps from wallet to settlement.</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">How it works</h2>
+            <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">Three things you do. The contract handles the rest.</p>
           </motion.div>
 
-          {/* Animated step flow. The connecting line draws left-to-right
-              with scaleX from 0→1 when the section scrolls into view,
-              filling the path between the three numbered circles. Each
-              circle then fades + scales in sequence. The whole thing
-              takes ~1.2s and reads as "watch the escrow path unfold"
-              rather than "look at three static cards". */}
-          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }} className="mt-16 grid sm:grid-cols-2 md:grid-cols-3 gap-10 relative">
-            {/* Connecting line — animates scaleX from origin-left so it
-                reads as drawing in. Sits behind the circles via z-0. */}
-            <motion.div
-              aria-hidden="true"
-              className="hidden md:block absolute top-7 left-[16.67%] right-[16.67%] h-px bg-gradient-to-r from-primary/0 via-primary/60 to-primary/0 origin-left z-0"
-              initial={{ scaleX: 0 }}
-              whileInView={{ scaleX: 1 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: dur(900), ease: 'easeOut' as const, delay: dur(200) }}
-            />
-
-            {steps.map((s, i) => (
-              <motion.div
-                key={s.num}
-                variants={revealVariants}
-                className="relative text-center"
-                transition={{ delay: dur(300) + i * dur(180), duration: dur(500), ease: 'easeOut' as const }}
-              >
-                {/* Numbered circle with a soft pulsing ring on first reveal —
-                    draws the eye to step 1 without continuously animating. */}
-                <div className="relative mx-auto h-14 w-14 z-10">
-                  <motion.span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-full bg-primary/20"
-                    initial={{ scale: 0.6, opacity: 0 }}
-                    whileInView={{ scale: [0.6, 1.4, 1], opacity: [0, 0.5, 0] }}
-                    viewport={{ once: true, amount: 0.3 }}
-                    transition={{ duration: dur(900), ease: 'easeOut' as const, delay: dur(400) + i * dur(180) }}
-                  />
-                  <div className="relative flex items-center justify-center h-14 w-14 rounded-full border-2 border-primary bg-background text-primary font-bold font-mono text-lg shadow-glow-sm">
-                    {s.num}
-                  </div>
-                </div>
-                <h3 className="mt-5 text-base font-bold text-foreground">{s.title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground max-w-[260px] mx-auto leading-relaxed">{s.desc}</p>
+          <motion.div
+            variants={staggerContainer}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.2 }}
+            className="mt-14 grid gap-10 sm:grid-cols-3"
+          >
+            {steps.map((s) => (
+              <motion.div key={s.num} variants={revealVariants} className="border-t border-border/70 pt-5">
+                <span className="font-mono text-4xl font-black text-primary tabular-nums leading-none">{s.num}</span>
+                <h3 className="mt-4 text-base font-bold text-foreground tracking-tight">{s.title}</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed max-w-[300px] text-pretty">{s.desc}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -438,7 +417,12 @@ export default function Landing() {
           </span>
           <span className="inline-flex items-center gap-2">
             <Timer className="h-4 w-4 text-primary" />
-            Dispute window <span className="font-mono text-foreground">{Math.round((cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) * DEFAULT_MINUTES_PER_BLOCK / 1440)} days</span>
+            {/* Pick the right minutes-per-block for the active contract's clock.
+                v3 contracts store dispute-timeout in burn blocks (~10 min);
+                legacy v2/v7 store it in stacks blocks. Using the wrong rate
+                turns a 30-day window into a "5-day" display (the live bug
+                this section had on mainnet before the fix). */}
+            Dispute window <span className="font-mono text-foreground">{Math.round((cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) * effectiveMinutesPerBlock(CONTRACT_PRINCIPAL, DEFAULT_MINUTES_PER_BLOCK) / 1440)} days</span>
           </span>
           <span className="inline-flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />

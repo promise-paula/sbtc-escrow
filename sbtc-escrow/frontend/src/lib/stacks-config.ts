@@ -87,6 +87,16 @@ export const MAX_DISPUTE_TIMEOUT = 57_600; // ~60 days at 960 blocks/day (post-N
 export const MIN_DISPUTE_TIMEOUT = 1;
 export const MAX_FEE_BPS = 500; // 5%
 
+// v3+ contracts validate dispute timeout in BURN blocks (~10 min/block on
+// mainnet). The bounds here mirror the on-chain constants in
+// escrow-mainnet-v3.clar / escrow-v8.clar — keep them in sync with the
+// contract. Sending a stacks-block-calibrated value (e.g. 28_800 for
+// "30 days") to a v3 contract triggers ERR_INVALID_TIMEOUT (u2011).
+export const MIN_DISPUTE_TIMEOUT_BURN = 24;        // ~4 hours (contract floor)
+export const MAX_DISPUTE_TIMEOUT_BURN = 8_640;     // ~60 days (contract ceiling)
+export const DEFAULT_DISPUTE_TIMEOUT_BURN = 4_320; // ~30 days
+export const SAFE_MIN_DISPUTE_TIMEOUT_BURN = 144;  // ~24 hours -- UI warns below this
+
 // ── Duration bounds: TWO clocks ────────────────────────────────────────
 // v2/v7 contracts use stacks-block-height (variable rate, post-Nakamoto).
 // v3+ contracts use burn-block-height (Bitcoin chain, ~10 min/block, stable).
@@ -151,6 +161,55 @@ export function effectiveMinutesPerBlock(
 // confirmation in the UI before letting them set a dispute window of less
 // than ~3.5 hours on production.
 export const SAFE_MIN_DISPUTE_TIMEOUT = 144;
+
+/**
+ * Dispute-timeout bounds for a given contract's clock. v3+ contracts validate
+ * timeout in BURN blocks (~10 min/block); legacy v2/v7 contracts validate in
+ * STACKS blocks (~1.5 min/block). The admin UI must pick the right bounds —
+ * otherwise the user enters "30 days" → frontend sends 28_800 → v3 contract
+ * rejects (max 8_640) → ERR_INVALID_TIMEOUT (u2011).
+ */
+export function disputeTimeoutBoundsFor(contractId: string): {
+  min: number;
+  max: number;
+  default: number;
+  safeMin: number;
+} {
+  return usesBurnBlockClock(contractId)
+    ? {
+        min: MIN_DISPUTE_TIMEOUT_BURN,
+        max: MAX_DISPUTE_TIMEOUT_BURN,
+        default: DEFAULT_DISPUTE_TIMEOUT_BURN,
+        safeMin: SAFE_MIN_DISPUTE_TIMEOUT_BURN,
+      }
+    : {
+        min: MIN_DISPUTE_TIMEOUT,
+        max: MAX_DISPUTE_TIMEOUT,
+        default: DEFAULT_DISPUTE_TIMEOUT,
+        safeMin: SAFE_MIN_DISPUTE_TIMEOUT,
+      };
+}
+
+/**
+ * Dispute-timeout preset choices for the admin UI. Picks burn-block-calibrated
+ * values for v3+ and stacks-block-calibrated values for legacy contracts.
+ */
+export function disputeTimeoutPresetsFor(contractId: string): Array<{ label: string; blocks: number }> {
+  if (usesBurnBlockClock(contractId)) {
+    return [
+      { label: '5 blocks (testing)', blocks: 5 },
+      { label: '1 day (144 blocks)', blocks: 144 },
+      { label: '1 week (1,008 blocks)', blocks: 1_008 },
+      { label: '30 days (4,320 blocks)', blocks: 4_320 },
+    ];
+  }
+  return [
+    { label: '5 blocks (testing)', blocks: 5 },
+    { label: '1 day (~960 blocks)', blocks: 960 },
+    { label: '1 week (~6,720 blocks)', blocks: 6_720 },
+    { label: '30 days (~28,800 blocks)', blocks: 28_800 },
+  ];
+}
 
 // Per-token amount bounds (from V5 contract constants)
 export const MIN_AMOUNT_STX = 1_000; // 0.001 STX
