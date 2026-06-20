@@ -19,10 +19,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import {
   Wallet, ArrowRight, Shield, Clock,
   Activity, Scale, CalendarPlus, Users,
-  Timer, Percent,
+  CheckCircle2, X,
   Menu,
   Briefcase, ArrowLeftRight, Landmark, Store,
 } from 'lucide-react';
+import { LAUNCH_PROMO, isPromoActive } from '@/lib/promo';
 
 /* ------------------------------------------------------------------ */
 /*  Static data                                                       */
@@ -139,6 +140,9 @@ export default function Landing() {
   // of the viewport, so the underline only switches once a section is firmly
   // in focus instead of flickering as you scroll past edges.
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [promoDismissed, setPromoDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem('promo-dismissed') === LAUNCH_PROMO.endDate; } catch { return false; }
+  });
   useEffect(() => {
     const ids = ['features', 'how-it-works', 'faq'];
     const observer = new IntersectionObserver(
@@ -172,6 +176,26 @@ export default function Landing() {
   const scrollTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
+  // Pricing + promo are driven by the LIVE on-chain fee so the page can never
+  // claim a fee the contract doesn't charge. The promo framing shows only when
+  // the contract is actually at 0 AND the promo window is open.
+  const feeBps = cfg?.platformFeeBps ?? 50;
+  const feePct = feeBps / 100;
+  const promoLive = isPromoActive() && feeBps === 0;
+  const disputeDays = Math.round(
+    (cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) *
+      effectiveMinutesPerBlock(CONTRACT_PRINCIPAL, DEFAULT_MINUTES_PER_BLOCK) / 1440,
+  );
+  const pricingPoints = [
+    'Charged only on a successful release, never on refunds',
+    'Non-custodial: the contract holds the funds, never us',
+    `~${disputeDays}-day dispute window for admin arbitration`,
+  ];
+  const dismissPromo = () => {
+    try { localStorage.setItem('promo-dismissed', LAUNCH_PROMO.endDate); } catch { /* ignore */ }
+    setPromoDismissed(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Seo
@@ -184,6 +208,23 @@ export default function Landing() {
       <Helmet>
         <script type="application/ld+json">{faqJsonLd}</script>
       </Helmet>
+      {/* ── Launch promo bar ───────────────────────────────────── */}
+      {/* Above-the-fold promo banner — the "even better" vs a promo that only
+          lives in the pricing section. Gated on the live on-chain fee, so it
+          appears only once the contract is actually at 0%. Dismissible. */}
+      {promoLive && !promoDismissed && (
+        <div className="relative z-50 bg-primary text-primary-foreground">
+          <div className="max-w-6xl mx-auto px-4 py-2 pr-10 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm text-center">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground/80 animate-pulse" aria-hidden="true" />
+            <span><span className="font-semibold">Launch promo:</span> 0% fees through {LAUNCH_PROMO.endDateDisplay}.</span>
+            <button onClick={() => scrollTo('pricing')} className="font-semibold underline underline-offset-2 hover:opacity-80">See pricing</button>
+          </div>
+          <button onClick={dismissPromo} aria-label="Dismiss promotion" className="absolute right-3 top-1/2 -translate-y-1/2 opacity-70 hover:opacity-100 transition-opacity">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── Navbar ─────────────────────────────────────────────── */}
       <nav aria-label="Main" className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-6xl mx-auto flex items-center justify-between h-16 px-4">
@@ -320,7 +361,7 @@ export default function Landing() {
                 (font-black + accent-warm, the original anchor weight) but now
                 supporting the value above rather than being the headline. */}
             <div className="mt-6 flex items-baseline flex-wrap gap-x-3 gap-y-1 text-sm sm:text-base text-muted-foreground">
-              <span className="text-3xl lg:text-4xl font-black text-accent-warm tracking-tight leading-none">0.5%</span>
+              <span className="text-3xl lg:text-4xl font-black text-accent-warm tracking-tight leading-none">0%</span>
               <span>flat, charged only on release.</span>
               <span aria-hidden="true" className="text-muted-foreground/40">·</span>
               <span>Non-custodial.</span>
@@ -497,31 +538,68 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Contract terms ──────────────────────────────────────── */}
-      {/* Standalone slim band carrying the two on-chain constants users
-          most often want to know: platform fee and dispute window. The
-          aggregate "X escrows created · Y secured" lives in the hero's
-          social-proof line, so this band stays focused on the constants. */}
-      <section className="border-t border-border">
-        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-6xl mx-auto px-4 py-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <Percent className="h-4 w-4 text-primary" />
-            Platform fee <span className="font-mono text-foreground">{((cfg?.platformFeeBps ?? 50) / 100).toFixed(1)}%</span>
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <Timer className="h-4 w-4 text-primary" />
-            {/* Pick the right minutes-per-block for the active contract's clock.
-                v3 contracts store dispute-timeout in burn blocks (~10 min);
-                legacy v2/v7 store it in stacks blocks. Using the wrong rate
-                turns a 30-day window into a "5-day" display (the live bug
-                this section had on mainnet before the fix). */}
-            Dispute window <span className="font-mono text-foreground">{Math.round((cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) * effectiveMinutesPerBlock(CONTRACT_PRINCIPAL, DEFAULT_MINUTES_PER_BLOCK) / 1440)} days</span>
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary" />
-            Non-custodial: your keys never leave your wallet
-          </span>
-        </motion.div>
+      {/* ── Pricing ──────────────────────────────────────────────── */}
+      {/* Live-fee-driven: the number is the contract's real platformFeeBps, so
+          it can never contradict the chain. Promo framing layers on only when
+          the fee is actually 0 AND the promo window is open. Folds in the old
+          terms-band constants (fee, dispute window, non-custodial) as points. */}
+      <section id="pricing" className="border-t border-border bg-surface-2">
+        <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left — narrative + what's included */}
+          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+            {promoLive && (
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 mb-4">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+                <span className="text-xs font-medium text-primary">Launch promotion</span>
+              </div>
+            )}
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">
+              {promoLive
+                ? <><span className="text-primary">0% fees</span> through {LAUNCH_PROMO.endDateDisplay}</>
+                : <>Simple, honest <span className="text-primary">pricing</span></>}
+            </h2>
+            <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed text-pretty max-w-md">
+              {promoLive
+                ? `We're waiving the platform fee until ${LAUNCH_PROMO.endDateDisplay}. After that, a flat 0.5%, charged only when an escrow is released.`
+                : 'One flat fee, charged only when an escrow is released. No subscriptions, no seat licenses, no surprises.'}
+            </p>
+            <ul className="mt-8 space-y-3">
+              {pricingPoints.map((c) => (
+                <li key={c} className="flex items-start gap-3 text-sm sm:text-base text-foreground">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-status-released mt-0.5" />
+                  <span>{c}</span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          {/* Right — focal price card */}
+          <motion.div
+            variants={revealVariants}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.2 }}
+            className="w-full max-w-md lg:justify-self-end"
+          >
+            <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-card p-8 shadow-glow-sm">
+              <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary to-transparent" />
+              <div aria-hidden="true" className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+              <p className="text-xs text-muted-foreground">{promoLive ? 'Launch price' : 'Platform fee'}</p>
+              <div className="mt-3 flex items-end gap-2.5">
+                <span className="font-mono text-6xl font-black text-primary tabular-nums leading-none">{promoLive ? '0' : feePct}%</span>
+                {promoLive && <span className="font-mono text-2xl text-muted-foreground/50 line-through mb-1">0.5%</span>}
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {promoLive ? `per release until ${LAUNCH_PROMO.endDateDisplay}` : 'per successful release'}
+              </p>
+              <div className="my-6 h-px bg-border" />
+              <Button size="lg" onClick={handleGetStarted} className="w-full gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
+                {isConnected ? 'Open dashboard' : 'Get started'} <ArrowRight className="h-4 w-4" />
+              </Button>
+              <p className="mt-4 text-center text-xs text-muted-foreground/70">No signup. Just connect a wallet.</p>
+            </div>
+          </motion.div>
+        </div>
       </section>
 
       {/* ── FAQ ────────────────────────────────────────────────── */}
@@ -668,7 +746,7 @@ export default function Landing() {
         <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-2xl mx-auto px-4 py-16 sm:py-24 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">Create your first escrow</h2>
           <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed text-pretty">
-            Connect a wallet, set the terms, and your funds sit on-chain until the deal closes. 0.5% on release, nothing on refunds. Your keys never leave your wallet.
+            Connect a wallet, set the terms, and your funds sit on-chain until the deal closes. 0% on release, nothing on refunds. Your keys never leave your wallet.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" onClick={handleGetStarted} className="gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
