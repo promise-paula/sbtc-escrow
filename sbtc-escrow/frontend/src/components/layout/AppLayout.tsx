@@ -7,6 +7,7 @@ import { TestnetBanner } from './TestnetBanner';
 import { IndexerHealthBanner } from '@/components/shared/IndexerHealthBanner';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useEscrowRealtime } from '@/hooks/use-escrow-realtime';
+import { useTxWatcher } from '@/hooks/use-tx-watcher';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pageVariants } from '@/lib/motion';
 import { Seo } from '@/components/shared/Seo';
@@ -28,6 +29,10 @@ const APP_TITLES: Record<string, string> = {
 
 export function AppLayout() {
   useEscrowRealtime();
+  // Second confirmation leg: polls Hiro directly for any pending tx in
+  // localStorage. Whichever path (realtime or polling) lands first triggers
+  // the cache invalidation. See use-tx-watcher.ts.
+  useTxWatcher();
   const location = useLocation();
   const appTitle =
     APP_TITLES[location.pathname] ??

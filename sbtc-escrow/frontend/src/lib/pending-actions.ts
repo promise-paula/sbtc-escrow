@@ -153,6 +153,38 @@ export function clearPendingAction(
 }
 
 /**
+ * Snapshot of every pending action across all escrows. Cached so the
+ * tx-watcher hook gets referential stability from useSyncExternalStore.
+ */
+const allSnapshotKey = '__all__';
+const EMPTY_ALL: PendingAction[] = [];
+
+export function getAllPendingActions(): PendingAction[] {
+  const cached = snapshotCache.get(allSnapshotKey);
+  // Cached value is `PendingAction | null` for single-key entries, but for
+  // the all-key we coerce to array — use a sentinel array reference instead
+  // of caching `null` for the empty case.
+  if (cached !== undefined) return (cached as unknown as PendingAction[]) ?? EMPTY_ALL;
+
+  const all = read();
+  const fresh: PendingAction[] = [];
+  let mutated = false;
+  for (const [key, entry] of Object.entries(all)) {
+    if (isStale(entry)) {
+      delete all[key];
+      mutated = true;
+      continue;
+    }
+    fresh.push(entry);
+  }
+  if (mutated) write(all);
+
+  const result = fresh.length === 0 ? EMPTY_ALL : fresh;
+  snapshotCache.set(allSnapshotKey, result as unknown as PendingAction | null);
+  return result;
+}
+
+/**
  * Drop the pending action for a row if its current indexed status matches
  * the action's expected outcome. Called when an Escrow query refreshes —
  * the chainhook has caught up, so the optimistic overlay can disappear.
