@@ -35,6 +35,18 @@
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
       ]
+    },
+    {
+      "source": "/(dashboard|create|escrows|activity|analytics|settings|admin)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
+      "source": "/(escrow|admin)/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
     }
   ],
   "rewrites": [
@@ -43,7 +55,19 @@
       "destination": "/api/hiro?_p=:path*"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/(dashboard|create|escrows|activity|analytics|settings|admin|how-it-works)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/escrow/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/(disputes|controls)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/docs/:path*",
       "destination": "/index.html"
     }
   ]

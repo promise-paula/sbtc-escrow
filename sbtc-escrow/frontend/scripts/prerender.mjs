@@ -140,35 +140,42 @@ info(`serving dist/ on :${PORT}, prerendering ${routes.length} routes`);
 
 let browser;
 let ok = 0;
+
+async function renderRoute(route) {
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "domcontentloaded", timeout: 20000 });
+    // Wait until the app has rendered real content (bounded; never hang).
+    await page
+      .waitForFunction(
+        () => {
+          const root = document.getElementById("root");
+          return !!root && root.childElementCount > 0 && !!document.querySelector("h1");
+        },
+        { timeout: 12000 },
+      )
+      .catch(() => warn(`content signal timed out for ${route}, capturing as-is`));
+    await new Promise((r) => setTimeout(r, 500)); // settle late renders
+    return await page.content();
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+// Sanity: never write an empty shell over a good file.
+const hasContent = (html) => /<div id="root">\s*<\w/.test(html);
+
 try {
   browser = await launchBrowser();
 
   for (const route of routes) {
-    const page = await browser.newPage();
     try {
-      await page.setViewport({ width: 1280, height: 800 });
-      await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "domcontentloaded", timeout: 20000 });
-      // Wait until the app has rendered real content (bounded; never hang).
-      await page
-        .waitForFunction(
-          () => {
-            const root = document.getElementById("root");
-            return !!root && root.childElementCount > 0 && !!document.querySelector("h1");
-          },
-          { timeout: 12000 },
-        )
-        .catch(() => warn(`content signal timed out for ${route}, capturing as-is`));
-      await new Promise((r) => setTimeout(r, 500)); // settle late renders
-
-      const html = await page.content();
-
-      // Sanity: never overwrite a good file with an empty shell.
-      if (!/<div id="root">\s*<\w/.test(html)) {
+      const html = await renderRoute(route);
+      if (!hasContent(html)) {
         warn(`${route} rendered empty; leaving its file untouched`);
-        await page.close();
         continue;
       }
-
       const outDir = route === "/" ? DIST : join(DIST, route);
       mkdirSync(outDir, { recursive: true });
       writeFileSync(join(outDir, "index.html"), html);
@@ -176,9 +183,23 @@ try {
       info(`✓ ${route} -> ${join(outDir, "index.html").replace(ROOT + "/", "")}`);
     } catch (e) {
       warn(`failed ${route}: ${e.message || e}`);
-    } finally {
-      await page.close().catch(() => {});
     }
+  }
+
+  // Snapshot the SPA's catch-all NotFound page as dist/404.html. Vercel serves
+  // that file with a real 404 status for any request matching neither a static
+  // file nor a vercel.json rewrite; without it, unknown URLs come back as the
+  // homepage with a 200 (soft 404).
+  try {
+    const html = await renderRoute("/__not-found__");
+    if (hasContent(html)) {
+      writeFileSync(join(DIST, "404.html"), html);
+      info("✓ 404.html (NotFound snapshot for unmatched URLs)");
+    } else {
+      warn("NotFound rendered empty; skipping 404.html");
+    }
+  } catch (e) {
+    warn(`failed 404.html: ${e.message || e}`);
   }
 } catch (e) {
   warn(`browser error: ${e.message || e}`);

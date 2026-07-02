@@ -50,6 +50,9 @@ const App = () => (
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
               </div>
             }>
+              {/* vercel.json rewrites are scoped to these exact paths (unknown
+                  URLs get a real 404 from the edge) — a new route here needs a
+                  matching rewrite entry there, or deep links to it will 404. */}
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
