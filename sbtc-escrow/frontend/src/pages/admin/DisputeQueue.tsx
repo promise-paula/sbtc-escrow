@@ -195,7 +195,7 @@ export default function DisputeQueue() {
 
                 return (
                   <motion.div key={e.id} custom={idx} variants={listItemVariants} initial="hidden" animate="visible">
-                    <Card className={`border-l-4 ${isNearTimeout ? 'border-l-destructive' : 'border-l-warning'}`}>
+                    <Card className={isNearTimeout ? 'border-destructive/40 bg-destructive/5' : 'border-warning/40'}>
                       <CardContent className="p-5 space-y-4">
                         <div className="flex items-start justify-between gap-4">
                           <div className="space-y-1.5">
@@ -409,7 +409,7 @@ export default function DisputeQueue() {
                 const resolvedForClass = e.status === EscrowStatus.Released ? 'text-primary' : 'text-accent-warm';
                 return (
                 <motion.div key={e.id} custom={idx} variants={listItemVariants} initial="hidden" animate="visible">
-                  <Card className="border-l-4 border-l-muted">
+                  <Card>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">

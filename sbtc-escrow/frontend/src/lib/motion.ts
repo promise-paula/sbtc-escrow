@@ -1,8 +1,19 @@
 import type { Variants, Transition } from 'framer-motion';
 
-const prefersReducedMotion =
+export const prefersReducedMotion =
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** True inside the prerender's headless-Chrome capture (and most bot
+ *  renderers). Scroll-triggered reveals must pass `initial={false}` in that
+ *  case: the capture never scrolls, so anything below the fold would be
+ *  snapshotted at its hidden state and ship as opacity-0 static HTML. */
+export const isHeadlessRender =
+  typeof navigator !== 'undefined' && /HeadlessChrome/.test(navigator.userAgent);
+
+/** `initial` value for whileInView reveals: hidden for humans, already-visible
+ *  for headless captures. */
+export const revealInitial = isHeadlessRender ? false : ('hidden' as const);
 
 export const dur = (ms: number) => (prefersReducedMotion ? 0 : ms / 1000);
 
@@ -87,6 +98,19 @@ export const staggerContainer: Variants = {
   visible: {
     transition: { staggerChildren: dur(100) },
   },
+};
+
+/** Ledger hairline that draws itself in, left to right. Pair with
+ *  `origin-left` on the element. */
+export const drawLine: Variants = {
+  hidden: { scaleX: 0 },
+  visible: { scaleX: 1, transition: { duration: dur(700), ease: easeOutQuart } },
+};
+
+/** Card entrance: settle into place rather than the stock fade-up. */
+export const cardPop: Variants = {
+  hidden: { opacity: 0, scale: 0.975 },
+  visible: { opacity: 1, scale: 1, transition: { duration: dur(400), ease: easeOutQuart } },
 };
 
 /* ── Layout list transitions ─────────────────────────────────── */

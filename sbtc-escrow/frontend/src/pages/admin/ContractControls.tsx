@@ -179,7 +179,7 @@ export default function ContractControls() {
         // also matches the AdminDashboard "Needs Attention" treatment so
         // an admin glancing at one page learns the color = state mapping
         // once, not twice.
-        <Card className={`border-l-4 ${chainIsPaused ? 'border-l-warning' : 'border-l-success'}`}>
+        <Card className={chainIsPaused ? 'border-warning/50 bg-warning/5' : 'border-success/30'}>
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">

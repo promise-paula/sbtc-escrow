@@ -16,6 +16,8 @@ export default {
       fontFamily: {
         sans: ["Geist", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "ui-monospace", "monospace"],
+        // Landing/brand headings only — see the Besley note in index.css.
+        display: ["Besley", "Georgia", "serif"],
       },
       fontSize: {
         xs: ["0.75rem", { lineHeight: "1rem" }],

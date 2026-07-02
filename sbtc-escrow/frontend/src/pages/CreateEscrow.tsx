@@ -386,7 +386,7 @@ export default function CreateEscrow() {
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">Recipient Address</Label>
+                    <Label htmlFor="recipient" className="text-xs">Recipient Address</Label>
                     {contacts.length > 0 && (
                       <Popover>
                         <PopoverTrigger asChild>
@@ -415,6 +415,7 @@ export default function CreateEscrow() {
                     )}
                   </div>
                   <Input
+                    id="recipient"
                     placeholder={addressPlaceholder}
                     value={recipient}
                     onChange={e => setRecipient(e.target.value)}
@@ -459,7 +460,7 @@ export default function CreateEscrow() {
                     ) : (
                       <>
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs">Beneficiary <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                          <Label htmlFor="beneficiary" className="text-xs">Beneficiary <span className="text-muted-foreground font-normal">(optional)</span></Label>
                           <Button
                             type="button"
                             variant="ghost"
@@ -474,6 +475,7 @@ export default function CreateEscrow() {
                           </Button>
                         </div>
                         <Input
+                          id="beneficiary"
                           placeholder={addressPlaceholder}
                           value={beneficiary}
                           onChange={e => setBeneficiary(e.target.value)}
@@ -546,12 +548,13 @@ export default function CreateEscrow() {
 
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between">
-                    <Label className="text-xs">Amount ({token})</Label>
+                    <Label htmlFor="amount" className="text-xs">Amount ({token})</Label>
                     {amountValid && amountUsdInput && (
                       <span className="text-xs text-muted-foreground tabular-nums">≈ {amountUsdInput}</span>
                     )}
                   </div>
                   <Input
+                    id="amount"
                     type="number"
                     placeholder="0.00"
                     value={amountStr}
@@ -592,8 +595,9 @@ export default function CreateEscrow() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Description</Label>
+                  <Label htmlFor="description" className="text-xs">Description</Label>
                   <Textarea
+                    id="description"
                     placeholder="Describe the goods or services..."
                     value={description}
                     onChange={e => setDescription(e.target.value)}
@@ -655,6 +659,7 @@ export default function CreateEscrow() {
                   <div className="flex items-center gap-2 mt-2">
                     <Input
                       type="number"
+                      aria-label={`Custom duration in ${isBurnBlockContract ? 'burn blocks' : 'blocks'}`}
                       placeholder={`Min ${effMinDuration} ${isBurnBlockContract ? 'burn blocks' : 'blocks'}`}
                       value={customDuration}
                       onChange={e => setCustomDuration(e.target.value)}

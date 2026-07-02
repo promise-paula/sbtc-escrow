@@ -22,13 +22,16 @@ import { cardVariants, listItemVariants } from '@/lib/motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { STATUS_LABELS } from '@/lib/types';
 
+// Resolved values of the --status-* tokens in index.css (light theme) —
+// KEEP IN SYNC. Recharts sets `fill` as an SVG attribute, where var() does
+// not resolve, so the tokens can't be referenced directly here.
 const STATUS_COLORS: Record<EscrowStatus, string> = {
-  [EscrowStatus.Pending]: 'oklch(75% 0.15 85)',
+  [EscrowStatus.Pending]: 'oklch(62% 0.16 75)',
   [EscrowStatus.Released]: 'oklch(62% 0.17 155)',
   [EscrowStatus.Refunded]: 'oklch(55% 0.2 285)',
   [EscrowStatus.Disputed]: 'oklch(55% 0.22 27)',
   // v7+ DELIVERED — short pre-release window after seller signals delivery.
-  [EscrowStatus.Delivered]: 'oklch(70% 0.16 200)',
+  [EscrowStatus.Delivered]: 'oklch(65% 0.15 215)',
 };
 
 const STATUS_DOT_CLASSES: Record<EscrowStatus, string> = {
@@ -170,9 +173,9 @@ export default function Dashboard() {
                       </Pie>
                       <Tooltip
                         formatter={(value: number, name: string) => [value, name]}
-                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                        itemStyle={{ color: 'var(--card-foreground)' }}
-                        labelStyle={{ color: 'var(--muted-foreground)' }}
+                        contentStyle={{ backgroundColor: 'oklch(var(--card))', border: '1px solid oklch(var(--border))', borderRadius: 8, fontSize: 12 }}
+                        itemStyle={{ color: 'oklch(var(--card-foreground))' }}
+                        labelStyle={{ color: 'oklch(var(--muted-foreground))' }}
                       />
                     </PieChart>
                   </ResponsiveContainer>

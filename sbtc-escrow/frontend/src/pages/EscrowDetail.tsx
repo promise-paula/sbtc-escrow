@@ -904,7 +904,7 @@ export default function EscrowDetail() {
           the "Mark as Delivered" CTA inside hides itself once already delivered. */}
       {isSupabaseConfigured && isActive && (isSeller || isBuyer) && (isSeller || deliveries.length > 0 || notifPerm === 'default') && (
         <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-4 border-l-primary/40">
+          <Card className="border-primary/30">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <PackageCheck className="h-4 w-4 text-muted-foreground" />
@@ -1136,7 +1136,7 @@ export default function EscrowDetail() {
       {/* Settled callout — primary "Download Receipt" affordance for completed escrows */}
       {isSettled && (
         <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-4 border-l-success">
+          <Card className="border-success/30 bg-success/5">
             <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-3">
                 <div className="rounded-full bg-success/10 p-2 shrink-0">
@@ -1405,7 +1405,11 @@ export default function EscrowDetail() {
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => setConfirmAction(null)} disabled={loading}>Cancel</Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleAction(confirmAction)} disabled={loading}>
+                        {/* Release is the happy path — a red confirm reads as
+                            alarm, not confirmation. Irreversibility is carried
+                            by the confirm step + copy; red stays for actions
+                            taken against the counterparty. */}
+                        <Button size="sm" variant={confirmAction === 'release' ? 'default' : 'destructive'} onClick={() => handleAction(confirmAction)} disabled={loading}>
                           {loading ? 'Processing…' : 'Confirm'}
                         </Button>
                       </div>

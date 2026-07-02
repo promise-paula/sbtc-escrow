@@ -104,7 +104,7 @@ export default function AdminDashboard() {
             </h2>
             <div className="space-y-2">
               {activeDisputeCount > 0 && (
-                <Card className="border-l-4 border-l-destructive">
+                <Card className="border-destructive/40 bg-destructive/5">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="rounded-lg p-2 bg-destructive/10">
                       <ShieldAlert className="h-4 w-4 text-destructive" />
@@ -127,7 +127,7 @@ export default function AdminDashboard() {
               )}
 
               {isPaused && (
-                <Card className="border-l-4 border-l-warning">
+                <Card className="border-warning/50 bg-warning/5">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="rounded-lg p-2 bg-warning/10">
                       <Pause className="h-4 w-4 text-amber-700 dark:text-amber-300" />
@@ -147,7 +147,7 @@ export default function AdminDashboard() {
               )}
 
               {cooldownActive && (
-                <Card className="border-l-4 border-l-warning/60">
+                <Card className="border-warning/30 bg-warning/5">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="rounded-lg p-2 bg-warning/10">
                       <Clock className="h-4 w-4 text-amber-700 dark:text-amber-300" />
@@ -165,7 +165,7 @@ export default function AdminDashboard() {
               )}
 
               {indexerUnhealthy && (
-                <Card className="border-l-4 border-l-destructive">
+                <Card className="border-destructive/40 bg-destructive/5">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="rounded-lg p-2 bg-destructive/10">
                       <Activity className="h-4 w-4 text-destructive" />
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
 
       {/* Health Banner */}
       <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
-        <Card className={`border-l-4 ${cfg.isPaused ? 'border-l-destructive' : 'border-l-success'}`}>
+        <Card className={cfg.isPaused ? 'border-destructive/40 bg-destructive/5' : 'border-success/30'}>
           <CardContent className="p-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>

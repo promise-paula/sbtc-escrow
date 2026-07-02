@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { motion, useInView } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
 import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL, CONTRACT_PRINCIPAL, effectiveMinutesPerBlock } from '@/lib/stacks-config';
 import { usePlatformStats } from '@/hooks/use-admin';
@@ -9,20 +9,18 @@ import { formatSTX, formatSBTC } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
-import { dur, revealVariants, staggerContainer } from '@/lib/motion';
+import { dur, revealVariants, staggerContainer, drawLine, cardPop, revealInitial, prefersReducedMotion, isHeadlessRender } from '@/lib/motion';
 import { Logo } from '@/components/shared/Logo';
 import { Seo } from '@/components/shared/Seo';
 import { Helmet } from 'react-helmet-async';
 import { EscrowMock } from '@/components/landing/EscrowMock';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Wallet, ArrowRight, CheckCircle2, X, Menu } from 'lucide-react';
 import {
-  Wallet, ArrowRight, Shield, Clock,
-  Activity, Scale, CalendarPlus, Users,
-  CheckCircle2, X,
-  Menu,
-  Briefcase, ArrowLeftRight, Landmark, Store,
-} from 'lucide-react';
+  GlyphSeal, GlyphBalance, GlyphReturn, GlyphExtend, GlyphPulse, GlyphParties,
+  GlyphMilestones, GlyphSwap, GlyphTreasury, GlyphReceipt,
+} from '@/components/landing/LedgerGlyphs';
 import { LAUNCH_PROMO, isPromoActive } from '@/lib/promo';
 
 /* ------------------------------------------------------------------ */
@@ -50,12 +48,12 @@ const useCases = [
 // "Both parties agree to extend" is misleading — only the buyer (or v3
 // beneficiary) can extend. We say what the contract actually does.
 const features = [
-  { icon: Shield, title: 'Trustless settlement', desc: 'Funds locked in a Clarity smart contract. Release follows the rules in the contract, with no platform discretion.' },
-  { icon: Scale, title: 'Dispute resolution', desc: 'Either party can open a dispute. Admin arbitrates within a configurable timeout window.', accent: 'violet' as const },
-  { icon: Clock, title: 'Refund after expiry', desc: "Once the deadline passes, the buyer can claim a refund directly from the contract. No waiting on the seller's signature." },
-  { icon: CalendarPlus, title: 'Extend the deadline', desc: 'The buyer can push the deadline forward at any time before expiry. No new escrow needed.' },
-  { icon: Activity, title: 'Live on-chain status', desc: 'Escrow state, block confirmations, and dispute progress update in real time as the chain advances.' },
-  { icon: Users, title: 'Multi-party roles', desc: 'Buyer, seller, and an optional beneficiary with buyer-equivalent rights, each role scoped on-chain.', accent: 'violet' as const },
+  { icon: GlyphSeal, title: 'Trustless settlement', desc: 'Funds locked in a Clarity smart contract. Release follows the rules in the contract, with no platform discretion.' },
+  { icon: GlyphBalance, title: 'Dispute resolution', desc: 'Either party can open a dispute. Admin arbitrates within a configurable timeout window.', accent: 'violet' as const },
+  { icon: GlyphReturn, title: 'Refund after expiry', desc: "Once the deadline passes, the buyer can claim a refund directly from the contract. No waiting on the seller's signature." },
+  { icon: GlyphExtend, title: 'Extend the deadline', desc: 'The buyer can push the deadline forward at any time before expiry. No new escrow needed.' },
+  { icon: GlyphPulse, title: 'Live on-chain status', desc: 'Escrow state, block confirmations, and dispute progress update in real time as the chain advances.' },
+  { icon: GlyphParties, title: 'Multi-party roles', desc: 'Buyer, seller, and an optional beneficiary with buyer-equivalent rights, each role scoped on-chain.', accent: 'violet' as const },
 ];
 
 // Two-digit mono indices to match the `01–06` ledger numbering in the
@@ -71,10 +69,10 @@ const steps = [
 // audience a concrete "that's my situation" line. Two of four use the violet
 // accent for the same two-color rhythm as the Features grid.
 const useCaseDetails = [
-  { icon: Briefcase, title: 'Freelance milestones', desc: "Lock the client's payment up front; it releases when the work ships. Neither side fronts the risk." },
-  { icon: ArrowLeftRight, title: 'OTC & P2P trades', desc: "Deal with a counterparty you don't know. Funds stay locked in the contract until the trade is settled.", accent: 'violet' as const },
-  { icon: Landmark, title: 'DAO grants & bounties', desc: 'Release grant and bounty payments on milestones, with a dispute path if deliverables fall short.', accent: 'violet' as const },
-  { icon: Store, title: 'Marketplace settlements', desc: 'Hold buyer funds until goods or services are delivered; refund on expiry if they never arrive.' },
+  { icon: GlyphMilestones, title: 'Freelance milestones', desc: "Lock the client's payment up front; it releases when the work ships. Neither side fronts the risk." },
+  { icon: GlyphSwap, title: 'OTC & P2P trades', desc: "Deal with a counterparty you don't know. Funds stay locked in the contract until the trade is settled.", accent: 'violet' as const },
+  { icon: GlyphTreasury, title: 'DAO grants & bounties', desc: 'Release grant and bounty payments on milestones, with a dispute path if deliverables fall short.', accent: 'violet' as const },
+  { icon: GlyphReceipt, title: 'Marketplace settlements', desc: 'Hold buyer funds until goods or services are delivered; refund on expiry if they never arrive.' },
 ];
 
 
@@ -118,6 +116,42 @@ const heroRightVariants = {
   hidden: { opacity: 0, x: 20 },
   visible: { opacity: 1, x: 0, transition: { duration: dur(500), delay: dur(200), ease: 'easeOut' as const } },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Ledger index                                                      */
+/* ------------------------------------------------------------------ */
+
+/** Count-up index for the How-it-works sequence — the tally ticks up from 01
+ *  when the row scrolls into view. The static markup always carries the final
+ *  value: bots, no-JS readers, reduced-motion users, and headless captures
+ *  see "01 / 02 / 03" verbatim. */
+function LedgerIndex({ num }: { num: string }) {
+  const ref = React.useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.6 });
+  const [shown, setShown] = useState(num);
+  const started = React.useRef(false);
+  useEffect(() => {
+    const target = parseInt(num, 10);
+    if (!inView || started.current || prefersReducedMotion || isHeadlessRender || target <= 1) return;
+    started.current = true;
+    const t0 = performance.now();
+    const D = 600;
+    let raf: number;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / D);
+      const eased = 1 - Math.pow(1 - p, 4); // ease-out-quart, matches lib/motion
+      setShown(String(Math.max(1, Math.round(eased * target))).padStart(2, '0'));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, num]);
+  return (
+    <span ref={ref} className="font-mono text-4xl font-black text-primary tabular-nums leading-none">
+      {shown}
+    </span>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Landing Page                                                      */
@@ -176,10 +210,25 @@ export default function Landing() {
   const scrollTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
+  // Mobile menu is controlled so section taps can close it BEFORE scrolling:
+  // the sheet locks body scroll while open, so the scroll has to wait for the
+  // sheet to leave (Radix exit animation ≈ 300ms) or it silently no-ops with
+  // the menu still covering the page.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const scrollFromMenu = (id: string) => {
+    setMenuOpen(false);
+    window.setTimeout(() => scrollTo(id), 320);
+  };
+
   // Pricing + promo are driven by the LIVE on-chain fee so the page can never
   // claim a fee the contract doesn't charge. The promo framing shows only when
   // the contract is actually at 0 AND the promo window is open.
-  const feeBps = cfg?.platformFeeBps ?? 50;
+  // Until the on-chain config loads (and in the prerendered snapshot, where
+  // the fetch never resolves), assume the promo rate while the promo window
+  // is open and the standard 0.5% after — a sync date check, so the hero,
+  // pricing card, and closing CTA can never disagree on first paint. Once the
+  // config arrives, the live on-chain fee wins everywhere.
+  const feeBps = cfg?.platformFeeBps ?? (isPromoActive() ? 0 : 50);
   const feePct = feeBps / 100;
   const promoLive = isPromoActive() && feeBps === 0;
   const disputeDays = Math.round(
@@ -234,8 +283,9 @@ export default function Landing() {
           </div>
 
           <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
-            <button
-              onClick={() => scrollTo('how-it-works')}
+            <a
+              href="#how-it-works"
+              onClick={(e) => { e.preventDefault(); scrollTo('how-it-works'); }}
               className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'how-it-works' ? 'text-foreground' : ''}`}
             >
               How it Works
@@ -247,9 +297,10 @@ export default function Landing() {
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
-            </button>
-            <button
-              onClick={() => scrollTo('features')}
+            </a>
+            <a
+              href="#features"
+              onClick={(e) => { e.preventDefault(); scrollTo('features'); }}
               className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'features' ? 'text-foreground' : ''}`}
             >
               Features
@@ -261,9 +312,10 @@ export default function Landing() {
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
-            </button>
-            <button
-              onClick={() => scrollTo('faq')}
+            </a>
+            <a
+              href="#faq"
+              onClick={(e) => { e.preventDefault(); scrollTo('faq'); }}
               className={`relative hover:text-foreground transition-colors px-3 py-2 rounded-md ${activeSection === 'faq' ? 'text-foreground' : ''}`}
             >
               FAQ
@@ -275,8 +327,8 @@ export default function Landing() {
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
-            </button>
-            <button onClick={() => navigate('/docs')} className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Docs</button>
+            </a>
+            <Link to="/docs" className="hover:text-foreground transition-colors px-3 py-2 rounded-md">Docs</Link>
           </div>
 
           <div className="sm:hidden flex items-center gap-2">
@@ -292,7 +344,7 @@ export default function Landing() {
                 has (How it Works / Features / Security / Docs). Previously
                 only "Docs" was reachable on phones; visitors had to scroll
                 the entire page to find anything. */}
-            <Sheet>
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Open menu" className="min-h-[44px] min-w-[44px]">
                   <Menu className="h-5 w-5" />
@@ -301,10 +353,10 @@ export default function Landing() {
               <SheetContent side="right" className="w-72 flex flex-col gap-1 pt-12">
                 <SheetTitle className="sr-only">Site navigation</SheetTitle>
                 <SheetDescription className="sr-only">Jump to a section of the landing page or open the docs.</SheetDescription>
-                <button onClick={() => scrollTo('how-it-works')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">How it Works</button>
-                <button onClick={() => scrollTo('features')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">Features</button>
-                <button onClick={() => scrollTo('faq')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">FAQ</button>
-                <button onClick={() => navigate('/docs')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">Docs</button>
+                <button onClick={() => scrollFromMenu('how-it-works')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">How it Works</button>
+                <button onClick={() => scrollFromMenu('features')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">Features</button>
+                <button onClick={() => scrollFromMenu('faq')} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">FAQ</button>
+                <Link to="/docs" onClick={() => setMenuOpen(false)} className="text-left px-3 py-3 rounded-md hover:bg-muted text-base">Docs</Link>
               </SheetContent>
             </Sheet>
           </div>
@@ -350,7 +402,7 @@ export default function Landing() {
                 top). The 0.5% anchor moves out of the headline into the proof
                 line below, where it stays loud but supports the value instead
                 of leading with price. */}
-            <h1 className="font-bold tracking-tight text-foreground leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
+            <h1 className="font-display font-extrabold text-foreground leading-[1.08] text-balance" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
               Lock the payment until the deal is done.
             </h1>
             <p className="mt-5 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
@@ -361,7 +413,7 @@ export default function Landing() {
                 (font-black + accent-warm, the original anchor weight) but now
                 supporting the value above rather than being the headline. */}
             <div className="mt-6 flex items-baseline flex-wrap gap-x-3 gap-y-1 text-sm sm:text-base text-muted-foreground">
-              <span className="text-3xl lg:text-4xl font-black text-accent-warm tracking-tight leading-none">0%</span>
+              <span className="text-3xl lg:text-4xl font-black text-accent-warm tracking-tight leading-none">{feePct}%</span>
               <span>flat, charged only on release.</span>
               <span aria-hidden="true" className="text-muted-foreground/40">·</span>
               <span>Non-custodial.</span>
@@ -383,8 +435,8 @@ export default function Landing() {
                   Get Started <ArrowRight className="h-4 w-4" />
                 </Button>
               </motion.div>
-              <Button size="lg" variant="outline" onClick={() => navigate('/docs')} className="gap-2">
-                Read the Docs <ArrowRight className="h-4 w-4" />
+              <Button size="lg" variant="outline" asChild className="gap-2">
+                <Link to="/docs">Read the Docs <ArrowRight className="h-4 w-4" /></Link>
               </Button>
             </div>
 
@@ -422,12 +474,12 @@ export default function Landing() {
           {/* Left — heading rail. Sticks alongside the list on wide screens. */}
           <motion.div
             variants={revealVariants}
-            initial="initial"
-            whileInView="animate"
+            initial={revealInitial}
+            whileInView="visible"
             viewport={{ once: true, amount: 0.3 }}
             className="lg:col-span-4 lg:sticky lg:top-24 self-start"
           >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">What the contract does</h2>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground text-balance">What the contract does</h2>
             <p className="mt-4 text-base text-muted-foreground leading-relaxed text-pretty">
               Six guarantees, each enforced on-chain by Clarity, not by us. No platform discretion sits between you and your funds.
             </p>
@@ -437,19 +489,21 @@ export default function Landing() {
               title, description, divided by a hairline from the one above. */}
           <motion.div
             variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
+            initial={revealInitial}
+            whileInView="visible"
             viewport={{ once: true, amount: 0.1 }}
             className="lg:col-span-8"
           >
             {features.map((f, i) => {
               const isViolet = f.accent === 'violet';
               return (
-                <motion.div
-                  key={f.title}
-                  variants={revealVariants}
-                  className="group grid grid-cols-[2.5rem_1fr] sm:grid-cols-[3rem_1fr] gap-x-3 sm:gap-x-6 py-6 border-t border-border/70 first:border-t-0 transition-colors duration-200"
-                >
+                <motion.div key={f.title} variants={revealVariants} className="group">
+                  {/* The ledger rules itself in: each hairline draws left to
+                      right as its row enters. */}
+                  {i > 0 && (
+                    <motion.span aria-hidden="true" variants={drawLine} className="block h-px w-full origin-left bg-border/70" />
+                  )}
+                  <div className="grid grid-cols-[2.5rem_1fr] sm:grid-cols-[3rem_1fr] gap-x-3 sm:gap-x-6 py-6 transition-colors duration-200">
                   {/* Index + icon stack — the "line number" of the clause */}
                   <div className="flex flex-col items-center gap-3 pt-1">
                     <span className="font-mono text-xs tabular-nums text-muted-foreground/50 group-hover:text-primary/80 transition-colors">
@@ -462,6 +516,7 @@ export default function Landing() {
                   <div className="pt-0.5">
                     <h3 className="text-base sm:text-lg font-bold text-foreground tracking-tight">{f.title}</h3>
                     <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed max-w-xl text-pretty">{f.desc}</p>
+                  </div>
                   </div>
                 </motion.div>
               );
@@ -478,20 +533,20 @@ export default function Landing() {
           adjacent sections read as three distinct layouts. */}
       <section id="use-cases" className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28">
-          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Who it's for</h2>
+          <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground">Who it's for</h2>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed text-pretty max-w-2xl">
               Any deal where you'd otherwise have to trust the other side first. A few of the most common:
             </p>
           </motion.div>
 
-          <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.15 }} className="mt-12 grid gap-5 sm:grid-cols-2">
+          <motion.div variants={staggerContainer} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.15 }} className="mt-12 grid gap-5 sm:grid-cols-2">
             {useCaseDetails.map((u) => {
               const isViolet = u.accent === 'violet';
               return (
                 <motion.div
                   key={u.title}
-                  variants={revealVariants}
+                  variants={cardPop}
                   className={`rounded-lg border border-border/60 bg-surface-1 p-6 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-glow-sm ${isViolet ? 'hover:border-accent-violet/30' : 'hover:border-primary/20'}`}
                 >
                   <div className={`inline-flex items-center justify-center rounded-md p-2.5 mb-4 ${isViolet ? 'bg-accent-violet/10' : 'bg-primary/10'}`}>
@@ -515,23 +570,26 @@ export default function Landing() {
           ledger; distinct in expression (a short ordered flow, not a list). */}
       <section id="how-it-works" className="border-t border-border bg-surface-2">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28">
-          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">How it works</h2>
+          <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground">How it works</h2>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">Three things you do. The contract handles the rest.</p>
           </motion.div>
 
           <motion.div
             variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
+            initial={revealInitial}
+            whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
             className="mt-14 grid gap-10 sm:grid-cols-3"
           >
             {steps.map((s) => (
-              <motion.div key={s.num} variants={revealVariants} className="border-t border-border/70 pt-5">
-                <span className="font-mono text-4xl font-black text-primary tabular-nums leading-none">{s.num}</span>
-                <h3 className="mt-4 text-base font-bold text-foreground tracking-tight">{s.title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed max-w-[300px] text-pretty">{s.desc}</p>
+              <motion.div key={s.num} variants={revealVariants}>
+                <motion.span aria-hidden="true" variants={drawLine} className="block h-px w-full origin-left bg-border/70" />
+                <div className="pt-5">
+                  <LedgerIndex num={s.num} />
+                  <h3 className="mt-4 text-base font-bold text-foreground tracking-tight">{s.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed max-w-[300px] text-pretty">{s.desc}</p>
+                </div>
               </motion.div>
             ))}
           </motion.div>
@@ -546,14 +604,14 @@ export default function Landing() {
       <section id="pricing" className="border-t border-border bg-surface-2">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left — narrative + what's included */}
-          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
+          <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
             {promoLive && (
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 mb-4">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
                 <span className="text-xs font-medium text-primary">Launch promotion</span>
               </div>
             )}
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground text-balance">
               {promoLive
                 ? <><span className="text-primary">0% fees</span> through {LAUNCH_PROMO.endDateDisplay}</>
                 : <>Simple, honest <span className="text-primary">pricing</span></>}
@@ -576,8 +634,8 @@ export default function Landing() {
           {/* Right — focal price card */}
           <motion.div
             variants={revealVariants}
-            initial="initial"
-            whileInView="animate"
+            initial={revealInitial}
+            whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
             className="w-full max-w-md lg:justify-self-end"
           >
@@ -610,12 +668,12 @@ export default function Landing() {
           rather than always-open so the section doesn't dwarf the page. */}
       <section id="faq" className="border-t border-border">
         <div className="max-w-3xl mx-auto px-4 py-20 sm:py-28">
-          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">Frequently asked</h2>
+          <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground">Frequently asked</h2>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">If you've never used a Bitcoin escrow before, start here.</p>
           </motion.div>
 
-          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.2 }} className="mt-8">
+          <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="mt-8">
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="sbtc">
                 <AccordionTrigger className="text-left">Is sBTC the same as Bitcoin?</AccordionTrigger>
@@ -702,25 +760,25 @@ export default function Landing() {
           the mono/ledger identity and gives builders a concrete entry point. */}
       <section className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.3 }}>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">Build escrow into your product</h2>
+          <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground text-balance">Build escrow into your product</h2>
             <p className="mt-4 text-base text-muted-foreground leading-relaxed text-pretty max-w-md">
               A typed TypeScript SDK over the same audited contract. Create escrows, read their on-chain state, and settle releases from your own app. No Clarity required.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button size="lg" onClick={() => navigate('/docs/sdk/overview')} className="gap-2">
-                Read the SDK docs <ArrowRight className="h-4 w-4" />
+              <Button size="lg" asChild className="gap-2">
+                <Link to="/docs/sdk/overview">Read the SDK docs <ArrowRight className="h-4 w-4" /></Link>
               </Button>
-              <Button size="lg" variant="outline" onClick={() => window.open(REPO_URL, '_blank', 'noopener,noreferrer')} className="gap-2">
-                View on GitHub
+              <Button size="lg" variant="outline" asChild className="gap-2">
+                <a href={REPO_URL} target="_blank" rel="noopener noreferrer">View on GitHub</a>
               </Button>
             </div>
           </motion.div>
 
           <motion.div
             variants={revealVariants}
-            initial="initial"
-            whileInView="animate"
+            initial={revealInitial}
+            whileInView="visible"
             viewport={{ once: true, amount: 0.3 }}
             className="min-w-0 rounded-xl border border-border bg-card overflow-hidden shadow-lg shadow-glow-sm"
           >
@@ -743,10 +801,10 @@ export default function Landing() {
           rather than a separate chapter. The alternating bg pattern also
           stays intact: Security (surface-2) → FAQ (default) → CTA (surface-2). */}
       <section className="border-t border-border bg-surface-2">
-        <motion.div variants={revealVariants} initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.5 }} className="max-w-2xl mx-auto px-4 py-16 sm:py-24 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance">Create your first escrow</h2>
+        <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.5 }} className="max-w-2xl mx-auto px-4 py-16 sm:py-24 text-center">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground text-balance">Create your first escrow</h2>
           <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed text-pretty">
-            Connect a wallet, set the terms, and your funds sit on-chain until the deal closes. 0% on release, nothing on refunds. Your keys never leave your wallet.
+            Connect a wallet, set the terms, and your funds sit on-chain until the deal closes. {feePct}% on release, nothing on refunds. Your keys never leave your wallet.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" onClick={handleGetStarted} className="gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
@@ -789,18 +847,18 @@ export default function Landing() {
             {/* Product */}
             <nav aria-label="Product" className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold text-foreground">Product</h3>
-              <button onClick={() => navigate('/dashboard')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">Dashboard</button>
-              <button onClick={() => navigate('/create')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">Create Escrow</button>
-              <button onClick={() => navigate('/escrows')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">My Escrows</button>
-              <button onClick={() => navigate('/activity')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">Activity</button>
+              <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dashboard</Link>
+              <Link to="/create" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Create Escrow</Link>
+              <Link to="/escrows" className="text-sm text-muted-foreground hover:text-foreground transition-colors">My Escrows</Link>
+              <Link to="/activity" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Activity</Link>
             </nav>
 
             {/* Resources */}
             <nav aria-label="Resources" className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold text-foreground">Resources</h3>
-              <button onClick={() => scrollTo('how-it-works')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">How it Works</button>
-              <button onClick={() => navigate('/docs')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">Docs</button>
-              <button onClick={() => scrollTo('faq')} className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors">FAQ</button>
+              <a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollTo('how-it-works'); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">How it Works</a>
+              <Link to="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Docs</Link>
+              <a href="#faq" onClick={(e) => { e.preventDefault(); scrollTo('faq'); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">FAQ</a>
               <a href="https://explorer.stacks.co" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Explorer</a>
             </nav>
           </div>
