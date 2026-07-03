@@ -394,18 +394,26 @@ export default function Landing() {
             WebkitMaskImage: 'radial-gradient(ellipse 75% 65% at 50% 35%, black 10%, transparent 72%)',
           }}
         />
-        <div className="relative z-10 w-full max-w-6xl mx-auto px-4 py-14 lg:py-20 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        <div className="relative z-10 w-full max-w-6xl mx-auto px-4 py-14 lg:py-20">
+          {/* Value-led headline: tells a first-time visitor what the product
+              DOES, in plain words (no "trustless"/"non-custodial" jargon up
+              top). The 0.5% anchor moves out of the headline into the proof
+              line below, where it stays loud but supports the value instead
+              of leading with price.
+              Full-width on purpose: Besley sets wider than the old sans, and
+              inside half the grid it wrapped into a 4-line one-word-per-line
+              stack on desktop. Spanning the container lets the sentence break
+              once, at its natural caesura after "payment". */}
+          <motion.div variants={heroLeftVariants} initial="hidden" animate="visible">
+            <h1 className="font-display font-extrabold text-foreground leading-[1.08] text-balance" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
+              Lock the payment<br className="hidden lg:block" /> until the deal is done.
+            </h1>
+          </motion.div>
+
+          <div className="mt-8 lg:mt-10 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left — copy */}
           <motion.div variants={heroLeftVariants} initial="hidden" animate="visible">
-            {/* Value-led headline: tells a first-time visitor what the product
-                DOES, in plain words (no "trustless"/"non-custodial" jargon up
-                top). The 0.5% anchor moves out of the headline into the proof
-                line below, where it stays loud but supports the value instead
-                of leading with price. */}
-            <h1 className="font-display font-extrabold text-foreground leading-[1.08] text-balance" style={{ fontSize: 'clamp(2.25rem, 1.2rem + 3vw, 4.5rem)' }}>
-              Lock the payment until the deal is done.
-            </h1>
-            <p className="mt-5 text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
+            <p className="text-base lg:text-lg text-muted-foreground max-w-lg leading-relaxed">
               Put STX or sBTC in a smart contract that releases only when both sides agree, or refunds if they don't. No middleman ever holds your funds.
             </p>
 
@@ -460,6 +468,7 @@ export default function Landing() {
           <motion.div variants={heroRightVariants} initial="hidden" animate="visible" className="lg:pl-4">
             <EscrowMock />
           </motion.div>
+          </div>
         </div>
       </section>
 
