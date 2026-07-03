@@ -1,7 +1,8 @@
-/* Besley: Clarendon revival — the letterform of Victorian ledgers and share
-   certificates. Display face for landing/brand headings only; Geist carries
-   the app. Load just the two display weights. */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@400;500&family=Besley:wght@700;800&display=swap');
+/* Fonts are self-hosted via @fontsource imports in main.tsx (perf: no
+   render-blocking third-party @import chain). Geist carries body/UI, Geist
+   Mono the ledger numbers; Besley — a Clarendon revival, the letterform of
+   Victorian ledgers and share certificates — is the display face for
+   landing/brand headings only. */
 
 @tailwind base;
 @tailwind components;
