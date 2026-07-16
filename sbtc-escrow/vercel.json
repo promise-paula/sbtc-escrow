@@ -55,7 +55,7 @@
       "destination": "/api/hiro?_p=:path*"
     },
     {
-      "source": "/(dashboard|create|escrows|activity|analytics|settings|admin|how-it-works)",
+      "source": "/(dashboard|create|escrows|activity|analytics|settings|admin|how-it-works|privacy|terms)",
       "destination": "/index.html"
     },
     {

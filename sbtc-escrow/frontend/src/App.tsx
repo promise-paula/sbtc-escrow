@@ -31,6 +31,8 @@ const ContractControls = lazy(() => import("@/pages/admin/ContractControls"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const DocsPage = lazy(() => import("@/pages/docs/DocsPage"));
 const HowItWorks = lazy(() => import("@/pages/HowItWorks"));
+const Privacy = lazy(() => import("@/pages/legal/Privacy"));
+const Terms = lazy(() => import("@/pages/legal/Terms"));
 
 const queryClient = new QueryClient();
 
@@ -56,6 +58,8 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
                 <Route path="/docs" element={<DocsPage />} />
                 <Route path="/docs/*" element={<DocsPage />} />
                 <Route element={<AppLayout />}>

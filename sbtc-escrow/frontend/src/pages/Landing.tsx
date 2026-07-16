@@ -876,6 +876,10 @@ export default function Landing() {
               down from the hero. */}
           <div className="mt-12 border-t border-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
             <p>© {new Date().getFullYear()} sBTC Escrow. Built on Stacks, secured by Bitcoin.</p>
+            <nav aria-label="Legal" className="flex items-center gap-4">
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+            </nav>
             <span className="inline-flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-accent-warm" />
               {STACKS_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'} Live

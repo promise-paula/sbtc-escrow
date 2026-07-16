@@ -9,6 +9,43 @@ import { CONTRACT_ADDRESS, STACKS_NETWORK } from '@/lib/stacks-config';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getAddressNetwork } from '@/lib/utils';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+// Terms acceptance (clickwrap). "By connecting you agree" in a document the
+// user never saw is browsewrap and courts routinely refuse to enforce it; an
+// explicit agree-and-connect step shown once at the moment of action is the
+// enforceable form. Bump TERMS_VERSION only on MATERIAL changes to the Terms
+// or Privacy Policy to re-prompt existing users.
+const TERMS_VERSION = 1;
+const TERMS_KEY = 'terms-accepted';
+
+function hasAcceptedTerms(): boolean {
+  try {
+    const raw = localStorage.getItem(TERMS_KEY);
+    if (!raw) return false;
+    return (JSON.parse(raw) as { v?: number }).v === TERMS_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+function persistTermsAcceptance() {
+  try {
+    localStorage.setItem(TERMS_KEY, JSON.stringify({ v: TERMS_VERSION, at: new Date().toISOString() }));
+  } catch {
+    // Storage unavailable (private mode): proceed; the dialog will simply
+    // show again next session, which is acceptable.
+  }
+}
 
 interface WalletContextType {
   address: string | null;
@@ -111,7 +148,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchContractOwner]);
 
-  const connect = useCallback(async () => {
+  const [termsGateOpen, setTermsGateOpen] = useState(false);
+
+  const doConnect = useCallback(async () => {
     try {
       const response = await stacksConnect();
 
@@ -139,6 +178,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Public connect: gate the first-ever connection behind explicit terms
+  // acceptance; every later call goes straight through.
+  const connect = useCallback(async () => {
+    if (!hasAcceptedTerms()) {
+      setTermsGateOpen(true);
+      return;
+    }
+    await doConnect();
+  }, [doConnect]);
+
+  const acceptTermsAndConnect = useCallback(async () => {
+    persistTermsAcceptance();
+    setTermsGateOpen(false);
+    await doConnect();
+  }, [doConnect]);
+
   const disconnect = useCallback(() => {
     stacksDisconnect();
     setAddress(null);
@@ -152,6 +207,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={{ address, isConnected, isAdmin, connect, disconnect }}>
       {children}
+      {/* Plain <a> links (not router <Link>): this provider mounts outside
+          BrowserRouter, and a new tab keeps the connect flow in place. */}
+      <AlertDialog open={termsGateOpen} onOpenChange={setTermsGateOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Before you connect</AlertDialogTitle>
+            <AlertDialogDescription>
+              sBTC Escrow is non-custodial software: your funds are held by an open-source smart
+              contract, never by us. By connecting your wallet you agree to the{' '}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms of Service</a>{' '}
+              and{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</a>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={acceptTermsAndConnect}>Agree and connect</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </WalletContext.Provider>
   );
 }

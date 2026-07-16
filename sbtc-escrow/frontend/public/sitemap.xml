@@ -2,6 +2,8 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://sbtcescrow.com/</loc><changefreq>weekly</changefreq></url>
   <url><loc>https://sbtcescrow.com/how-it-works</loc><changefreq>weekly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/privacy</loc><changefreq>yearly</changefreq></url>
+  <url><loc>https://sbtcescrow.com/terms</loc><changefreq>yearly</changefreq></url>
   <url><loc>https://sbtcescrow.com/docs</loc><changefreq>weekly</changefreq></url>
   <url><loc>https://sbtcescrow.com/docs/quickstart</loc><changefreq>monthly</changefreq></url>
   <url><loc>https://sbtcescrow.com/docs/architecture</loc><changefreq>monthly</changefreq></url>
