@@ -373,6 +373,7 @@ export default function Landing() {
         </div>
       </nav>
 
+      <main id="main">
       {/* ── Hero ───────────────────────────────────────────────── */}
       {/* Hero claims the visible viewport (minus the 4rem sticky nav) so
           the first scroll reveals a clean break into the Features section.
@@ -825,6 +826,7 @@ export default function Landing() {
           </div>
         </motion.div>
       </section>
+      </main>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       {/* The "Built on Stacks · network" signal lives here, not in the hero:

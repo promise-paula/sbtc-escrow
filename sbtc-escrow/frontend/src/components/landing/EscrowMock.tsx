@@ -56,11 +56,11 @@ const META: Record<Status, {
 
 // Tailwind classes per status tone (the platform's real status palette).
 const TONE: Record<string, { text: string; dot: string; tint: string; border: string }> = {
-  pending:   { text: 'text-status-pending',   dot: 'bg-status-pending',   tint: 'bg-status-pending/12',   border: 'border-status-pending/30' },
-  delivered: { text: 'text-status-delivered', dot: 'bg-status-delivered', tint: 'bg-status-delivered/12', border: 'border-status-delivered/30' },
-  released:  { text: 'text-status-released',  dot: 'bg-status-released',  tint: 'bg-status-released/12',  border: 'border-status-released/30' },
-  refunded:  { text: 'text-status-refunded',  dot: 'bg-status-refunded',  tint: 'bg-status-refunded/12',  border: 'border-status-refunded/30' },
-  disputed:  { text: 'text-status-disputed',  dot: 'bg-status-disputed',  tint: 'bg-status-disputed/12',  border: 'border-status-disputed/30' },
+  pending:   { text: 'text-status-pending-text',   dot: 'bg-status-pending',   tint: 'bg-status-pending/12',   border: 'border-status-pending/30' },
+  delivered: { text: 'text-status-delivered-text', dot: 'bg-status-delivered', tint: 'bg-status-delivered/12', border: 'border-status-delivered/30' },
+  released:  { text: 'text-status-released-text',  dot: 'bg-status-released',  tint: 'bg-status-released/12',  border: 'border-status-released/30' },
+  refunded:  { text: 'text-status-refunded-text',  dot: 'bg-status-refunded',  tint: 'bg-status-refunded/12',  border: 'border-status-refunded/30' },
+  disputed:  { text: 'text-status-disputed-text',  dot: 'bg-status-disputed',  tint: 'bg-status-disputed/12',  border: 'border-status-disputed/30' },
 };
 
 function Party({ side, label, addr, active }: { side: 'l' | 'r'; label: string; addr: string; active: boolean }) {
@@ -179,7 +179,11 @@ function EscrowCard({ s, usd }: { s: Scenario; usd: string | null }) {
             <div key={label} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center gap-1.5">
                 <span className={cn('h-2 w-2 rounded-full', dotCls)} />
-                <span className={cn('text-[10px] whitespace-nowrap', filled ? (isTerminal ? tone.text : 'text-muted-foreground') : 'text-muted-foreground/40')}>{label}</span>
+                {/* Label stays at legible muted-foreground regardless of
+                    step state (10px text below AA at lower opacities / status
+                    hues); the filled/unfilled and status signal lives in the
+                    dot above, which as a graphic only needs 3:1. */}
+                <span className={cn('text-[10px] whitespace-nowrap', filled ? 'text-foreground' : 'text-muted-foreground')}>{label}</span>
               </div>
               {!isTerminal && <span className={cn('h-px flex-1 mx-1 mb-4', i < m.step - 1 ? 'bg-primary/50' : 'bg-border')} />}
             </div>

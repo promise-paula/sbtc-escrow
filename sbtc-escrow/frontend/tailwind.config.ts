@@ -88,6 +88,14 @@ export default {
           released: "oklch(var(--status-released) / <alpha-value>)",
           refunded: "oklch(var(--status-refunded) / <alpha-value>)",
           disputed: "oklch(var(--status-disputed) / <alpha-value>)",
+          // AA-safe text-on-tint variants (see index.css). Use for status-
+          // colored label text on a tinted pill; keep the bright tokens above
+          // for dots, borders, and fills.
+          "pending-text": "oklch(var(--status-pending-text) / <alpha-value>)",
+          "delivered-text": "oklch(var(--status-delivered-text) / <alpha-value>)",
+          "released-text": "oklch(var(--status-released-text) / <alpha-value>)",
+          "refunded-text": "oklch(var(--status-refunded-text) / <alpha-value>)",
+          "disputed-text": "oklch(var(--status-disputed-text) / <alpha-value>)",
         },
         overlay: "oklch(var(--overlay) / <alpha-value>)",
         'accent-warm': 'oklch(var(--accent-warm) / <alpha-value>)',

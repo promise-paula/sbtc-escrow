@@ -52,6 +52,15 @@
     --status-released: 62% 0.17 155;
     --status-refunded: 55% 0.2 285;
     --status-disputed: 55% 0.22 27;
+    /* Text-on-tint variants: same hue, darkened so status-colored label text
+       clears WCAG AA (>=4.6:1) on a 12%-tint pill over the light card. The
+       bright tokens above stay for dots/borders/fills. L values solved by
+       measurement, not eyeballed. */
+    --status-pending-text: 52% 0.16 75;
+    --status-delivered-text: 49% 0.15 215;
+    --status-released-text: 49% 0.17 155;
+    --status-refunded-text: 53% 0.2 285;
+    --status-disputed-text: 53% 0.22 27;
 
     /* Chrome — visible borders */
     --border: 86% 0.004 250;
@@ -129,6 +138,14 @@
     --status-released: 55% 0.14 155;
     --status-refunded: 65% 0.18 285;
     --status-disputed: 50% 0.18 27;
+    /* Text-on-tint variants for dark: the tint sits over the dark card, so
+       label text must be LIGHTER than the bright token to clear AA. Most
+       already pass; released/disputed are lifted. Measured. */
+    --status-pending-text: 68% 0.14 75;
+    --status-delivered-text: 60% 0.13 215;
+    --status-released-text: 58% 0.14 155;
+    --status-refunded-text: 65% 0.18 285;
+    --status-disputed-text: 61% 0.18 27;
 
     /* Chrome — subtle cool borders, crisp edges */
     --border: 22% 0.005 250;
