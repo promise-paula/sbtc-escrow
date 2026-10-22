@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
 import { useWallet } from '@/contexts/WalletContext';
-import { STACKS_NETWORK, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, REPO_URL, CONTRACT_PRINCIPAL, effectiveMinutesPerBlock } from '@/lib/stacks-config';
-import { usePlatformStats } from '@/hooks/use-admin';
+import { STACKS_NETWORK, REPO_URL } from '@/lib/stacks-config';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { formatSTX, formatSBTC } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -83,8 +81,8 @@ const useCaseDetails = [
 const faqStructuredData: { q: string; a: string }[] = [
   { q: 'Is sBTC the same as Bitcoin?', a: 'sBTC is a 1:1 Bitcoin-backed token on the Stacks blockchain. Every sBTC is collateralised by real BTC held in a multisig threshold-signed by a permissionless signer set, and you can peg it back to BTC at any time. For escrows, sBTC moves at Stacks speed with smart-contract programmability that Bitcoin L1 does not have.' },
   { q: 'Why Stacks instead of Bitcoin L1?', a: 'Bitcoin L1 does not support arbitrary smart contracts; the only way to do escrow there is via multisig (which still needs a trusted third signer) or limited HTLCs. Stacks anchors to Bitcoin for security and adds Clarity, a decidable contract language that encodes the full escrow lifecycle on-chain. The funds stay trustless; only the contract logic moves up a layer.' },
-  { q: 'Can the admin freeze or steal my funds?', a: 'No. The admin can only resolve an active dispute (release to seller, refund to buyer, or split) and pause new escrow creation for emergencies. The admin cannot touch a non-disputed escrow, cannot pause indefinitely (the pause has a hard duration and anti-chaining cooldown), and cannot stop dispute timeouts from firing. Buyers self-recover after the dispute window; sellers self-rescue after twice that window if they signaled delivery. The contract enforces every constraint on-chain.' },
-  { q: "What if there's a bug in the contract?", a: 'The contract went through four self-audit passes before mainnet with 50+ invariant tests passing, including funds-conservation (the contract balance is always at least the locked balance). The source is open on GitHub for independent review. If a bug were found, the time-bounded pause lets admins halt new escrows while existing ones unwind through their normal flows; funds remain owned by the contract under its original rules.' },
+  { q: 'Can the admin freeze or steal my funds?', a: 'No. The admin can never take your funds. The only time the admin can move funds is to resolve an escrow in dispute, and even then only to the buyer, to the seller, or split between the two. In an emergency the admin can pause the contract, but only for a limited time and never indefinitely; while paused, escrow actions wait until the pause ends. If a dispute is never resolved, the funds can still be recovered without us. The contract enforces every one of these limits on-chain.' },
+  { q: "What if there's a bug in the contract?", a: 'The contract was reviewed internally and tested extensively before mainnet. It has not had an external audit yet. The source is open on GitHub for anyone to review. If a bug were found, a time-limited pause lets us halt activity, and funds stay owned by the contract under its original rules.' },
   { q: 'How do I get sBTC?', a: 'Use the official sBTC bridge (bridge.sbtc.tech): deposit BTC, receive sBTC on Stacks 1:1, and reverse it the same way. You can also create STX escrows without ever needing sBTC; the contract supports both tokens natively.' },
   { q: 'What does the 0.5% fee cover?', a: 'Maintenance of the contract, indexer infrastructure, the frontend, and the dispute-resolution path. The fee is charged only on successful release (not on refunds) and is hard-capped at 5% in the contract, so the admin cannot raise it beyond that without a new deployment. There are no other costs beyond standard Stacks network fees.' },
   { q: 'What if the seller never delivers?', a: "Once the deadline passes, you (the buyer) reclaim the full amount directly from the contract; the seller's approval is not required. While the escrow is active, either party can open a dispute for admin arbitration. Funds never sit with the platform either way." },
@@ -160,7 +158,6 @@ function LedgerIndex({ num }: { num: string }) {
 export default function Landing() {
   const { connect, isConnected } = useWallet();
   const navigate = useNavigate();
-  const { data: ps } = usePlatformStats();
   const { data: cfg } = usePlatformConfig();
   const { data: blockRate } = useBlockRate();
   const minutesPerBlock = blockRate?.minutesPerBlock ?? 1.5;
@@ -231,14 +228,10 @@ export default function Landing() {
   const feeBps = cfg?.platformFeeBps ?? (isPromoActive() ? 0 : 50);
   const feePct = feeBps / 100;
   const promoLive = isPromoActive() && feeBps === 0;
-  const disputeDays = Math.round(
-    (cfg?.disputeTimeout ?? DEFAULT_DISPUTE_TIMEOUT) *
-      effectiveMinutesPerBlock(CONTRACT_PRINCIPAL, DEFAULT_MINUTES_PER_BLOCK) / 1440,
-  );
   const pricingPoints = [
     'Charged only on a successful release, never on refunds',
     'Non-custodial: the contract holds the funds, never us',
-    `~${disputeDays}-day dispute window for admin arbitration`,
+    'Disputes resolved on-chain, and funds that never get stuck',
   ];
   const dismissPromo = () => {
     try { localStorage.setItem('promo-dismissed', LAUNCH_PROMO.endDate); } catch { /* ignore */ }
@@ -428,16 +421,6 @@ export default function Landing() {
               <span>Non-custodial.</span>
             </div>
 
-            {/* Inline social proof — only once the count is high enough to read
-                as real traction. A tiny number ("2 escrows created") undercuts
-                credibility more than showing nothing, so gate it. Tune the
-                threshold as adoption grows. */}
-            {(ps?.totalEscrows ?? 0) >= 25 && (
-              <p className="mt-3 text-sm text-muted-foreground/70 font-mono">
-                {ps!.totalEscrows.toLocaleString()} escrows created · {formatSTX(ps!.totalVolumeStx)} STX{(ps!.totalVolumeSbtc ?? 0) > 0 ? ` + ${formatSBTC(ps!.totalVolumeSbtc)} sBTC` : ''} secured
-              </p>
-            )}
-
             <div className="mt-6 flex flex-wrap gap-3">
               <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: dur(100) }}>
                 <Button size="lg" onClick={handleGetStarted} className="gap-2 shadow-glow-md hover:shadow-glow-lg transition-shadow">
@@ -610,7 +593,7 @@ export default function Landing() {
       {/* Live-fee-driven: the number is the contract's real platformFeeBps, so
           it can never contradict the chain. Promo framing layers on only when
           the fee is actually 0 AND the promo window is open. Folds in the old
-          terms-band constants (fee, dispute window, non-custodial) as points. */}
+          terms-band constants (fee, disputes, non-custodial) as points. */}
       <section id="pricing" className="border-t border-border bg-surface-2">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left — narrative + what's included */}
@@ -704,16 +687,16 @@ export default function Landing() {
               <AccordionItem value="admin-power">
                 <AccordionTrigger className="text-left">Can the admin freeze or steal my funds?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                  No. The admin's only privileges are resolving an active <em>dispute</em> (release to seller, refund to buyer, or split between them) and pausing new escrow creation for emergencies. The admin cannot touch a non-disputed escrow, cannot pause indefinitely (the pause has a hard duration + anti-chaining cooldown built in), and cannot prevent dispute timeouts from firing. Buyers self-recover after the dispute window elapses, and sellers self-rescue after 2× that window if they signaled delivery. The contract enforces every one of these constraints on-chain.
+                  No. The admin can never take your funds. The only time the admin can move funds is to resolve an escrow in <em>dispute</em>, and even then only to the buyer, to the seller, or split between the two. In an emergency the admin can pause the contract, but only for a limited time and never indefinitely; while paused, escrow actions wait until the pause ends. If a dispute is never resolved, the funds can still be recovered without us. The contract enforces every one of these limits on-chain.
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="bugs">
                 <AccordionTrigger className="text-left">What if there's a bug in the contract?</AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                  The contract went through four self-audit passes before mainnet, with 50+ invariant tests passing, including the funds-conservation invariant (contract STX/sBTC balance ≥ locked balance at all times). Source is{' '}
+                  The contract was reviewed internally and tested extensively before mainnet. It has not had an external audit yet. The source is{' '}
                   <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">open on GitHub</a>{' '}
-                  for independent review. If a bug were discovered, the time-bounded pause gives admins a way to halt new escrows while existing ones unwind through their normal flows. Funds remain owned by the contract under its original rules.
+                  for anyone to review. If a bug were discovered, a time-limited pause lets us halt activity, and funds stay owned by the contract under its original rules.
                 </AccordionContent>
               </AccordionItem>
 
@@ -766,14 +749,14 @@ export default function Landing() {
 
       {/* ── For developers ─────────────────────────────────────── */}
       {/* Signals escrow is a composable primitive, not just an app: a real,
-          published SDK over the same audited contract. The code window ties to
+          published SDK over the same contract. The code window ties to
           the mono/ledger identity and gives builders a concrete entry point. */}
       <section className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <motion.div variants={revealVariants} initial={revealInitial} whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
             <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground text-balance">Build escrow into your product</h2>
             <p className="mt-4 text-base text-muted-foreground leading-relaxed text-pretty max-w-md">
-              A typed TypeScript SDK over the same audited contract. Create escrows, read their on-chain state, and settle releases from your own app. No Clarity required.
+              A typed TypeScript SDK over the same contract. Create escrows, read their on-chain state, and settle releases from your own app. No Clarity required.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button size="lg" asChild className="gap-2">
@@ -799,7 +782,7 @@ export default function Landing() {
               <span className="ml-2 font-mono text-[11px] text-muted-foreground">escrow.ts</span>
             </div>
             <pre className="p-5 overflow-x-auto text-[13px] leading-relaxed font-mono text-foreground">
-<code><span className="text-muted-foreground/70">$ npm install </span><span className="text-primary">sbtc-escrow-sdk</span>{'\n\n'}<span className="text-accent-violet">import</span> {'{ EscrowClient }'} <span className="text-accent-violet">from</span> <span className="text-status-released">'sbtc-escrow-sdk'</span>;{'\n\n'}<span className="text-muted-foreground/60">{'// Read on-chain escrow state, no wallet needed'}</span>{'\n'}<span className="text-accent-violet">const</span> client = <span className="text-accent-violet">new</span> <span className="text-primary">EscrowClient</span>({'{ network: '}<span className="text-status-released">'mainnet'</span>{' });'}{'\n'}<span className="text-accent-violet">const</span> escrow = <span className="text-accent-violet">await</span> client.<span className="text-primary">getEscrow</span>(1042);{'\n\n'}console.<span className="text-primary">log</span>(escrow.status); <span className="text-muted-foreground/60">{"// 'released'"}</span></code>
+<code><span className="text-muted-foreground/70">$ npm install </span><span className="text-primary">sbtc-escrow-sdk</span>{'\n\n'}<span className="text-accent-violet">import</span> {'{ EscrowClient, EscrowStatus }'} <span className="text-accent-violet">from</span> <span className="text-status-released">'sbtc-escrow-sdk'</span>;{'\n\n'}<span className="text-muted-foreground/60">{'// Read on-chain escrow state, no wallet needed'}</span>{'\n'}<span className="text-accent-violet">const</span> client = <span className="text-accent-violet">new</span> <span className="text-primary">EscrowClient</span>({'{ network: '}<span className="text-status-released">'mainnet'</span>{' });'}{'\n'}<span className="text-accent-violet">const</span> escrow = <span className="text-accent-violet">await</span> client.<span className="text-primary">getEscrow</span>(1);{'\n\n'}console.<span className="text-primary">log</span>(EscrowStatus[escrow.status]); <span className="text-muted-foreground/60">{"// e.g. 'RELEASED'"}</span></code>
             </pre>
           </motion.div>
         </div>

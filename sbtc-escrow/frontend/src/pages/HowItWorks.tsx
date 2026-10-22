@@ -47,24 +47,24 @@ const steps = [
     icon: Scale,
     title: 'If something goes wrong',
     body:
-      "If the seller doesn't deliver before the deadline, the escrow refunds you. If there's a real disagreement, either side can open a dispute and an independent arbiter decides who gets paid.",
+      "If the seller doesn't deliver before the deadline, you can take a full refund straight from the contract. If there's a real disagreement, either side can open a dispute, and our arbiter decides who gets paid.",
     aside:
-      'After ~30 days with no resolution, you can recover your money yourself — no one can lock you out.',
+      'If a dispute is never resolved, you can still recover your money yourself. No one can lock you out.',
   },
 ];
 
 const faq = [
   {
     q: "What if the seller doesn't deliver?",
-    a: "Once the deadline passes, anyone can trigger a full refund — your money (plus the platform fee) returns to your wallet. If you'd rather wait, you can extend the deadline at any time before it expires.",
+    a: "Once the deadline passes, you can take a full refund straight from the contract: your money, plus the platform fee, comes back to your wallet. If you'd rather wait, you can extend the deadline at any time before it expires.",
   },
   {
     q: 'What if the buyer never releases the funds?',
-    a: "Sellers can refund the buyer voluntarily at any time. After the deadline, anyone can trigger a refund. If there's a genuine dispute, the seller can open one and an arbiter rules on it.",
+    a: "Sellers can refund the buyer voluntarily at any time. Once the deadline passes, the buyer can take a refund. If there's a genuine dispute, the seller can open one and our arbiter rules on it.",
   },
   {
     q: 'What if we disagree about whether the deal was fulfilled?',
-    a: "Either side can open a dispute on the escrow. An independent arbiter reviews the case using whatever evidence you both share, then resolves it on-chain — funds go to the seller, or back to you. If the arbiter doesn't respond within ~30 days, the buyer can recover their funds themselves.",
+    a: "Either side can open a dispute on the escrow. Our arbiter reviews the case using whatever evidence you both share, then resolves it on-chain: the funds go to the seller, back to you, or are split between you, and nowhere else. If the arbiter never responds, you can still recover your funds yourself.",
   },
   {
     q: 'What if I lose access to my wallet?',

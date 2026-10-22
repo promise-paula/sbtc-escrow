@@ -22,7 +22,6 @@ type Status = 'pending' | 'delivered' | 'released' | 'refunded' | 'disputed';
 interface Scenario {
   id: string;
   title: string;
-  escrowId: string;
   buyer: string;
   seller: string;
   token: 'STX' | 'sBTC';
@@ -35,11 +34,11 @@ interface Scenario {
 // One scenario per on-chain state — the cycle walks the whole lifecycle.
 // `micro` is base units (1 STX = 1e6 µSTX, 1 sBTC = 1e8 sats); USD is live.
 const SCENARIOS: Scenario[] = [
-  { id: 'freelance', title: 'Freelance milestone', escrowId: '#1042', buyer: 'ST1A…9XF', seller: 'ST2K…D3M', token: 'STX',  amount: '500.00', micro: 500_000_000,   status: 'released' },
-  { id: 'market',    title: 'Marketplace order',   escrowId: '#1051', buyer: 'ST7M…2V8', seller: 'ST4C…B6N', token: 'STX',  amount: '1,200',  micro: 1_200_000_000, status: 'delivered' },
-  { id: 'otc',       title: 'OTC trade',           escrowId: '#1038', buyer: 'SP3R…7Q2', seller: 'SP9F…1KD', token: 'sBTC', amount: '0.0500', micro: 5_000_000,     status: 'pending' },
-  { id: 'returns',   title: 'Returned order',      escrowId: '#1033', buyer: 'ST5H…0PA', seller: 'ST8J…7RC', token: 'STX',  amount: '320.00', micro: 320_000_000,   status: 'refunded' },
-  { id: 'design',    title: 'Design contract',     escrowId: '#1027', buyer: 'SP2D…8WJ', seller: 'SP6T…4HQ', token: 'sBTC', amount: '0.0120', micro: 1_200_000,     status: 'disputed' },
+  { id: 'freelance', title: 'Freelance milestone', buyer: 'ST1A…9XF', seller: 'ST2K…D3M', token: 'STX',  amount: '500.00', micro: 500_000_000,   status: 'released' },
+  { id: 'market',    title: 'Marketplace order',   buyer: 'ST7M…2V8', seller: 'ST4C…B6N', token: 'STX',  amount: '1,200',  micro: 1_200_000_000, status: 'delivered' },
+  { id: 'otc',       title: 'OTC trade',           buyer: 'SP3R…7Q2', seller: 'SP9F…1KD', token: 'sBTC', amount: '0.0500', micro: 5_000_000,     status: 'pending' },
+  { id: 'returns',   title: 'Returned order',      buyer: 'ST5H…0PA', seller: 'ST8J…7RC', token: 'STX',  amount: '320.00', micro: 320_000_000,   status: 'refunded' },
+  { id: 'design',    title: 'Design contract',     buyer: 'SP2D…8WJ', seller: 'SP6T…4HQ', token: 'sBTC', amount: '0.0120', micro: 1_200_000,     status: 'disputed' },
 ];
 
 type Flow = 'hold' | 'toSeller' | 'toBuyer' | 'frozen';
@@ -88,7 +87,8 @@ function EscrowCard({ s, usd }: { s: Scenario; usd: string | null }) {
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-1">
-        <span className="font-mono text-xs text-muted-foreground">escrow · {s.escrowId}</span>
+        {/* No escrow number: a made-up id in the thousands implies a volume the platform does not have. */}
+        <span className="font-mono text-xs text-muted-foreground">escrow</span>
         <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border', tone.tint, tone.border, tone.text)}>
           <span className={cn('h-1.5 w-1.5 rounded-full', tone.dot)} />
           {m.label}
