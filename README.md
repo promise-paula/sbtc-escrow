@@ -6,7 +6,7 @@ when something goes wrong — without trusting an intermediary with your money.
 
 [![npm version](https://img.shields.io/npm/v/sbtc-escrow-sdk.svg)](https://www.npmjs.com/package/sbtc-escrow-sdk)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](sbtc-escrow-sdk/LICENSE)
-[![Stacks](https://img.shields.io/badge/Stacks-mainnet-orange.svg)](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet)
+[![Stacks](https://img.shields.io/badge/Stacks-mainnet-orange.svg)](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3?chain=mainnet)
 
 ---
 
@@ -21,17 +21,19 @@ businesses that want a non-custodial alternative to platforms like Escrow.com.
 
 ## Live deployments
 
-| Network     | Contract                                                                                                                                                 | App                                      |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **Mainnet** | [`SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet`](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet)     | `https://sbtc-escrow.vercel.app`         |
-| **Testnet** | [`ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v6`](https://explorer.hiro.so/txid/ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v6?chain=testnet) | `https://sbtc-escrow-testnet.vercel.app` |
+| Network     | Contract | App |
+| ----------- | -------- | --- |
+| **Mainnet** | [`SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3`](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3?chain=mainnet) | [sbtcescrow.com](https://sbtcescrow.com) |
+| **Testnet** | [`ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8`](https://explorer.hiro.so/txid/ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8?chain=testnet) | [testnet.sbtcescrow.com](https://testnet.sbtcescrow.com) |
+
+Earlier contract versions stay deployed so existing escrows on them can still settle; new escrows use the contracts above.
 
 ## Repository layout
 
 ```text
 .
 ├── sbtc-escrow/              Smart contract + frontend monorepo
-│   ├── contracts/            Clarity source — escrow-v6.clar (testnet), escrow-mainnet.clar
+│   ├── contracts/            Clarity source: escrow-mainnet-v3.clar (mainnet), escrow-v8.clar (testnet), plus earlier versions
 │   ├── tests/                Vitest contract test suite (~75 tests)
 │   ├── deployments/          Clarinet deployment plans (simnet, testnet, mainnet)
 │   ├── settings/             Per-network config
