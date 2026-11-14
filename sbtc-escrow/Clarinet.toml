@@ -7,6 +7,7 @@ cache_dir = './.cache'
 
 [[project.requirements]]
 contract_id = 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'
+
 [contracts.escrow-mainnet-v3]
 path = 'contracts/escrow-mainnet-v3.clar'
 clarity_version = 4
@@ -16,16 +17,6 @@ epoch = 'latest'
 path = 'contracts/escrow-v8.clar'
 clarity_version = 4
 epoch = 'latest'
-[repl.analysis]
-passes = []
-
-[repl.analysis.lints]
-
-[repl.analysis.check_checker]
-strict = false
-trusted_sender = false
-trusted_caller = false
-callee_filter = false
 
 [repl.remote_data]
 enabled = false
