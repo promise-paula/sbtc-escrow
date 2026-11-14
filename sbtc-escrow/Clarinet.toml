@@ -18,6 +18,16 @@ path = 'contracts/escrow-v8.clar'
 clarity_version = 4
 epoch = 'latest'
 
+[contracts.escrow-mainnet-v4]
+path = 'contracts/escrow-mainnet-v4.clar'
+clarity_version = 4
+epoch = 'latest'
+
+[contracts.escrow-v9]
+path = 'contracts/escrow-v9.clar'
+clarity_version = 4
+epoch = 'latest'
+
 [repl.remote_data]
 enabled = false
 api_url = 'https://api.hiro.so'
