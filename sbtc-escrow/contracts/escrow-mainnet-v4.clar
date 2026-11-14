@@ -31,9 +31,15 @@
 ;;          could not act, and the buyer could refund the moment it lifted.
 ;;          A pause covering the review window had the same effect.
 ;;      v4: the last pause window [last-pause-start, last-pause-end) is
-;;          recorded, and any expires-at or review deadline inside it is
-;;          pushed out by the window's length, for every party alike (see
-;;          pause-adjusted). extend-escrow builds on the adjusted deadline.
+;;          recorded. An expires-at or review deadline inside it is pushed
+;;          out by the window's length, and any deadline inside it or
+;;          within PAUSE_GRACE after it lands at least PAUSE_GRACE past its
+;;          end, for every party alike (see pause-adjusted). extend-escrow
+;;          builds on the adjusted deadline. The re-pause cooldown is now
+;;          3x the pause plus 2x PAUSE_GRACE, so every pushed deadline is
+;;          followed by at least PAUSE_GRACE operational blocks before the
+;;          next pause can start, and two pauses cannot be chained into a
+;;          double hold on one deadline. Pause duty cycle: at most ~33%.
 ;;
 ;;  - [LOW] Contract as fee recipient or seller
 ;;      v4 draft: the owner could set fee-recipient to the contract itself.
@@ -172,6 +178,10 @@
 ;; can never pause indefinitely.
 (define-constant MAX_PAUSE_DURATION u4320)    ;; ~30 days
 
+;; v4: after any pause, a deadline the pause affected lands at least this
+;; far past the pause's end, so no party is left with only part of a block.
+(define-constant PAUSE_GRACE u24)             ;; ~4 hours
+
 ;; Seller self-rescue: after this multiple of dispute-timeout has elapsed
 ;; since disputed-at, the seller can self-rescue if the escrow was DELIVERED
 ;; before the dispute. Closes the asymmetry where only buyers could escape
@@ -191,10 +201,9 @@
 ;; Contract state
 (define-data-var contract-paused bool false)
 (define-data-var pause-until-block uint u0)   ;; v3: burn block at which pause auto-lifts
-;; Cooldown tracking: stores (block-when-cooldown-ends). On pause, set to
-;; (pause-until-block + previous-pause-duration). Prevents admin from chaining
-;; MAX_PAUSE_DURATION pauses back-to-back -- admin must give users operational
-;; time at least equal to the previous pause length before re-arming.
+;; Cooldown tracking: the burn block from which the admin may pause again.
+;; v4: set to (pause start + 3x duration + 2x PAUSE_GRACE), see
+;; pause-contract. Prevents admin from chaining pauses back-to-back.
 (define-data-var pause-cooldown-until uint u0)
 ;; v4: the most recent pause window, [last-pause-start, last-pause-end).
 ;; Deadlines inside it are pushed out by its length (see pause-adjusted).
@@ -287,18 +296,41 @@
   (is-eq contract-caller (var-get contract-owner))
 )
 
-;; v4: a deadline that fell inside the last pause window is pushed out by
-;; the window's length, so a pause delays every party's deadline instead of
-;; letting it pass while nobody could act. Tracking one window is enough:
-;; the re-pause cooldown ends `duration` blocks after the pause ends, so
-;; every adjusted deadline has passed before the next pause can start.
+;; v4: deadlines and pauses. A deadline inside the last pause window is
+;; pushed out by the window's length, so a pause delays every party's
+;; deadline instead of letting it pass while nobody could act. Any deadline
+;; inside the window, or within PAUSE_GRACE after it ends, also lands at
+;; least PAUSE_GRACE past the end, so an early unpause cannot leave a party
+;; with only the rest of a block. (A very short escrow created just after
+;; a pause gets the same grace.)
+;;
+;; Tracking one window is enough: every adjusted deadline is below
+;; start + 2x duration + PAUSE_GRACE, and the cooldown ends at
+;; start + 3x duration + 2x PAUSE_GRACE, so each adjusted deadline has
+;; passed, with at least PAUSE_GRACE operational blocks to spare, before
+;; the next pause can start and overwrite the window. Not covered: a review
+;; window opened by a delivery made after a pause is not adjusted, so after
+;; a very short pause (under ~13 blocks) the buyer's refund can open as
+;; little as 2x the pause length minus 1 block before the next pause is
+;; allowed. Any pause delays refunds by design; this only narrows the
+;; spare margin.
 (define-private (pause-adjusted (deadline uint))
   (let (
     (pause-start (var-get last-pause-start))
     (pause-end (var-get last-pause-end))
+    (grace-end (+ pause-end PAUSE_GRACE))
   )
-    (if (and (>= deadline pause-start) (< deadline pause-end))
-      (+ deadline (- pause-end pause-start))
+    (if (and (> pause-end u0) (>= deadline pause-start) (< deadline grace-end))
+      (let (
+        (shifted
+          (if (< deadline pause-end)
+            (+ deadline (- pause-end pause-start))
+            deadline
+          )
+        )
+      )
+        (if (> shifted grace-end) shifted grace-end)
+      )
       deadline
     )
   )
@@ -432,12 +464,13 @@
 ;; at MAX_PAUSE_DURATION. After pause-until-block, is-operational returns
 ;; true automatically.
 ;;
-;; Anti-chaining defense (v3 audit fix): each pause sets a cooldown equal
-;; to the pause duration that must elapse before the admin can re-pause.
-;; This caps total pause time at ~50% of any wall-clock window -- admin
-;; can pause for 30 days, but must give users 30 days operational time
-;; before pausing again. Removes the "admin pauses forever" risk while
-;; allowing legitimate emergency re-pause after a normal cool-down.
+;; Anti-chaining defense (v3 audit fix, tightened in v4): each pause sets a
+;; cooldown that must end before the admin can re-pause. In v4 it ends
+;; 3x the pause duration plus 2x PAUSE_GRACE after the pause starts, which
+;; caps total pause time at ~33% of any wall-clock window -- admin can
+;; pause for 30 days, but must then give users ~60 days of operational
+;; time. The extra length guarantees that deadlines pushed by a pause (see
+;; pause-adjusted) pass before the next pause can start.
 (define-public (pause-contract (duration uint))
   (begin
     (try! (check-is-owner))
@@ -449,14 +482,14 @@
     (var-set pause-until-block (+ burn-block-height duration))
     (var-set last-pause-start burn-block-height)
     (var-set last-pause-end (+ burn-block-height duration))
-    ;; cooldown ends `duration` blocks AFTER the pause itself ends
-    (var-set pause-cooldown-until (+ (+ burn-block-height duration) duration))
+    (var-set pause-cooldown-until
+      (+ burn-block-height (* u3 duration) (* u2 PAUSE_GRACE)))
     (print {
       event: "contract-paused",
       by: contract-caller,
       duration: duration,
       pause-until: (+ burn-block-height duration),
-      cooldown-until: (+ (+ burn-block-height duration) duration),
+      cooldown-until: (+ burn-block-height (* u3 duration) (* u2 PAUSE_GRACE)),
       burn-block: burn-block-height
     })
     (ok true)
@@ -1416,10 +1449,33 @@
   }
 )
 
-;; v4: the last pause window. Deadlines in [start, end) are pushed out by
-;; (end - start); frontends use this to show effective deadlines.
+;; v4: the last pause window. A deadline in [start, end) is pushed out by
+;; (end - start); any deadline in [start, end + grace) lands at least
+;; `grace` past end. Frontends use this to show effective deadlines.
 (define-read-only (get-pause-window)
-  { start: (var-get last-pause-start), end: (var-get last-pause-end) }
+  {
+    start: (var-get last-pause-start),
+    end: (var-get last-pause-end),
+    grace: PAUSE_GRACE
+  }
+)
+
+;; v4: an escrow's deadlines after any pause adjustment, for frontends.
+;; deliver(), extend-escrow() and a buyer's dispute() of an undelivered
+;; escrow are allowed up to and including expires-at. The buyer's refund
+;; opens the block after expires-at, or after review-ends-at if the escrow
+;; was delivered, whichever is later.
+(define-read-only (get-effective-deadlines (escrow-id uint))
+  (match (map-get? escrows escrow-id)
+    escrow (some {
+      expires-at: (pause-adjusted (get expires-at escrow)),
+      review-ends-at: (match (get delivered-at escrow)
+        da (some (pause-adjusted (+ da REVIEW_PERIOD)))
+        none
+      )
+    })
+    none
+  )
 )
 
 (define-read-only (is-paused)

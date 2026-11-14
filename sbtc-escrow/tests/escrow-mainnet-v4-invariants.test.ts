@@ -7,8 +7,9 @@
 //   I17  dispute() after expiry only for escrows delivered on time
 //   I18  dispute-timeout is snapshot per escrow at creation
 //   I19  a seller can dispute only after marking delivery
-//   I20  deadlines inside a pause are pushed out by the pause length
+//   I20  deadlines affected by a pause are pushed past it (with a grace)
 //   I21  the contract cannot be its own fee recipient or a seller
+//   I22  get-effective-deadlines matches the contract's own rules
 //
 // v3 invariants retained:
 //
@@ -47,6 +48,7 @@ const BPS_DENOM = 10000;
 const DEFAULT_DISPUTE_TIMEOUT = 4320; // burn blocks
 const SELLER_RESCUE_MULTIPLIER = 2;
 const MAX_PAUSE_DURATION = 4320;
+const PAUSE_GRACE = 24; // v4
 
 function calcFee(amount: number): number {
   return Math.floor((amount * FEE_BPS) / BPS_DENOM);
@@ -619,19 +621,17 @@ describe("I11 — time-bound pause", () => {
     expect(r.result.type).toBe(ClarityType.ResponseErr);
   });
 
-  it("anti-chaining: can re-pause after cooldown elapses (cooldown == prev duration)", () => {
+  it("anti-chaining: can re-pause exactly when the cooldown ends (v4: start + 3x duration + 2x grace)", () => {
     const duration = 100;
     simnet.callPublicFn(CONTRACT, "pause-contract", [Cl.uint(duration)], deployer);
-    // Advance past pause end + full cooldown window (= 2 * duration from pause start)
-    simnet.mineEmptyBlocks(2 * duration + 1);
-
-    const r = simnet.callPublicFn(
-      CONTRACT,
-      "pause-contract",
-      [Cl.uint(duration)],
-      deployer,
-    );
-    expect(r.result).toBeOk(Cl.bool(true));
+    simnet.mineEmptyBlocks(3 * duration + 2 * PAUSE_GRACE - 1);
+    expect(
+      simnet.callPublicFn(CONTRACT, "pause-contract", [Cl.uint(duration)], deployer).result,
+    ).toBeErr(Cl.uint(4003));
+    simnet.mineEmptyBlocks(1);
+    expect(
+      simnet.callPublicFn(CONTRACT, "pause-contract", [Cl.uint(duration)], deployer).result,
+    ).toBeOk(Cl.bool(true));
   });
 
   it("anti-chaining: manual unpause does NOT reset cooldown timer", () => {
@@ -650,8 +650,8 @@ describe("I11 — time-bound pause", () => {
     );
     expect(r.result.type).toBe(ClarityType.ResponseErr);
 
-    // After full cooldown (2 * duration from original pause), re-pause works
-    simnet.mineEmptyBlocks(2 * duration);
+    // After the full cooldown from the original pause, re-pause works
+    simnet.mineEmptyBlocks(3 * duration + 2 * PAUSE_GRACE);
     const r2 = simnet.callPublicFn(
       CONTRACT,
       "pause-contract",
@@ -1151,23 +1151,40 @@ describe("I19 — a seller can dispute only after marking delivery", () => {
   });
 });
 
-describe("I20 — deadlines inside a pause are pushed out by the pause length", () => {
-  it("a pause over expires-at: the seller can still act after it lifts; the buyer waits", () => {
-    const a = createEscrow();
-    const b = createEscrow();
+// pause-adjusted(D) for the last window [S, P):
+//   D in [S, P)          -> max(D + (P - S), P + PAUSE_GRACE)
+//   D in [P, P + GRACE)  -> P + PAUSE_GRACE
+//   otherwise            -> D
+describe("I20 — deadlines affected by a pause are pushed past it", () => {
+  it("a pause over expires-at: the seller can act after it lifts; the buyer waits", () => {
+    const a = createEscrow({ duration: 200 });
+    const b = createEscrow({ duration: 200 });
     const E = getEscrow(a)!.expiresAt;
     expect(getEscrow(b)!.expiresAt).toBe(E);
     toBurn(E - 10);
-    pause(20); // window [E-10, E+10): deadline E becomes E+20
+    pause(100); // window [E-10, E+90): E -> max(E+100, E+90+24) = E+114
 
-    toBurn(E + 10); // pause has lifted
+    toBurn(E + 90); // pause has lifted
     expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
-    toBurn(E + 20); // last block of the pushed deadline
+    toBurn(E + 114); // last block of the pushed deadline
     expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
     expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
 
-    toBurn(E + 21);
+    toBurn(E + 115);
     expect(act("deliver", b, seller)).toBeErr(Cl.uint(ERR_ESCROW_EXPIRED));
+    expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("when the lost time exceeds the grace, the push is the full pause length", () => {
+    const a = createEscrow({ duration: 400 });
+    const b = createEscrow({ duration: 400 });
+    const E = getEscrow(a)!.expiresAt;
+    toBurn(E - 250);
+    pause(300); // window [E-250, E+50): E -> E+300 (> E+50+24)
+    toBurn(E + 300);
+    expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(E + 301);
     expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
   });
 
@@ -1175,12 +1192,12 @@ describe("I20 — deadlines inside a pause are pushed out by the pause length", 
     const id = createEscrow();
     const E = getEscrow(id)!.expiresAt;
     toBurn(E - 10);
-    pause(20);
+    pause(20); // window [E-10, E+10): E -> max(E+20, E+34) = E+34
     toBurn(E + 10);
     expect(
       simnet.callPublicFn(CONTRACT, "extend-escrow", [Cl.uint(id), Cl.uint(1)], buyer).result,
     ).toBeOk(Cl.bool(true));
-    expect(getEscrow(id)!.expiresAt).toBe(E + 20 + 1);
+    expect(getEscrow(id)!.expiresAt).toBe(E + 10 + PAUSE_GRACE + 1);
     expect(act("refund", id, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
     expect(act("deliver", id, seller)).toBeOk(Cl.bool(true));
   });
@@ -1191,8 +1208,8 @@ describe("I20 — deadlines inside a pause are pushed out by the pause length", 
     const Ee = getEscrow(early)!.expiresAt;
     const El = getEscrow(late)!.expiresAt;
     toBurn(Ee + 5);
-    pause(20); // window [Ee+5, Ee+25); El = Ee+50 is after it
-    expect(El).toBeGreaterThanOrEqual(Ee + 25);
+    pause(20); // window [Ee+5, Ee+25), grace to Ee+49; El = Ee+50 is after it
+    expect(El).toBeGreaterThanOrEqual(Ee + 25 + PAUSE_GRACE);
 
     toBurn(Ee + 25);
     expect(act("refund", early, buyer)).toBeOk(Cl.bool(true));
@@ -1211,25 +1228,62 @@ describe("I20 — deadlines inside a pause are pushed out by the pause length", 
     toBurn(E + 5);
     expect(
       simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer).result,
-    ).toBeOk(Cl.bool(true)); // actual window [E-10, E+5): push by 15, not 100
+    ).toBeOk(Cl.bool(true)); // actual window [E-10, E+5): E -> max(E+15, E+29)
 
-    toBurn(E + 15);
+    toBurn(E + 5 + PAUSE_GRACE);
     expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
     expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
-    toBurn(E + 16);
+    toBurn(E + 5 + PAUSE_GRACE + 1);
     expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
   });
 
-  it("an unpause before the deadline leaves it unchanged", () => {
-    const id = createEscrow();
-    const E = getEscrow(id)!.expiresAt;
+  it("an unpause shortly before the deadline still leaves the grace period", () => {
+    const a = createEscrow();
+    const b = createEscrow();
+    const E = getEscrow(a)!.expiresAt;
     toBurn(E - 10);
     pause(100);
     toBurn(E - 5);
     simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer);
-    toBurn(E + 1);
-    expect(act("deliver", id, seller)).toBeErr(Cl.uint(ERR_ESCROW_EXPIRED));
+    // window [E-10, E-5): E is within the grace after it -> E-5+24 = E+19
+    toBurn(E - 5 + PAUSE_GRACE);
+    expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(E - 5 + PAUSE_GRACE + 1);
+    expect(act("deliver", b, seller)).toBeErr(Cl.uint(ERR_ESCROW_EXPIRED));
+    expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("N2 regression: an unpause in the deadline's own block still leaves the grace period", () => {
+    const a = createEscrow({ duration: 200 });
+    const b = createEscrow({ duration: 200 });
+    const D = getEscrow(a)!.expiresAt;
+    toBurn(D - 60);
+    pause(MAX_PAUSE_DURATION);
+    toBurn(D);
+    simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer);
+    // window trimmed to [D-60, D); D is in the grace after it -> D+24
+    toBurn(D + PAUSE_GRACE);
+    expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(D + PAUSE_GRACE + 1);
+    expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("N1 regression: a deadline pushed by a max pause opens before the next pause is allowed", () => {
+    const id = createEscrow({ duration: 5000 });
+    const E = getEscrow(id)!.expiresAt;
+    const d = MAX_PAUSE_DURATION;
+    const S = E - (d - 1); // E is the last block of the window [S, S+d)
+    toBurn(S);
+    pause(d); // E -> E+d; cooldown ends S + 3d + 2*grace
+    toBurn(E + d + 1); // the buyer's refund opens
+    expect(
+      simnet.callPublicFn(CONTRACT, "pause-contract", [Cl.uint(d)], deployer).result,
+    ).toBeErr(Cl.uint(4003));
+    const before = stxOf(buyer);
     expect(act("refund", id, buyer)).toBeOk(Cl.bool(true));
+    expect(stxOf(buyer)).toBeGreaterThan(before);
   });
 
   it("a pause over the review window keeps the seller's dispute window", () => {
@@ -1239,8 +1293,8 @@ describe("I20 — deadlines inside a pause are pushed out by the pause length", 
     toBurn(E - 2);
     expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
     expect(act("deliver", b, seller)).toBeOk(Cl.bool(true));
-    // review deadline E+22; pause window [E-1, E+99) pushes expiry to E+100
-    // and the review deadline to E+122
+    // review deadline E+22; pause window [E-1, E+99), grace to E+123:
+    // expiry E -> max(E+100, E+123), review E+22 -> max(E+122, E+123)
     toBurn(E - 1);
     pause(100);
 
@@ -1251,7 +1305,9 @@ describe("I20 — deadlines inside a pause are pushed out by the pause length", 
     expect(act("refund", a, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
     expect(act("dispute", a, seller)).toBeOk(Cl.bool(true));
 
-    toBurn(E - 2 + REVIEW_PERIOD + 100 + 1);
+    toBurn(E + 99 + PAUSE_GRACE);
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(E + 99 + PAUSE_GRACE + 1);
     expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
   });
 
@@ -1260,12 +1316,12 @@ describe("I20 — deadlines inside a pause are pushed out by the pause length", 
     pause(20);
     expect(
       simnet.callReadOnlyFn(CONTRACT, "get-pause-window", [], deployer).result,
-    ).toBeTuple({ start: Cl.uint(P), end: Cl.uint(P + 20) });
+    ).toBeTuple({ start: Cl.uint(P), end: Cl.uint(P + 20), grace: Cl.uint(PAUSE_GRACE) });
     toBurn(P + 5);
     simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer);
     expect(
       simnet.callReadOnlyFn(CONTRACT, "get-pause-window", [], deployer).result,
-    ).toBeTuple({ start: Cl.uint(P), end: Cl.uint(P + 5) });
+    ).toBeTuple({ start: Cl.uint(P), end: Cl.uint(P + 5), grace: Cl.uint(PAUSE_GRACE) });
   });
 });
 
@@ -1297,5 +1353,55 @@ describe("I21 — the contract cannot be its own fee recipient or a seller", () 
       buyer,
     );
     expect(r.result).toBeErr(Cl.uint(ERR_SELF_ESCROW));
+  });
+});
+
+describe("I22 — get-effective-deadlines matches the contract's own rules", () => {
+  const effective = (id: number) =>
+    simnet.callReadOnlyFn(CONTRACT, "get-effective-deadlines", [Cl.uint(id)], deployer).result;
+  const readOnly = (fn: string, id: number) =>
+    simnet.callReadOnlyFn(CONTRACT, fn, [Cl.uint(id)], deployer).result;
+
+  it("unknown escrow returns none", () => {
+    expect(effective(999)).toBeNone();
+  });
+
+  it("without a pause: the stored deadline, and review-ends-at only after delivery", () => {
+    const id = createEscrow();
+    const E = getEscrow(id)!.expiresAt;
+    expect(effective(id)).toBeSome(
+      Cl.tuple({ "expires-at": Cl.uint(E), "review-ends-at": Cl.none() }),
+    );
+    expect(act("deliver", id, seller)).toBeOk(Cl.bool(true));
+    const da = getEscrow(id)!.deliveredAt!;
+    expect(effective(id)).toBeSome(
+      Cl.tuple({
+        "expires-at": Cl.uint(E),
+        "review-ends-at": Cl.some(Cl.uint(da + REVIEW_PERIOD)),
+      }),
+    );
+  });
+
+  it("after a pause: reports the pushed deadlines, and the contract switches exactly there", () => {
+    const id = createEscrow();
+    const E = getEscrow(id)!.expiresAt;
+    toBurn(E - 2);
+    expect(act("deliver", id, seller)).toBeOk(Cl.bool(true)); // review to E+22
+    toBurn(E - 1);
+    pause(100); // window [E-1, E+99): both deadlines -> E+99+grace
+    const pushed = E + 99 + PAUSE_GRACE;
+    expect(effective(id)).toBeSome(
+      Cl.tuple({ "expires-at": Cl.uint(pushed), "review-ends-at": Cl.some(Cl.uint(pushed)) }),
+    );
+
+    toBurn(pushed);
+    expect(readOnly("is-expired", id)).toBeBool(false);
+    expect(readOnly("is-in-review-period", id)).toBeBool(true);
+    expect(act("refund", id, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+
+    toBurn(pushed + 1);
+    expect(readOnly("is-expired", id)).toBeBool(true);
+    expect(readOnly("is-in-review-period", id)).toBeBool(false);
+    expect(act("refund", id, buyer)).toBeOk(Cl.bool(true));
   });
 });

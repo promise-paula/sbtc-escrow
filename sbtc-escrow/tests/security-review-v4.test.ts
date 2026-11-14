@@ -1,13 +1,19 @@
 // Independent security review of contracts/escrow-mainnet-v4.clar
 // (contracts/escrow-v9.clar is byte-identical; run with ESCROW_CONTRACT=escrow-v9).
 //
-// Round 2: re-review after the author's fixes for F1, F2 and F3.
+// Round 3: re-review after the author's fixes for N1 and N2 (PAUSE_GRACE and
+// the longer re-pause cooldown). The rule under test, for the last pause
+// window [S, P) with P > 0:
+//   D in [S, P)         -> max(D + (P - S), P + GRACE)
+//   D in [P, P + GRACE) -> P + GRACE
+//   otherwise           -> D
+// and pause-cooldown-until = S + 3*duration + 2*GRACE.
 //
 // Every test in this file PASSES when the behaviour it names is present.
-//   F*  REGRESSION = a round-1 finding, now asserting the FIXED behaviour
-//   F1b RESIDUAL   = accepted residual behaviour, documented
-//   N*             = findings in the fixes themselves (proof-of-concept)
-//   HELD-F*        = attacks on the fixes that held
+//   F*/N1/N2 REGRESSION = an earlier finding, now asserting the FIXED behaviour
+//   F1b RESIDUAL        = accepted residual behaviour, documented
+//   N3                  = informational finding in the round-3 rule (PoC)
+//   HELD-F*             = attacks on the fixes that held
 //   INFO*          = informational observations (not bugs)
 //   HELD*          = properties attacked and held (round 1, adjusted for the fixes)
 //
@@ -71,6 +77,7 @@ const T_MAX = 8640; // MAX_DISPUTE_TIMEOUT
 const REVIEW = 24; // REVIEW_PERIOD
 const MAX_DURATION = 52560;
 const MAX_PAUSE = 4320;
+const GRACE = 24; // PAUSE_GRACE
 const BPS = 10000;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -113,10 +120,19 @@ function pause(duration: number, contract = V4) {
   expect(call("pause-contract", [Cl.uint(duration)], deployer, contract)).toBeOk(ok);
 }
 
-/** The recorded pause window [start, end) from get-pause-window. */
+/** The recorded pause window [start, end) and grace from get-pause-window. */
 function pauseWindow(contract = V4) {
   const r: any = ro("get-pause-window", [], contract);
-  return { start: Number(r.value.start.value), end: Number(r.value.end.value) };
+  return {
+    start: Number(r.value.start.value),
+    end: Number(r.value.end.value),
+    grace: Number(r.value.grace.value),
+  };
+}
+
+function cooldownUntil(contract = V4): number {
+  const cfg: any = ro("get-config", [], contract);
+  return Number(cfg.value["pause-cooldown-until"].value);
 }
 
 function getEscrow(escrowId: number, contract = V4): any {
@@ -288,18 +304,19 @@ describe("F1 [Medium, FIXED] a seller who has not marked delivery can no longer 
 });
 
 // ═════════════════════════════════════════════════════════════════════
-// F2 [Medium, FIXED] deadlines inside a pause are pushed out by its length
+// F2 [Medium, FIXED] deadlines affected by a pause are pushed past it
 // ═════════════════════════════════════════════════════════════════════
 
 describe("F2 [Medium, FIXED] a pause now delays deadlines instead of letting them pass", () => {
-  it("F2a REGRESSION: a pause over expires-at pushes the deadline by the pause length; the seller can still deliver after it lifts and the buyer's refund opens exactly one block after the pushed deadline", () => {
+  it("F2a REGRESSION: a pause over expires-at pushes it to max(E + pause length, pause end + GRACE); the seller can still deliver after the pause and the buyer's refund opens one block after the pushed deadline", () => {
     const a = create({ duration: 100 }); // seller delivers late in the pushed window
     const b = create({ duration: 100 }); // buyer waits for refund
     const c = create({ duration: 100 }); // buyer extends after the pause
     const E = a.expiresAt;
 
     toBurn(E - 10);
-    pause(20); // window [E-10, E+10): E is pushed to E+20
+    pause(20); // window [E-10, E+10): E -> max(E+20, E+10+24) = E+34
+    const pushed = E + 34;
     toBurn(E - 5);
     expect(call("deliver", id(a.id), seller)).toBeErr(err(ERR.PAUSED));
 
@@ -308,13 +325,13 @@ describe("F2 [Medium, FIXED] a pause now delays deadlines instead of letting the
     expect(ro("is-expired", id(b.id))).toBeBool(false);
     expect(call("refund", id(b.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
 
-    toBurn(E + 20); // last block of the pushed deadline
+    toBurn(pushed); // last block of the pushed deadline
     expect(call("deliver", id(a.id), seller)).toBeOk(ok);
     expect(call("extend-escrow", [Cl.uint(c.id), Cl.uint(1)], buyer)).toBeOk(ok);
-    expect(getEscrow(c.id).expiresAt).toBe(E + 21); // built on the pushed deadline
+    expect(getEscrow(c.id).expiresAt).toBe(pushed + 1); // built on the pushed deadline
     expect(call("refund", id(b.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
 
-    toBurn(E + 21);
+    toBurn(pushed + 1);
     expect(ro("is-expired", id(b.id))).toBeBool(true);
     expect(call("deliver", id(b.id), seller)).toBeErr(err(ERR.EXPIRED));
     const b0 = stxBal(buyer);
@@ -322,33 +339,40 @@ describe("F2 [Medium, FIXED] a pause now delays deadlines instead of letting the
     expect(stxBal(buyer) - b0).toBe(b.amount + b.fee);
   });
 
-  it("F2a REGRESSION (scale): one max-length emergency pause gives every pending escrow expiring inside it its remaining time back; an escrow expiring on the first operational block is not pushed", () => {
+  it("F2a REGRESSION (scale): one max-length emergency pause gives every pending escrow expiring inside it its remaining time back (never less than GRACE after the pause); a deadline in the grace after the pause lands on end+GRACE; a deadline at end+GRACE is not pushed", () => {
     const C = simnet.burnBlockHeight;
-    const P = C + 40;
-    const durations = [50, 2000, 4300, 40 + MAX_PAUSE - 1];
-    const forSeller = durations.map((duration) => create({ duration }));
-    const forBuyer = durations.map((duration) => create({ duration }));
-    const atEnd = create({ duration: 40 + MAX_PAUSE }); // deadline == window end
-    const atEndTwin = create({ duration: 40 + MAX_PAUSE });
+    const S = C + 40;
+    const end = S + MAX_PAUSE;
+    const graceEnd = end + GRACE;
+    const pair = (duration: number) => ({ s: create({ duration }), b: create({ duration }) });
+    const inside = [50, 2000, 4300, 40 + MAX_PAUSE - 1].map(pair); // deadlines in [S, end)
+    const inGrace = pair(40 + MAX_PAUSE); // deadline == end
+    const atGraceEnd = pair(40 + MAX_PAUSE + GRACE); // deadline == end+GRACE
+    expect(atGraceEnd.s.expiresAt).toBe(graceEnd);
 
-    toBurn(P);
+    const cases = [
+      ...inside.map((p) => ({ ...p, eff: Math.max(p.s.expiresAt + MAX_PAUSE, graceEnd) })),
+      { ...inGrace, eff: graceEnd },
+      { ...atGraceEnd, eff: graceEnd }, // its raw value: not pushed
+    ];
+    expect(cases[0].eff).toBe(graceEnd); // the earliest inside deadline is lifted to the grace floor
+
+    toBurn(S);
     pause(MAX_PAUSE);
-    toBurn(P + MAX_PAUSE); // first operational block
-    expect(call("deliver", id(atEnd.id), seller)).toBeOk(ok);
-    toBurn(P + MAX_PAUSE + 1);
-    expect(call("refund", id(atEndTwin.id), buyer)).toBeOk(ok);
-
-    for (let i = 0; i < durations.length; i++) {
-      const pushed = forSeller[i].expiresAt + MAX_PAUSE;
-      toBurn(pushed);
-      expect(call("deliver", id(forSeller[i].id), seller)).toBeOk(ok);
-      expect(call("refund", id(forBuyer[i].id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
-      toBurn(pushed + 1);
-      expect(call("refund", id(forBuyer[i].id), buyer)).toBeOk(ok);
+    const blocks = [...new Set(cases.map((c) => c.eff))].sort((x, y) => x - y);
+    for (const blk of blocks) {
+      const group = cases.filter((c) => c.eff === blk);
+      toBurn(blk);
+      for (const c of group) {
+        expect(call("deliver", id(c.s.id), seller)).toBeOk(ok);
+        expect(call("refund", id(c.b.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+      }
+      toBurn(blk + 1);
+      for (const c of group) expect(call("refund", id(c.b.id), buyer)).toBeOk(ok);
     }
   });
 
-  it("F2b REGRESSION: a pause that swallows the post-delivery review window pushes the review deadline too; the on-time seller gets its exclusive dispute window back (no same-block race) and the buyer's refund opens only after it", () => {
+  it("F2b REGRESSION: a pause that swallows the post-delivery review window pushes the review deadline too; the on-time seller gets an exclusive dispute window after the pause (no same-block race) and the buyer's refund opens only after it", () => {
     const a = create({ duration: 100 });
     const b = create({ duration: 100 });
     const E = a.expiresAt;
@@ -356,7 +380,8 @@ describe("F2 [Medium, FIXED] a pause now delays deadlines instead of letting the
     toBurn(E - 2);
     for (const e of [a, b]) expect(call("deliver", id(e.id), seller)).toBeOk(ok); // review to E+22
     toBurn(E - 1);
-    pause(100); // window [E-1, E+99): expiry -> E+100, review -> E+122
+    pause(100); // window [E-1, E+99), grace to E+123:
+    // expiry E -> max(E+100, E+123) = E+123; review E+22 -> max(E+122, E+123) = E+123
 
     toBurn(E + 99); // first operational block
     expect(ro("is-in-review-period", id(a.id))).toBeBool(true);
@@ -367,10 +392,10 @@ describe("F2 [Medium, FIXED] a pause now delays deadlines instead of letting the
     expect(refA).toBeErr(err(ERR.UNAUTHORIZED)); // refund not open: no race
     expect(dispA).toBeOk(ok);
 
-    toBurn(E + 122); // last block of the pushed review window (24 blocks, as before the pause)
+    toBurn(E + 123); // last block of the pushed review window
     expect(ro("is-in-review-period", id(b.id))).toBeBool(true);
     expect(call("refund", id(b.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
-    toBurn(E + 123);
+    toBurn(E + 124);
     expect(ro("is-in-review-period", id(b.id))).toBeBool(false);
     expect(call("refund", id(b.id), buyer)).toBeOk(ok);
   });
@@ -391,7 +416,7 @@ describe("HELD-F2 attacks on the pause-adjusted deadlines", () => {
     expect(call("refund", id(b.id), buyer)).toBeOk(ok);
   });
 
-  it("HELD-F2b: a pause landing inside the deadline block E: a deliver ordered before it succeeds, one after it fails with u1002, and the deadline moves to E+d so the late seller gets one full block after the pause; buyer refunds at E+d+1", () => {
+  it("HELD-F2b: a pause landing inside the deadline block E: a deliver ordered before it succeeds, one after it fails with u1002, and the deadline moves to max(E+d, E+d+GRACE) = E+d+GRACE; the late seller delivers on the first operational block and the buyer refunds at E+d+GRACE+1", () => {
     const a = create({ duration: 10 });
     const b = create({ duration: 10 });
     const c = create({ duration: 10 });
@@ -407,18 +432,20 @@ describe("HELD-F2 attacks on the pause-adjusted deadlines", () => {
     expect(pz).toBeOk(ok);
     expect(d2).toBeErr(err(ERR.PAUSED));
 
-    toBurn(E + d); // first operational block == pushed deadline
-    expect(call("refund", id(c.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(E + d); // first operational block
     expect(call("deliver", id(b.id), seller)).toBeOk(ok);
-    toBurn(E + d + 1);
+    toBurn(E + d + GRACE); // last block of the pushed deadline
+    expect(call("refund", id(c.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(E + d + GRACE + 1);
     expect(call("refund", id(c.id), buyer)).toBeOk(ok);
   });
 
-  it("HELD-F2c: unpause with no pause ever recorded is a no-op on the window and moves no deadline", () => {
+  it("HELD-F2c: with no pause ever recorded (end = 0) the grace does not apply: unpause is a no-op on the window and a deadline below GRACE keeps its raw value", () => {
     const a = create({ duration: 10 });
     const b = create({ duration: 10 });
+    expect(a.expiresAt).toBeLessThan(GRACE); // inside [0, GRACE) were it not for the end > 0 guard
     expect(call("unpause-contract", [], deployer)).toBeOk(ok);
-    expect(pauseWindow()).toEqual({ start: 0, end: 0 });
+    expect(pauseWindow()).toEqual({ start: 0, end: 0, grace: GRACE });
     toBurn(a.expiresAt);
     expect(call("deliver", id(a.id), seller)).toBeOk(ok);
     toBurn(a.expiresAt + 1);
@@ -430,20 +457,20 @@ describe("HELD-F2 attacks on the pause-adjusted deadlines", () => {
     const b = create({ duration: 20 });
     const E = a.expiresAt;
     const d = 10;
-    const P = E - 5;
-    toBurn(P);
-    pause(d); // window [E-5, E+5): E pushed to E+10
+    const S = E - 5;
+    toBurn(S);
+    pause(d); // window [E-5, E+5): E -> max(E+10, E+5+24) = E+29
     toBurn(E + 7); // auto-lifted at E+5
     expect(call("unpause-contract", [], deployer)).toBeOk(ok);
-    expect(pauseWindow()).toEqual({ start: P, end: P + d });
-    toBurn(E + d);
+    expect(pauseWindow()).toEqual({ start: S, end: S + d, grace: GRACE });
+    toBurn(E + 29);
     expect(call("deliver", id(a.id), seller)).toBeOk(ok);
     expect(call("refund", id(b.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
-    toBurn(E + d + 1);
+    toBurn(E + 30);
     expect(call("refund", id(b.id), buyer)).toBeOk(ok);
   });
 
-  it("HELD-F2e: pause and unpause in the same burn block record an empty window; a deadline in that block is not pushed, and only a seller who acts after the unpause in that block keeps the right", () => {
+  it("HELD-F2e: pause and unpause in the same burn block record an empty window that still carries the grace: a deadline in that block moves to E+GRACE, so a seller whose deliver hit the pause keeps GRACE more blocks", () => {
     const a = create({ duration: 10 });
     const b = create({ duration: 10 });
     const c = create({ duration: 10 });
@@ -459,126 +486,205 @@ describe("HELD-F2 attacks on the pause-adjusted deadlines", () => {
     expect(dlB).toBeErr(err(ERR.PAUSED));
     expect(u).toBeOk(ok);
     expect(dlA).toBeOk(ok);
-    expect(pauseWindow()).toEqual({ start: E, end: E });
-    toBurn(E + 1);
-    expect(call("deliver", id(b.id), seller)).toBeErr(err(ERR.EXPIRED));
+    expect(pauseWindow()).toEqual({ start: E, end: E, grace: GRACE });
+    toBurn(E + GRACE);
+    expect(call("deliver", id(b.id), seller)).toBeOk(ok);
+    expect(call("refund", id(c.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(E + GRACE + 1);
     expect(call("refund", id(c.id), buyer)).toBeOk(ok);
   });
 
-  it("HELD-F2f: an early unpause pushes deadlines inside the trimmed window by exactly the blocks paused (U-P) and makes nothing expire at the unpause block", () => {
+  it("HELD-F2f: an early unpause pushes deadlines inside the trimmed window to max(D + (U-S), U + GRACE) and makes nothing expire before U + GRACE", () => {
     const a = create({ duration: 100 });
     const b = create({ duration: 100 });
     const c = create({ duration: 100 });
     const E = a.expiresAt;
-    const P = E - 10;
+    const S = E - 10;
     const U = E + 5;
-    toBurn(P);
+    toBurn(S);
     pause(100); // planned [E-10, E+90)
     toBurn(U);
-    expect(call("unpause-contract", [], deployer)).toBeOk(ok); // actual [E-10, E+5): push 15
-    expect(pauseWindow()).toEqual({ start: P, end: U });
+    expect(call("unpause-contract", [], deployer)).toBeOk(ok); // actual [E-10, E+5)
+    expect(pauseWindow()).toEqual({ start: S, end: U, grace: GRACE });
     expect(ro("is-expired", id(a.id))).toBeBool(false);
 
-    toBurn(E + (U - P)); // pushed deadline E+15
+    const pushed = Math.max(E + (U - S), U + GRACE);
+    expect(pushed).toBe(E + 29); // the grace dominates the 15 blocks lost
+    toBurn(pushed);
     expect(call("deliver", id(a.id), seller)).toBeOk(ok);
     expect(call("refund", id(b.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
-    toBurn(E + (U - P) + 1);
+    toBurn(pushed + 1);
     expect(call("deliver", id(c.id), seller)).toBeErr(err(ERR.EXPIRED));
     expect(call("refund", id(b.id), buyer)).toBeOk(ok);
   });
 
-  it("HELD-F2g: extend-escrow after a pause builds on the pushed deadline, stays capped at MAX_DURATION from now (exact cap ok, +1 rejected) and does not underflow on the last effective block", () => {
+  it("HELD-F2g: extend-escrow after a pause builds on the pushed deadline (including a grace-only push), stays capped at MAX_DURATION from now (exact cap ok, +1 rejected) and does not underflow on the last effective block", () => {
     const a = create({ duration: 100 });
     const b = create({ duration: 100 });
+    const c = create({ duration: 145 }); // deadline E+45: after the window, inside its grace
     const E = a.expiresAt;
-    const d = 50;
     toBurn(E - 10);
-    pause(d); // window [E-10, E+40): E pushed to E+50
+    pause(50); // window [E-10, E+40), grace to E+64: E -> max(E+50, E+64) = E+64; E+45 -> E+64
+    const pushed = E + 64;
 
-    toBurn(E + 40); // first operational block, 10 blocks left
-    expect(call("extend-escrow", [Cl.uint(a.id), Cl.uint(MAX_DURATION - 10 + 1)], buyer)).toBeErr(err(ERR.INVALID_EXTENSION));
-    expect(call("extend-escrow", [Cl.uint(a.id), Cl.uint(MAX_DURATION - 10)], buyer)).toBeOk(ok);
-    expect(getEscrow(a.id).expiresAt).toBe(E + d + MAX_DURATION - 10);
+    toBurn(E + 40); // first operational block, 24 blocks left
+    expect(call("extend-escrow", [Cl.uint(a.id), Cl.uint(MAX_DURATION - 24 + 1)], buyer)).toBeErr(err(ERR.INVALID_EXTENSION));
+    expect(call("extend-escrow", [Cl.uint(a.id), Cl.uint(MAX_DURATION - 24)], buyer)).toBeOk(ok);
+    expect(getEscrow(a.id).expiresAt).toBe(pushed + MAX_DURATION - 24);
 
-    toBurn(E + d); // b's last effective block, 0 blocks left
+    toBurn(pushed); // last effective block, 0 blocks left
     expect(call("extend-escrow", [Cl.uint(b.id), Cl.uint(MAX_DURATION + 1)], buyer)).toBeErr(err(ERR.INVALID_EXTENSION));
     expect(call("extend-escrow", [Cl.uint(b.id), Cl.uint(MAX_DURATION)], buyer)).toBeOk(ok);
-    expect(getEscrow(b.id).expiresAt).toBe(E + d + MAX_DURATION);
+    expect(getEscrow(b.id).expiresAt).toBe(pushed + MAX_DURATION);
+    expect(call("extend-escrow", [Cl.uint(c.id), Cl.uint(1)], buyer)).toBeOk(ok);
+    expect(getEscrow(c.id).expiresAt).toBe(pushed + 1);
+  });
+
+  it("HELD-F2h: tiny pauses chained at the cooldown never push one deadline twice: an empty window gives [S, S+GRACE) the grace once, the next pause is refused at S+3+2*GRACE-1 and allowed at S+3+2*GRACE, and it pushes only deadlines in its own range", () => {
+    const S = simnet.burnBlockHeight + 5;
+    const first = create({ duration: 15 }); // deadline S+10: in [S, S+GRACE)
+    const firstTwin = create({ duration: 15 });
+    const second = create({ duration: 70 }); // deadline S+65: in the second window's grace
+    const secondTwin = create({ duration: 70 });
+    expect(first.expiresAt).toBe(S + 10);
+
+    toBurn(S);
+    const [p, u] = sameBlock(
+      tx.callPublicFn(V4, "pause-contract", [Cl.uint(1)], deployer),
+      tx.callPublicFn(V4, "unpause-contract", [], deployer),
+    );
+    expect(p).toBeOk(ok);
+    expect(u).toBeOk(ok);
+    expect(pauseWindow()).toEqual({ start: S, end: S, grace: GRACE });
+    const cooldown = S + 3 * 1 + 2 * GRACE;
+    expect(cooldownUntil()).toBe(cooldown);
+
+    toBurn(S + GRACE);
+    expect(call("deliver", id(first.id), seller)).toBeOk(ok);
+    expect(call("refund", id(firstTwin.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(S + GRACE + 1);
+    expect(call("refund", id(firstTwin.id), buyer)).toBeOk(ok);
+
+    toBurn(cooldown - 1);
+    expect(call("pause-contract", [Cl.uint(1)], deployer)).toBeErr(err(ERR.PAUSE_COOLDOWN));
+    toBurn(cooldown);
+    pause(1); // window [cooldown, cooldown+1), grace to cooldown+1+GRACE
+    expect(ro("is-expired", id(first.id))).toBeBool(true); // first's deadline is not pushed again
+
+    const secondPushed = cooldown + 1 + GRACE;
+    expect(second.expiresAt).toBeGreaterThanOrEqual(cooldown + 1);
+    expect(second.expiresAt).toBeLessThan(secondPushed);
+    toBurn(secondPushed);
+    expect(call("deliver", id(second.id), seller)).toBeOk(ok);
+    expect(call("refund", id(secondTwin.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(secondPushed + 1);
+    expect(call("refund", id(secondTwin.id), buyer)).toBeOk(ok);
   });
 });
 
 // ═════════════════════════════════════════════════════════════════════
-// N1 [Low] new in the F2 fix: pushed deadlines end where the cooldown ends
+// N1 [Low, FIXED] pushed deadlines now open well before the next pause
 // ═════════════════════════════════════════════════════════════════════
 
-describe("N1 [Low] a pushed deadline can end exactly at pause-cooldown-until, so a second pause can follow before the buyer may refund", () => {
-  it("N1 PoC: deadline in the last block of a max pause is pushed to cooldown-1; the owner re-pauses in the very block the refund opens (ordered first) and holds it until E+2*MAX_PAUSE+1, where v3 under the same first pause refunded at E+1; the second pause does not push the deadline again", () => {
+describe("N1 [Low, FIXED] the longer cooldown leaves the buyer operational time after any pushed deadline", () => {
+  it("N1 REGRESSION: a deadline in the last block of a max pause is pushed to E+d and the refund opens at E+d+1, while pause-cooldown-until is S+3d+2*GRACE: in the block where the round-2 race happened the owner's re-pause now fails (u4003) and the buyer's refund succeeds, with d+2*GRACE operational blocks to spare", () => {
     const d = MAX_PAUSE;
     const a = create({ contract: V4, duration: d + 10 });
     const v3e = create({ contract: V3, duration: d + 10 });
     const E = a.expiresAt;
-    const P1 = E - (d - 1); // E is the LAST block of [P1, P1+d)
-    toBurn(P1);
+    const S = E - (d - 1); // E is the LAST block of [S, S+d)
+    toBurn(S);
     pause(d, V4);
     pause(d, V3);
+    const cooldown = S + 3 * d + 2 * GRACE;
+    expect(cooldownUntil()).toBe(cooldown);
 
-    // v3: refund right after the pause lifts, with d blocks before any re-pause.
     toBurn(E + 1);
-    expect(call("refund", id(v3e.id), buyer, V3)).toBeOk(ok);
+    expect(call("refund", id(v3e.id), buyer, V3)).toBeOk(ok); // v3 contrast unchanged
 
-    // v4: E pushed to E+d; the refund opens at E+d+1 == pause-cooldown-until.
-    toBurn(E + d);
+    toBurn(E + d); // pushed deadline: max(E+d, (E+1)+GRACE) = E+d
     expect(call("refund", id(a.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
-    const cfg: any = ro("get-config", []);
-    expect(Number(cfg.value["pause-cooldown-until"].value)).toBe(E + d + 1);
-
     toBurn(E + d + 1);
     const [pz, rf] = sameBlock(
       tx.callPublicFn(V4, "pause-contract", [Cl.uint(d)], deployer),
       tx.callPublicFn(V4, "refund", id(a.id), buyer),
     );
-    expect(pz).toBeOk(ok);
-    expect(rf).toBeErr(err(ERR.PAUSED));
-    expect(ro("is-expired", id(a.id))).toBeBool(true); // single window: no second push
-
-    toBurn(E + 2 * d);
-    expect(call("refund", id(a.id), buyer)).toBeErr(err(ERR.PAUSED));
-    toBurn(E + 2 * d + 1);
-    expect(call("refund", id(a.id), buyer)).toBeOk(ok);
+    expect(pz).toBeErr(err(ERR.PAUSE_COOLDOWN));
+    expect(rf).toBeOk(ok);
+    expect(cooldown - (E + d + 1)).toBe(d + 2 * GRACE);
   });
 });
 
 // ═════════════════════════════════════════════════════════════════════
-// N2 [Low] residual of the F2 fix: compensation stops at the actual end
+// N2 [Low, FIXED] an early unpause no longer leaves a party a partial block
 // ═════════════════════════════════════════════════════════════════════
 
-describe("N2 [Low] only deadlines inside the window actually paused are pushed; an early unpause can retract a displayed push", () => {
-  it("N2 PoC: during a max pause the recorded window covers the seller's deadline (it reads as pushed by MAX_PAUSE); the owner unpauses in exactly that deadline block, the window is trimmed, the push disappears and the seller keeps only the rest of that burn block", () => {
+describe("N2 [Low, FIXED] every deadline a pause touched lands at least GRACE past its actual end", () => {
+  it("N2 REGRESSION: an early unpause in a seller's deadline block still trims the window, but that deadline now lands at end+GRACE, so the seller keeps GRACE full blocks; a deadline inside the trimmed window lands at max(D + (U-S), U + GRACE)", () => {
     const inside = create({ duration: 200 });
     const target = create({ duration: 250 });
     const twin = create({ duration: 250 });
     const E1 = inside.expiresAt;
     const E2 = target.expiresAt;
-    const P = E1 - 10;
+    const S = E1 - 10;
 
-    toBurn(P);
+    toBurn(S);
     pause(MAX_PAUSE);
-    expect(pauseWindow()).toEqual({ start: P, end: P + MAX_PAUSE }); // E2 inside: shown as E2+4320
+    expect(pauseWindow()).toEqual({ start: S, end: S + MAX_PAUSE, grace: GRACE });
 
     toBurn(E2);
     expect(call("deliver", id(target.id), seller)).toBeErr(err(ERR.PAUSED));
-    const [u, late] = sameBlock(
-      tx.callPublicFn(V4, "unpause-contract", [], deployer),
-      tx.callPublicFn(V4, "deliver", id(target.id), seller), // only a seller reacting in this burn block
-    );
-    expect(u).toBeOk(ok);
-    expect(late).toBeOk(ok);
-    expect(pauseWindow()).toEqual({ start: P, end: E2 }); // E2 no longer inside
+    expect(call("unpause-contract", [], deployer)).toBeOk(ok);
+    expect(pauseWindow()).toEqual({ start: S, end: E2, grace: GRACE }); // E2 is just after the window
 
-    toBurn(E2 + 1);
+    toBurn(E2 + GRACE); // last block of the grace
+    expect(call("deliver", id(target.id), seller)).toBeOk(ok);
+    expect(Math.max(E1 + (E2 - S), E2 + GRACE)).toBe(E2 + GRACE);
+    expect(call("deliver", id(inside.id), seller)).toBeOk(ok);
+    expect(call("refund", id(twin.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(E2 + GRACE + 1);
     expect(call("deliver", id(twin.id), seller)).toBeErr(err(ERR.EXPIRED));
     expect(call("refund", id(twin.id), buyer)).toBeOk(ok);
-    expect(call("deliver", id(inside.id), seller)).toBeOk(ok); // E1 inside: pushed by E2-P
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// N3 [Info] new in round 3: the cooldown bound covers adjusted deadlines,
+// not a review deadline created by a delivery made after the pause
+// ═════════════════════════════════════════════════════════════════════
+
+describe("N3 [Info] after a tiny pause, a post-pause delivery's review deadline can end one block before the next pause is allowed", () => {
+  it("N3 PoC: 1-block pause on the deadline block (E -> E+GRACE+1), seller delivers in that last pushed block (review deadline E+49 is never adjusted), the refund is valid only at E+50 because a re-pause is allowed at S+3+2*GRACE = E+51; a buyer who misses that one block waits one more MAX_PAUSE (total hold ~MAX_PAUSE+50)", () => {
+    const a = create({ duration: 10 });
+    const twin = create({ duration: 10 });
+    const E = a.expiresAt;
+    toBurn(E);
+    pause(1); // window [E, E+1), grace to E+25: E -> max(E+1, E+25) = E+25
+    const cooldown = E + 3 * 1 + 2 * GRACE;
+    expect(cooldownUntil()).toBe(cooldown);
+
+    toBurn(E + 1 + GRACE); // last pushed block
+    expect(call("deliver", id(a.id), seller)).toBeOk(ok);
+    expect(call("deliver", id(twin.id), seller)).toBeOk(ok);
+    const R = E + 1 + GRACE + REVIEW; // E+49, outside [E, E+25): not adjusted
+
+    toBurn(R);
+    expect(call("refund", id(a.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(R + 1); // the buyer's only operational block before a re-pause is allowed
+    expect(cooldown - (R + 1)).toBe(1);
+    expect(call("refund", id(twin.id), buyer)).toBeOk(ok);
+
+    toBurn(cooldown);
+    const [pz, rf] = sameBlock(
+      tx.callPublicFn(V4, "pause-contract", [Cl.uint(MAX_PAUSE)], deployer),
+      tx.callPublicFn(V4, "refund", id(a.id), buyer),
+    );
+    expect(pz).toBeOk(ok);
+    expect(rf).toBeErr(err(ERR.PAUSED));
+    toBurn(cooldown + MAX_PAUSE - 1);
+    expect(call("refund", id(a.id), buyer)).toBeErr(err(ERR.PAUSED));
+    toBurn(cooldown + MAX_PAUSE);
+    expect(call("refund", id(a.id), buyer)).toBeOk(ok);
   });
 });
 
@@ -709,6 +815,23 @@ describe("INFO observations", () => {
     expect(adminRes).toBeOk(ok);
     expect(buyerRescue).toBeErr(err(ERR.NOT_DISPUTED));
     expect(getEscrow(e.id).status).toBe(RELEASED);
+  });
+
+  it("INFO-6 (documented quirk): a short escrow created inside the post-pause grace inherits it: a 1-block escrow created at end+2 gets the deadline end+GRACE instead of end+3", () => {
+    const S = simnet.burnBlockHeight;
+    pause(1); // window [S, S+1), grace to S+1+GRACE
+    const end = S + 1;
+    toBurn(end + 2);
+    const q = create({ duration: 1 });
+    const qTwin = create({ duration: 1 });
+    expect(q.expiresAt).toBe(end + 3); // raw deadline
+    toBurn(end + 4);
+    expect(ro("is-expired", id(q.id))).toBeBool(false); // raw would be expired
+    toBurn(end + GRACE);
+    expect(call("deliver", id(q.id), seller)).toBeOk(ok);
+    expect(call("refund", id(qTwin.id), buyer)).toBeErr(err(ERR.UNAUTHORIZED));
+    toBurn(end + GRACE + 1);
+    expect(call("refund", id(qTwin.id), buyer)).toBeOk(ok);
   });
 });
 
