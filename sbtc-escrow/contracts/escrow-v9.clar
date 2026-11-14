@@ -1,11 +1,13 @@
 ;; title: sBTC Escrow Mainnet V4
 ;; version: 4.0.0
-;; summary: v3 plus expiry-bound deliver/dispute and a per-escrow
+;; summary: v3 plus expiry-bound deliver/dispute, seller disputes only
+;;          after delivery, pause-adjusted deadlines and a per-escrow
 ;;          dispute-timeout snapshot.
 ;; description: Successor to escrow-mainnet-v3. Same storage model, same
 ;;              token types and same burn-block clock. v4 closes an expiry
 ;;              griefing path reported against v3 (deliver() and dispute()
-;;              had no check against expires-at):
+;;              had no check against expires-at), plus the issues found in
+;;              an independent review of the first v4 draft:
 ;;
 ;;  - [MEDIUM] Late deliver / dispute after expiry
 ;;      v3: once an escrow expired, a seller who never delivered could
@@ -13,11 +15,32 @@
 ;;          late and then dispute(). The buyer was locked out of refund()
 ;;          until dispute-timeout (~30 days), and a late deliver() also
 ;;          opened the seller self-rescue path at 2x the timeout.
-;;      v4: deliver() is rejected after expires-at. dispute() is rejected
-;;          after expires-at unless the escrow was already DELIVERED (which,
-;;          with the deliver() rule, means delivered on time). A seller who
-;;          performed keeps the right to dispute; one who did not cannot
-;;          block the buyer's refund.
+;;      v4: deliver() is rejected after expires-at. A seller can dispute
+;;          only after marking the escrow delivered, so a seller who has not
+;;          marked delivery cannot dispute at any time, before or after
+;;          expiry. After expires-at, only an escrow delivered on time can be
+;;          disputed. A seller who marks delivery without performing can
+;;          still force arbitration: the owner resolves it, or the buyer
+;;          self-rescues after the escrow's dispute-timeout. If neither
+;;          happens by 2x the timeout, the seller can self-rescue the
+;;          payment, as in v3.
+;;
+;;  - [MEDIUM] Deadlines that fall inside a pause
+;;      v4 draft: with deliver()/dispute() expiry-bound, a pause covering
+;;          an escrow's expires-at let the deadline pass while the seller
+;;          could not act, and the buyer could refund the moment it lifted.
+;;          A pause covering the review window had the same effect.
+;;      v4: the last pause window [last-pause-start, last-pause-end) is
+;;          recorded, and any expires-at or review deadline inside it is
+;;          pushed out by the window's length, for every party alike (see
+;;          pause-adjusted). extend-escrow builds on the adjusted deadline.
+;;
+;;  - [LOW] Contract as fee recipient or seller
+;;      v4 draft: the owner could set fee-recipient to the contract itself.
+;;          A transfer from the contract to itself fails, so escrows that
+;;          snapshotted it could never pay their seller.
+;;      v4: set-fee-recipient rejects the contract, and create-escrow
+;;          rejects the contract as seller.
 ;;
 ;;  - [LOW] Mid-flight dispute-timeout changes
 ;;      v3: resolve-expired-dispute and resolve-expired-dispute-for-seller
@@ -173,6 +196,10 @@
 ;; MAX_PAUSE_DURATION pauses back-to-back -- admin must give users operational
 ;; time at least equal to the previous pause length before re-arming.
 (define-data-var pause-cooldown-until uint u0)
+;; v4: the most recent pause window, [last-pause-start, last-pause-end).
+;; Deadlines inside it are pushed out by its length (see pause-adjusted).
+(define-data-var last-pause-start uint u0)
+(define-data-var last-pause-end uint u0)
 (define-data-var contract-owner principal DEPLOYER)
 (define-data-var pending-owner (optional principal) none)
 (define-data-var fee-recipient principal DEPLOYER)
@@ -260,15 +287,32 @@
   (is-eq contract-caller (var-get contract-owner))
 )
 
+;; v4: a deadline that fell inside the last pause window is pushed out by
+;; the window's length, so a pause delays every party's deadline instead of
+;; letting it pass while nobody could act. Tracking one window is enough:
+;; the re-pause cooldown ends `duration` blocks after the pause ends, so
+;; every adjusted deadline has passed before the next pause can start.
+(define-private (pause-adjusted (deadline uint))
+  (let (
+    (pause-start (var-get last-pause-start))
+    (pause-end (var-get last-pause-end))
+  )
+    (if (and (>= deadline pause-start) (< deadline pause-end))
+      (+ deadline (- pause-end pause-start))
+      deadline
+    )
+  )
+)
+
 (define-private (is-escrow-expired (expires-at uint))
-  (> burn-block-height expires-at)
+  (> burn-block-height (pause-adjusted expires-at))
 )
 
 ;; True iff the escrow's post-delivery review window has fully elapsed,
 ;; OR the escrow was never delivered (no review window applies).
 (define-private (is-review-period-elapsed (delivered-at-opt (optional uint)))
   (match delivered-at-opt
-    da (> burn-block-height (+ da REVIEW_PERIOD))
+    da (> burn-block-height (pause-adjusted (+ da REVIEW_PERIOD)))
     true
   )
 )
@@ -403,6 +447,8 @@
               ERR_PAUSE_COOLDOWN_ACTIVE)
     (var-set contract-paused true)
     (var-set pause-until-block (+ burn-block-height duration))
+    (var-set last-pause-start burn-block-height)
+    (var-set last-pause-end (+ burn-block-height duration))
     ;; cooldown ends `duration` blocks AFTER the pause itself ends
     (var-set pause-cooldown-until (+ (+ burn-block-height duration) duration))
     (print {
@@ -420,11 +466,17 @@
 ;; Manual unpause. Does NOT shorten the cooldown -- the cooldown is anchored
 ;; to the originally-promised pause-until block, so admin can't use
 ;; pause-then-immediately-unpause to reset the cooldown counter to zero.
+;; v4: an early unpause trims the recorded pause window, so deadlines are
+;; pushed out by the time the contract was actually paused.
 (define-public (unpause-contract)
   (begin
     (try! (check-is-owner))
     (var-set contract-paused false)
     (var-set pause-until-block u0)
+    (if (< burn-block-height (var-get last-pause-end))
+      (var-set last-pause-end burn-block-height)
+      true
+    )
     (print { event: "contract-unpaused", by: contract-caller, burn-block: burn-block-height })
     (ok true)
   )
@@ -454,6 +506,8 @@
   (begin
     (try! (check-is-owner))
     (asserts! (not (is-eq recipient (var-get fee-recipient))) ERR_UNAUTHORIZED)
+    ;; v4: the contract cannot pay itself, so it can never be the recipient
+    (asserts! (not (is-eq recipient current-contract)) ERR_UNAUTHORIZED)
     (var-set fee-recipient recipient)
     (print { event: "fee-recipient-updated", recipient: recipient })
     (ok true)
@@ -558,6 +612,7 @@
     ;; Validations
     (asserts! (> (len description) u0) ERR_INVALID_AMOUNT)
     (asserts! (not (is-eq buyer seller)) ERR_SELF_ESCROW)
+    (asserts! (not (is-eq seller current-contract)) ERR_SELF_ESCROW)
     (asserts! (is-valid-token-type token-type) ERR_INVALID_TOKEN)
     (asserts! (is-valid-amount token-type amount) ERR_INVALID_AMOUNT)
     (asserts! (>= duration MIN_DURATION) ERR_INVALID_DURATION)
@@ -837,6 +892,18 @@
       ERR_ESCROW_EXPIRED
     )
 
+    ;; v4: a seller can only dispute work they have marked delivered. A
+    ;; seller who has not performed has nothing to arbitrate (refund() is
+    ;; open to them at any time) and must not be able to freeze the
+    ;; buyer's refund by disputing just before expiry.
+    (asserts!
+      (or
+        (not (is-eq contract-caller seller))
+        (is-some (get delivered-at escrow))
+      )
+      ERR_NOT_DELIVERED
+    )
+
     (map-set escrows escrow-id (merge escrow {
       status: STATUS_DISPUTED,
       disputed-at: (some burn-block-height)
@@ -862,7 +929,9 @@
   (let (
     (escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND))
     (current-expires (get expires-at escrow))
-    (new-expires (+ current-expires additional-blocks))
+    ;; v4: build on the pause-adjusted deadline, so an extension can never
+    ;; pull the deadline earlier than it effectively is
+    (new-expires (+ (pause-adjusted current-expires) additional-blocks))
     (status (get status escrow))
   )
     (try! (check-is-operational))
@@ -1257,7 +1326,7 @@
   (match (map-get? escrows escrow-id)
     escrow
       (match (get delivered-at escrow)
-        da (<= burn-block-height (+ da REVIEW_PERIOD))
+        da (<= burn-block-height (pause-adjusted (+ da REVIEW_PERIOD)))
         false
       )
     false
@@ -1345,6 +1414,12 @@
     max-pause-duration: MAX_PAUSE_DURATION,
     seller-rescue-multiplier: SELLER_RESCUE_MULTIPLIER
   }
+)
+
+;; v4: the last pause window. Deadlines in [start, end) are pushed out by
+;; (end - start); frontends use this to show effective deadlines.
+(define-read-only (get-pause-window)
+  { start: (var-get last-pause-start), end: (var-get last-pause-end) }
 )
 
 (define-read-only (is-paused)

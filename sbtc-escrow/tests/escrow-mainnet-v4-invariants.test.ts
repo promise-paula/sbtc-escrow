@@ -4,9 +4,11 @@
 // v4-specific properties for the expiry and dispute-timeout fixes:
 //
 //   I16  deliver() is rejected after expires-at
-//   I17  dispute() after expiry only for escrows delivered on time;
-//        a non-delivering seller cannot block the buyer's refund
+//   I17  dispute() after expiry only for escrows delivered on time
 //   I18  dispute-timeout is snapshot per escrow at creation
+//   I19  a seller can dispute only after marking delivery
+//   I20  deadlines inside a pause are pushed out by the pause length
+//   I21  the contract cannot be its own fee recipient or a seller
 //
 // v3 invariants retained:
 //
@@ -946,8 +948,30 @@ describe("I15 — fee-recipient snapshot survives admin changes", () => {
 // v4 — expiry and dispute-timeout fixes
 // ─────────────────────────────────────────────────────────────────────
 
+const ERR_UNAUTHORIZED = 1001;
 const ERR_ESCROW_EXPIRED = 2003;
+const ERR_SELF_ESCROW = 2007;
+const ERR_NOT_DELIVERED = 2016;
+const REVIEW_PERIOD = 24;
 const DURATION = 100; // createEscrow() default
+
+// burn-block-height only moves with mineEmptyBlocks; calls share a burn block.
+function toBurn(h: number) {
+  const now = simnet.burnBlockHeight;
+  if (h < now) throw new Error(`toBurn(${h}) is in the past (now ${now})`);
+  if (h > now) simnet.mineEmptyBlocks(h - now);
+  expect(simnet.burnBlockHeight).toBe(h);
+}
+
+function act(fn: string, id: number, sender: string) {
+  return simnet.callPublicFn(CONTRACT, fn, [Cl.uint(id)], sender).result;
+}
+
+function pause(duration: number) {
+  expect(
+    simnet.callPublicFn(CONTRACT, "pause-contract", [Cl.uint(duration)], deployer).result,
+  ).toBeOk(Cl.bool(true));
+}
 
 function expire() {
   simnet.mineEmptyBlocks(DURATION + 5);
@@ -1032,15 +1056,13 @@ describe("I17 — dispute() after expiry only for on-time deliveries", () => {
     expect(getEscrow(id)!.status).toBe(STATUS_DISPUTED);
   });
 
-  it("either party CAN dispute before expiry, as in v3", () => {
+  it("before expiry: buyer CAN dispute; seller only after marking delivery", () => {
     const a = createEscrow();
-    expect(
-      simnet.callPublicFn(CONTRACT, "dispute", [Cl.uint(a)], buyer).result,
-    ).toBeOk(Cl.bool(true));
+    expect(act("dispute", a, buyer)).toBeOk(Cl.bool(true));
     const b = createEscrow();
-    expect(
-      simnet.callPublicFn(CONTRACT, "dispute", [Cl.uint(b)], seller).result,
-    ).toBeOk(Cl.bool(true));
+    expect(act("dispute", b, seller)).toBeErr(Cl.uint(ERR_NOT_DELIVERED));
+    expect(act("deliver", b, seller)).toBeOk(Cl.bool(true));
+    expect(act("dispute", b, seller)).toBeOk(Cl.bool(true));
   });
 });
 
@@ -1094,5 +1116,186 @@ describe("I18 — dispute-timeout is snapshot per escrow", () => {
     simnet.callPublicFn(CONTRACT, "set-dispute-timeout", [Cl.uint(8640)], deployer);
     const id = createEscrow();
     expect(getEscrow(id)!.disputeTimeout).toBe(8640);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// v4 — fixes from the independent review
+// ─────────────────────────────────────────────────────────────────────
+
+describe("I19 — a seller can dispute only after marking delivery", () => {
+  it("seller CANNOT dispute an undelivered escrow before expiry; it stays PENDING", () => {
+    const id = createEscrow();
+    expect(act("dispute", id, seller)).toBeErr(Cl.uint(ERR_NOT_DELIVERED));
+    expect(getEscrow(id)!.status).toBe(STATUS_PENDING);
+  });
+
+  it("seller cannot freeze the refund by disputing on the expiry block itself", () => {
+    const amount = 100_000;
+    const id = createEscrow({ amount });
+    const E = getEscrow(id)!.expiresAt;
+    toBurn(E);
+    expect(act("dispute", id, seller)).toBeErr(Cl.uint(ERR_NOT_DELIVERED));
+    toBurn(E + 1);
+    const before = stxOf(buyer);
+    expect(act("refund", id, buyer)).toBeOk(Cl.bool(true));
+    expect(stxOf(buyer) - before).toBe(amount + calcFee(amount));
+  });
+
+  it("a seller who marked delivery CAN dispute on the expiry block", () => {
+    const id = createEscrow();
+    expect(act("deliver", id, seller)).toBeOk(Cl.bool(true));
+    toBurn(getEscrow(id)!.expiresAt);
+    expect(act("dispute", id, seller)).toBeOk(Cl.bool(true));
+    expect(getEscrow(id)!.status).toBe(STATUS_DISPUTED);
+  });
+});
+
+describe("I20 — deadlines inside a pause are pushed out by the pause length", () => {
+  it("a pause over expires-at: the seller can still act after it lifts; the buyer waits", () => {
+    const a = createEscrow();
+    const b = createEscrow();
+    const E = getEscrow(a)!.expiresAt;
+    expect(getEscrow(b)!.expiresAt).toBe(E);
+    toBurn(E - 10);
+    pause(20); // window [E-10, E+10): deadline E becomes E+20
+
+    toBurn(E + 10); // pause has lifted
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(E + 20); // last block of the pushed deadline
+    expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+
+    toBurn(E + 21);
+    expect(act("deliver", b, seller)).toBeErr(Cl.uint(ERR_ESCROW_EXPIRED));
+    expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("the buyer cannot collapse the pushed deadline with a tiny extension", () => {
+    const id = createEscrow();
+    const E = getEscrow(id)!.expiresAt;
+    toBurn(E - 10);
+    pause(20);
+    toBurn(E + 10);
+    expect(
+      simnet.callPublicFn(CONTRACT, "extend-escrow", [Cl.uint(id), Cl.uint(1)], buyer).result,
+    ).toBeOk(Cl.bool(true));
+    expect(getEscrow(id)!.expiresAt).toBe(E + 20 + 1);
+    expect(act("refund", id, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    expect(act("deliver", id, seller)).toBeOk(Cl.bool(true));
+  });
+
+  it("deadlines before or after the pause window are unaffected", () => {
+    const early = createEscrow({ duration: 50 });
+    const late = createEscrow({ duration: 100 });
+    const Ee = getEscrow(early)!.expiresAt;
+    const El = getEscrow(late)!.expiresAt;
+    toBurn(Ee + 5);
+    pause(20); // window [Ee+5, Ee+25); El = Ee+50 is after it
+    expect(El).toBeGreaterThanOrEqual(Ee + 25);
+
+    toBurn(Ee + 25);
+    expect(act("refund", early, buyer)).toBeOk(Cl.bool(true));
+    toBurn(El);
+    expect(act("refund", late, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(El + 1);
+    expect(act("refund", late, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("an early unpause pushes deadlines by the time actually paused", () => {
+    const a = createEscrow();
+    const b = createEscrow();
+    const E = getEscrow(a)!.expiresAt;
+    toBurn(E - 10);
+    pause(100); // planned window [E-10, E+90)
+    toBurn(E + 5);
+    expect(
+      simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer).result,
+    ).toBeOk(Cl.bool(true)); // actual window [E-10, E+5): push by 15, not 100
+
+    toBurn(E + 15);
+    expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
+    expect(act("refund", b, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    toBurn(E + 16);
+    expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("an unpause before the deadline leaves it unchanged", () => {
+    const id = createEscrow();
+    const E = getEscrow(id)!.expiresAt;
+    toBurn(E - 10);
+    pause(100);
+    toBurn(E - 5);
+    simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer);
+    toBurn(E + 1);
+    expect(act("deliver", id, seller)).toBeErr(Cl.uint(ERR_ESCROW_EXPIRED));
+    expect(act("refund", id, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("a pause over the review window keeps the seller's dispute window", () => {
+    const a = createEscrow();
+    const b = createEscrow();
+    const E = getEscrow(a)!.expiresAt;
+    toBurn(E - 2);
+    expect(act("deliver", a, seller)).toBeOk(Cl.bool(true));
+    expect(act("deliver", b, seller)).toBeOk(Cl.bool(true));
+    // review deadline E+22; pause window [E-1, E+99) pushes expiry to E+100
+    // and the review deadline to E+122
+    toBurn(E - 1);
+    pause(100);
+
+    toBurn(E + 101); // expired, but still inside the pushed review window
+    expect(
+      simnet.callReadOnlyFn(CONTRACT, "is-in-review-period", [Cl.uint(a)], deployer).result,
+    ).toBeBool(true);
+    expect(act("refund", a, buyer)).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    expect(act("dispute", a, seller)).toBeOk(Cl.bool(true));
+
+    toBurn(E - 2 + REVIEW_PERIOD + 100 + 1);
+    expect(act("refund", b, buyer)).toBeOk(Cl.bool(true));
+  });
+
+  it("get-pause-window reports the recorded window, trimmed by an early unpause", () => {
+    const P = simnet.burnBlockHeight;
+    pause(20);
+    expect(
+      simnet.callReadOnlyFn(CONTRACT, "get-pause-window", [], deployer).result,
+    ).toBeTuple({ start: Cl.uint(P), end: Cl.uint(P + 20) });
+    toBurn(P + 5);
+    simnet.callPublicFn(CONTRACT, "unpause-contract", [], deployer);
+    expect(
+      simnet.callReadOnlyFn(CONTRACT, "get-pause-window", [], deployer).result,
+    ).toBeTuple({ start: Cl.uint(P), end: Cl.uint(P + 5) });
+  });
+});
+
+describe("I21 — the contract cannot be its own fee recipient or a seller", () => {
+  it("set-fee-recipient rejects the contract; new escrows keep the old recipient", () => {
+    const r = simnet.callPublicFn(
+      CONTRACT,
+      "set-fee-recipient",
+      [Cl.principal(CONTRACT_PRINCIPAL)],
+      deployer,
+    );
+    expect(r.result).toBeErr(Cl.uint(ERR_UNAUTHORIZED));
+    const id = createEscrow();
+    expect(getEscrow(id)!.feeRecipient).toBe(deployer);
+  });
+
+  it("create-escrow rejects the contract as seller", () => {
+    const r = simnet.callPublicFn(
+      CONTRACT,
+      "create-escrow",
+      [
+        Cl.principal(CONTRACT_PRINCIPAL),
+        Cl.uint(100_000),
+        Cl.stringUtf8("invariant test"),
+        Cl.uint(DURATION),
+        Cl.uint(TOKEN_STX),
+        Cl.none(),
+      ],
+      buyer,
+    );
+    expect(r.result).toBeErr(Cl.uint(ERR_SELF_ESCROW));
   });
 });
