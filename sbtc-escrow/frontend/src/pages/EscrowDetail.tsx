@@ -8,7 +8,7 @@ import { useBurnBlockTimestamps } from '@/hooks/use-burn-block-timestamps';
 import { useBurnBlockRate } from '@/hooks/use-burn-block-rate';
 import { usesBurnBlockClock, BURN_BLOCK_MINUTES } from '@/lib/stacks-config';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery, supportsV4Rules } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -348,17 +348,17 @@ export default function EscrowDetail() {
     ? timing.disputeTimedOut
     : !!escrow.disputedAt && clockReady && currentBlock - escrow.disputedAt > escrowDisputeTimeout);
 
-  // Who may dispute, mirroring the contract:
-  // - v4: the buyer before the deadline, or after it once the escrow is
-  //   delivered; the seller only after marking delivery.
-  // - earlier contracts: unchanged (buyer before the deadline, seller any
-  //   time while the escrow is active).
-  const v4Rules = supportsV4Rules(escrow.contractId);
-  const canBuyerDispute = isBuyer && isActive && (!isExpired || (v4Rules && isDelivered));
-  const canSellerDispute = isSeller && isActive && (!v4Rules || isDelivered);
+  // Who may act, following v4's rules: no delivery after the deadline; the
+  // buyer disputes before the deadline, or after it once delivered; the
+  // seller disputes only after marking delivery. v4 enforces these on-chain.
+  // v3 still accepts late delivery and seller disputes before delivery (the
+  // expiry griefing path v4 fixed), so the app doesn't offer them there
+  // either. Contracts without on-chain delivery keep the old behavior.
+  const fairRules = supportsOnChainDelivery(escrow.contractId);
+  const canBuyerDispute = isBuyer && isActive && (!isExpired || (fairRules && isDelivered));
+  const canSellerDispute = isSeller && isActive && (!fairRules || isDelivered);
   const canClaimRefund = isBuyer && isActive && isExpired && !inReview;
-  // v4 rejects deliver() after the deadline.
-  const canMarkDelivered = isSeller && isPending && (!v4Rules || !isExpired);
+  const canMarkDelivered = isSeller && isPending && (!fairRules || !isExpired);
 
   // True when this escrow lives on a contract version other than the one the
   // SDK / wallet is configured for. We can still READ its state, but every
@@ -893,7 +893,7 @@ export default function EscrowDetail() {
                   {effectiveExpiresAt !== escrow.expiresAt && (
                     <span className="text-muted-foreground"> · moved by a pause</span>
                   )}
-                  {isExpired && <span className="text-destructive"> (Expired)</span>}
+                  {isExpired && isActive && <span className="text-destructive"> (Expired)</span>}
                 </span>
               </div>
               {escrow.completedAt && (() => {
@@ -964,7 +964,7 @@ export default function EscrowDetail() {
                   signaled delivery. Once status flips to DELIVERED (v7+), the
                   signal already lives on-chain and re-pressing would be a no-op.
                   v4 also rejects delivery after the deadline. */}
-              {isSeller && isPending && v4Rules && isExpired && (
+              {isSeller && isPending && fairRules && isExpired && (
                 <p className="text-xs text-muted-foreground">
                   The deadline has passed, so this escrow can no longer be marked delivered. The buyer can now claim a refund, and you can refund them yourself at any time.
                 </p>

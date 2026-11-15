@@ -619,10 +619,10 @@ export default function CreateEscrow() {
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" />
                     <span>
                       This description is stored <span className="font-medium text-foreground">on-chain in plaintext</span> and is
-                      permanently visible to anyone — including future viewers. It can't be
-                      changed after the escrow is created. Avoid personal info, contact
-                      details, or anything sensitive. Use the in-app messages thread for
-                      private context after the escrow is created.
+                      permanently visible to anyone — including future viewers — and it
+                      can't be changed later. Avoid personal info, contact details, or
+                      anything sensitive. Use the in-app messages thread for private
+                      context after the escrow is created.
                     </span>
                   </div>
                 </div>
