@@ -48,7 +48,9 @@ export function DisputeTimeoutProgress({
   const elapsed = currentBlock - disputedAt;
   const progress = Math.min((elapsed / timeoutBlocks) * 100, 100);
   const remaining = Math.max(timeoutBlocks - elapsed, 0);
-  const timedOut = elapsed >= timeoutBlocks;
+  // The contract allows recovery only once burn-block-height > disputed-at +
+  // timeout, so the block at exactly `timeoutBlocks` elapsed isn't timed out yet.
+  const timedOut = elapsed > timeoutBlocks;
 
   let colorClass = 'bg-muted-foreground';
   let label = `${blocksToTime(elapsed, minutesPerBlock)} elapsed · ${elapsed.toLocaleString()} / ${timeoutBlocks.toLocaleString()} blocks`;

@@ -8,7 +8,7 @@ import { useBurnBlockTimestamps } from '@/hooks/use-burn-block-timestamps';
 import { useBurnBlockRate } from '@/hooks/use-burn-block-rate';
 import { usesBurnBlockClock, BURN_BLOCK_MINUTES } from '@/lib/stacks-config';
 import { usePlatformConfig } from '@/hooks/use-admin';
-import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery } from '@/lib/stacks-config';
+import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery, supportsV4Rules } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AddressDisplay } from '@/components/shared/AddressDisplay';
@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute, resolveExpiredDisputeForSeller, deliverEscrow } from '@/lib/escrow-service';
 import { useSellerRescueEligible } from '@/hooks/use-seller-rescue-eligible';
+import { useEscrowTiming } from '@/hooks/use-escrow-timing';
 import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
@@ -195,6 +196,14 @@ export default function EscrowDetail() {
   const sellerRescueEligible =
     useSellerRescueEligible(escrow?.contractId, escrow?.id).data === true;
 
+  // v3+: expiry, review-window and dispute-timeout state straight from the
+  // contract (v4 also returns pause-adjusted deadlines). Undefined on legacy
+  // contracts or while loading; the local fallbacks below cover that.
+  const { data: timing } = useEscrowTiming(escrow?.contractId, escrow?.id);
+  // The deadline the contract actually enforces: on v4 a pause can push it
+  // past the stored expires-at.
+  const effectiveExpiresAt = timing?.effectiveExpiresAt ?? escrow?.expiresAt ?? 0;
+
   // Real Bitcoin wall-clock timestamps for every burn-block height we
   // display. Only meaningful on v3+ (burn-clock) contracts — legacy
   // contracts use Stacks blocks and lean on the rate-based estimate.
@@ -209,7 +218,7 @@ export default function EscrowDetail() {
   const burnHeightsToResolve = usesBurnClock && currentBlock > 0
     ? [
         escrow?.createdAt,
-        escrow?.expiresAt,
+        effectiveExpiresAt,
         escrow?.completedAt,
         escrow?.disputedAt,
         escrow?.deliveredAt,
@@ -222,7 +231,7 @@ export default function EscrowDetail() {
   );
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
-  const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
+  const blocksToExpiry = effectiveExpiresAt - currentBlock;
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   const calcSeconds = useCallback(() => {
@@ -325,10 +334,31 @@ export default function EscrowDetail() {
   // moment the seller marks delivered.
   const isActive = isPending || isDelivered;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
-  const isExpired = escrow.expiresAt <= currentBlock;
-  const disputeTimedOut = isDisputed && escrow.disputedAt
-    ? (currentBlock - escrow.disputedAt) >= disputeTimeout
-    : false;
+  // The contract counts an escrow as expired only after its deadline block
+  // (burn-block-height > expires-at). Prefer the contract's own answer on
+  // v3+; legacy contracts use the same comparison locally.
+  const isExpired = timing
+    ? timing.isExpired
+    : clockReady && currentBlock > effectiveExpiresAt;
+  // After delivery, the buyer can't refund until the review window ends.
+  const inReview = isDelivered && (timing?.inReview ?? false);
+  // v4 snapshots the timeout per escrow; v3 reads the global one at call time.
+  const escrowDisputeTimeout = timing?.disputeTimeout ?? disputeTimeout;
+  const disputeTimedOut = isDisputed && (timing
+    ? timing.disputeTimedOut
+    : !!escrow.disputedAt && clockReady && currentBlock - escrow.disputedAt > escrowDisputeTimeout);
+
+  // Who may dispute, mirroring the contract:
+  // - v4: the buyer before the deadline, or after it once the escrow is
+  //   delivered; the seller only after marking delivery.
+  // - earlier contracts: unchanged (buyer before the deadline, seller any
+  //   time while the escrow is active).
+  const v4Rules = supportsV4Rules(escrow.contractId);
+  const canBuyerDispute = isBuyer && isActive && (!isExpired || (v4Rules && isDelivered));
+  const canSellerDispute = isSeller && isActive && (!v4Rules || isDelivered);
+  const canClaimRefund = isBuyer && isActive && isExpired && !inReview;
+  // v4 rejects deliver() after the deadline.
+  const canMarkDelivered = isSeller && isPending && (!v4Rules || !isExpired);
 
   // True when this escrow lives on a contract version other than the one the
   // SDK / wallet is configured for. We can still READ its state, but every
@@ -346,12 +376,12 @@ export default function EscrowDetail() {
   // chain catches up. The pending banner shows what's in progress instead.
   const hasActions = !pendingAction && (
     (isBuyer && (isActive || isExpired) && !isDisputed) ||
-    (isBuyer && isActive && !isExpired) ||
-    (isActive && !isExpired) ||
+    (isBuyer && isPending && !isExpired) ||
+    canBuyerDispute ||
+    canSellerDispute ||
     (isSeller && isActive) ||
-    (isBuyer && isActive && isExpired) ||
+    canClaimRefund ||
     (isBuyer && disputeTimedOut) ||
-    (isSeller && isActive && isExpired) ||
     (isSeller && sellerRescueEligible)
   );
 
@@ -858,9 +888,12 @@ export default function EscrowDetail() {
               <div className="flex items-center justify-between gap-3 py-2.5">
                 <span className="text-xs text-muted-foreground shrink-0">Expires</span>
                 <span className="font-mono text-xs text-foreground text-right">
-                  Block {escrow.expiresAt.toLocaleString()}
-                  <span className="text-muted-foreground"> · {blockToHumanTime(escrow.expiresAt)}</span>
-                  {blocksToExpiry <= 0 && <span className="text-destructive"> (Expired)</span>}
+                  Block {effectiveExpiresAt.toLocaleString()}
+                  <span className="text-muted-foreground"> · {blockToHumanTime(effectiveExpiresAt)}</span>
+                  {effectiveExpiresAt !== escrow.expiresAt && (
+                    <span className="text-muted-foreground"> · moved by a pause</span>
+                  )}
+                  {isExpired && <span className="text-destructive"> (Expired)</span>}
                 </span>
               </div>
               {escrow.completedAt && (() => {
@@ -929,8 +962,14 @@ export default function EscrowDetail() {
               )}
               {/* Mark-as-Delivered CTA — only available before the seller has
                   signaled delivery. Once status flips to DELIVERED (v7+), the
-                  signal already lives on-chain and re-pressing would be a no-op. */}
-              {isSeller && isPending && (
+                  signal already lives on-chain and re-pressing would be a no-op.
+                  v4 also rejects delivery after the deadline. */}
+              {isSeller && isPending && v4Rules && isExpired && (
+                <p className="text-xs text-muted-foreground">
+                  The deadline has passed, so this escrow can no longer be marked delivered. The buyer can now claim a refund, and you can refund them yourself at any time.
+                </p>
+              )}
+              {canMarkDelivered && (
                 <div className="space-y-2">
                   {deliveries.length === 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -1303,6 +1342,7 @@ export default function EscrowDetail() {
               {isDisputed && escrow.disputedAt && (
                 <DisputeTimeoutProgress
                   disputedAt={escrow.disputedAt}
+                  timeoutBlocks={escrowDisputeTimeout}
                   contractId={escrow.contractId}
                 />
               )}
@@ -1449,23 +1489,11 @@ export default function EscrowDetail() {
                     <ExtendEscrowPanel
                       contractId={escrow.contractId}
                       escrowId={escrow.id}
-                      currentExpiresAt={escrow.expiresAt}
+                      currentExpiresAt={effectiveExpiresAt}
                       disabledReason={isPaused ? 'Contract paused' : undefined}
                     />
                   )}
-                  {isActive && !isExpired && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setConfirmAction('dispute')}
-                      disabled={isPaused}
-                      title={isPaused ? 'Blocked while contract is paused' : undefined}
-                      className="gap-1.5 text-destructive border-destructive/30"
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5" /> Dispute
-                    </Button>
-                  )}
-                  {isSeller && isActive && isExpired && (
+                  {(canBuyerDispute || canSellerDispute) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1489,7 +1517,7 @@ export default function EscrowDetail() {
                       <XCircle className="h-3.5 w-3.5" /> Refund Buyer
                     </Button>
                   )}
-                  {isBuyer && isActive && isExpired && (
+                  {canClaimRefund && (
                     <Button
                       size="sm"
                       variant="outline"
