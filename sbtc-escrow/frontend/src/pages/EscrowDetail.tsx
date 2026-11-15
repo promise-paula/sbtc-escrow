@@ -54,9 +54,9 @@ import {
   useDisputeReason,
   useSubmitDisputeReason,
   DISPUTE_REASON_CATEGORIES,
-  getDisputeReasonsForRole,
   type DisputeReasonCategory,
 } from '@/hooks/use-dispute-reason';
+import { DisputeReasonCard, DisputeReasonPicker, type PendingDisputeReason } from '@/components/shared/DisputeReasonCard';
 
 // Timeline event labels. Labels here describe what happened in plain language
 // rather than echoing the contract event name. Admin-resolved disputes are
@@ -171,6 +171,9 @@ export default function EscrowDetail() {
   );
   const [disputeReason, setDisputeReason] = useState<DisputeReasonCategory | ''>('');
   const [disputeDetails, setDisputeDetails] = useState('');
+  // A reason picked in the dispute form that wasn't saved (not signed in, or
+  // the save failed). The Dispute reason card offers it again, prefilled.
+  const [pendingReason, setPendingReason] = useState<PendingDisputeReason | null>(null);
   // Message thread between buyer and seller (independent of the on-chain
   // delivery signal; this is the conversational layer).
   const { data: messages = [] } = useMessages(
@@ -339,6 +342,8 @@ export default function EscrowDetail() {
   // moment the seller marks delivered.
   const isActive = isPending || isDelivered;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
+  // Who raised the dispute, from the on-chain escrow-disputed event.
+  const disputedBy = escrowEvents.find((e) => e.eventType === 'escrow-disputed')?.actor || null;
   // The contract counts an escrow as expired only after its deadline block
   // (burn-block-height > expires-at). Prefer the contract's own answer on
   // v3+; legacy contracts use the same comparison locally.
@@ -503,12 +508,24 @@ export default function EscrowDetail() {
         case 'dispute':
           txId = await disputeEscrow(escrow.contractId, escrow.id);
           actionType = 'dispute';
-          // Save reason off-chain — best-effort, don't block the UX on failure
+          // The reason is saved off-chain and needs a wallet sign-in (RLS).
+          // Never block the on-chain dispute on it: if it can't be saved now,
+          // keep it so the Dispute reason card can offer it again.
           if (address && disputeReason) {
-            submitDisputeReason.mutate(
-              { escrowId: escrow.id, reasonCategory: disputeReason, details: disputeDetails, submittedBy: address },
-              { onError: () => toast.warning('Dispute submitted, but reason could not be saved. Contact support if needed.') }
-            );
+            const picked = { category: disputeReason, details: disputeDetails };
+            if (isAuthenticated) {
+              submitDisputeReason.mutate(
+                { contractId: escrow.contractId, escrowId: escrow.id, reasonCategory: disputeReason, details: disputeDetails, submittedBy: address },
+                {
+                  onError: () => {
+                    setPendingReason(picked);
+                    toast.warning('Dispute submitted, but the reason wasn’t saved', { description: 'You can add it on this page once the dispute shows.' });
+                  },
+                },
+              );
+            } else {
+              setPendingReason(picked);
+            }
           }
           setDisputeReason('');
           setDisputeDetails('');
@@ -1346,6 +1363,25 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
+      {/* Its own card, not inside Actions: the Actions card is hidden while a
+          dispute has no available action (e.g. waiting on the arbiter). */}
+      {isParty && isDisputed && (
+        <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
+          <DisputeReasonCard
+            contractId={escrow.contractId}
+            escrowId={escrow.id}
+            viewerAddress={address}
+            disputedBy={disputedBy}
+            disputerRole={disputedBy && disputedBy === escrow.seller ? 'seller' : 'buyer'}
+            existingReason={existingDisputeReason}
+            initialReason={pendingReason}
+            isAuthenticated={isAuthenticated}
+            isSigningIn={isSigningIn}
+            onSignIn={() => signIn()}
+          />
+        </motion.div>
+      )}
+
       {/* Actions panel. When the contract is paused the v3 spec blocks
           release / refund / dispute / extend at the contract level, BUT
           seller self-rescue (resolve-expired-dispute-for-seller) is NOT
@@ -1370,15 +1406,6 @@ export default function EscrowDetail() {
                 />
               )}
 
-              {isDisputed && existingDisputeReason && (
-                <div className="rounded-lg border border-warning/20 bg-warning/5 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-foreground">Dispute reason: {existingDisputeReason.reasonLabel}</p>
-                  {existingDisputeReason.details && (
-                    <p className="text-xs text-muted-foreground italic">"{existingDisputeReason.details}"</p>
-                  )}
-                </div>
-              )}
-
               <AnimatePresence>
               {confirmAction && (
                 <motion.div variants={slideDown} initial="initial" animate="animate" exit="exit" className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
@@ -1393,48 +1420,31 @@ export default function EscrowDetail() {
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-foreground">
-                          Reason <span className="text-destructive">*</span>
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {/* Reasons are role-specific. The same dispute button
-                              fires the same on-chain action either way, but
-                              showing "Seller unresponsive" to a seller (or
-                              "Buyer in bad faith" to a buyer) is incoherent
-                              and makes admin triage harder. */}
-                          {getDisputeReasonsForRole(isBuyer ? 'buyer' : 'seller').map((cat) => (
-                            <button
-                              key={cat.value}
-                              type="button"
-                              onClick={() => setDisputeReason(cat.value)}
-                              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                                disputeReason === cat.value
-                                  ? 'bg-destructive text-destructive-foreground border-destructive'
-                                  : 'border-border bg-background text-foreground hover:border-destructive/50'
-                              }`}
-                            >
-                              {cat.label}
-                            </button>
-                          ))}
+                      <DisputeReasonPicker
+                        role={isBuyer ? 'buyer' : 'seller'}
+                        value={disputeReason}
+                        onChange={setDisputeReason}
+                        details={disputeDetails}
+                        onDetailsChange={setDisputeDetails}
+                      />
+                      {/* The reason is stored off-chain behind a wallet
+                          sign-in. Say so before the dispute, but don't block
+                          the on-chain action on it. */}
+                      {!isAuthenticated && (
+                        <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-3 flex items-center justify-between gap-3">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <LogIn className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                            <p className="text-[11px] text-muted-foreground">
+                              Sign in first so your reason reaches the arbiter. It's a wallet
+                              signature: no gas, no on-chain tx.
+                            </p>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => signIn()} disabled={isSigningIn} className="gap-1.5 shrink-0">
+                            <LogIn className="h-3.5 w-3.5" />
+                            {isSigningIn ? 'Signing…' : 'Sign in'}
+                          </Button>
                         </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-foreground">
-                          Additional details <span className="text-muted-foreground font-normal">(optional)</span>
-                        </p>
-                        <Textarea
-                          placeholder="Describe the issue in more detail…"
-                          value={disputeDetails}
-                          onChange={(e) => setDisputeDetails(e.target.value)}
-                          maxLength={1000}
-                          rows={3}
-                          className="text-sm resize-none"
-                        />
-                        {disputeDetails.length > 800 && (
-                          <p className="text-xs text-muted-foreground text-right">{disputeDetails.length}/1000</p>
-                        )}
-                      </div>
+                      )}
                       <div className="flex gap-2">
                         <Button
                           variant="outline" size="sm"
