@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MAX_DURATION_BLOCKS, DEFAULT_MINUTES_PER_BLOCK } from '@/lib/stacks-config';
+import {
+  DEFAULT_MINUTES_PER_BLOCK,
+  usesBurnBlockClock,
+  durationToBlocks,
+  maxDurationBlocks,
+  effectiveMinutesPerBlock,
+} from '@/lib/stacks-config';
 import { useBlockHeight } from '@/hooks/use-block-height';
-import { useBlockRate, timeToBlocks } from '@/hooks/use-block-rate';
+import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
+import { useBlockRate } from '@/hooks/use-block-rate';
 import { blockToEstimatedDate, blocksToTime } from '@/lib/utils';
 import { extendEscrow } from '@/lib/escrow-service';
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
@@ -30,16 +37,26 @@ export function ExtendEscrowPanel({ contractId, escrowId, currentExpiresAt, disa
   const [customBlocks, setCustomBlocks] = useState('');
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const { data: currentBlock = 0 } = useBlockHeight();
+  const { data: stacksBlock = 0 } = useBlockHeight();
+  const { data: burnBlock = 0 } = useBurnBlockHeight();
   const { data: blockRate } = useBlockRate();
-  const minutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+  const liveMinutesPerBlock = blockRate?.minutesPerBlock ?? DEFAULT_MINUTES_PER_BLOCK;
+
+  // v3+ contracts count the extension in Bitcoin (burn) blocks, v2/v7 in
+  // Stacks blocks. Height, rate, presets and the cap all have to come from
+  // the same clock, or "+1 Day" turns into weeks on-chain.
+  const burnClock = usesBurnBlockClock(contractId);
+  const currentBlock = burnClock ? burnBlock : stacksBlock;
+  const minutesPerBlock = effectiveMinutesPerBlock(contractId, liveMinutesPerBlock);
+  const unit = burnClock ? 'burn blocks' : 'blocks';
 
   const blocks = selectedMinutes
-    ? timeToBlocks(selectedMinutes, minutesPerBlock)
+    ? durationToBlocks(contractId, selectedMinutes, liveMinutesPerBlock)
     : (customBlocks ? parseInt(customBlocks, 10) : 0);
   const newExpiry = currentExpiresAt + blocks;
-  const maxAdditional = Math.max(0, currentBlock + MAX_DURATION_BLOCKS - currentExpiresAt);
-  const valid = blocks > 0 && blocks <= maxAdditional;
+  // Mirrors the contract: (new-expires - current height) <= MAX_DURATION.
+  const maxAdditional = Math.max(0, currentBlock + maxDurationBlocks(contractId) - currentExpiresAt);
+  const valid = currentBlock > 0 && blocks > 0 && blocks <= maxAdditional;
 
   const handleExtend = async () => {
     if (!valid) return;
@@ -100,20 +117,21 @@ export function ExtendEscrowPanel({ contractId, escrowId, currentExpiresAt, disa
       <div className="flex items-center gap-2">
         <Input
           type="number"
-          placeholder="Custom blocks"
+          placeholder={`Custom ${unit}`}
+          aria-label={`Extension in ${unit}`}
           value={customBlocks}
           onChange={(e) => { setCustomBlocks(e.target.value); setSelectedMinutes(null); }}
           className="font-mono text-sm"
           min={1}
           max={maxAdditional}
         />
-        <span className="text-xs text-muted-foreground whitespace-nowrap">blocks</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">{unit}</span>
       </div>
 
       {valid && (
         <p className="text-xs text-muted-foreground">
-          New expiry: block {newExpiry.toLocaleString()} (~{blockToEstimatedDate(newExpiry, currentBlock, minutesPerBlock).toLocaleDateString()})
-          · +{blocksToTime(blocks, minutesPerBlock)}
+          New expiry: {burnClock ? 'burn block' : 'block'} {newExpiry.toLocaleString()} (~{blockToEstimatedDate(newExpiry, currentBlock, minutesPerBlock).toLocaleDateString()})
+          {' · '}<span className="whitespace-nowrap font-medium text-foreground">+{blocksToTime(blocks, minutesPerBlock)}</span>
         </p>
       )}
 
