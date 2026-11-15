@@ -58,36 +58,29 @@ genesis:
   - signers
   - signers-voting
   - costs-4
+  - pox-5
 plan:
   batches:
   - id: 0
     transactions:
     - transaction-type: emulated-contract-publish
-      contract-name: sbtc-registry
-      emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
-      path: ./.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar
-      clarity-version: 3
-    - transaction-type: emulated-contract-publish
-      contract-name: sbtc-token
-      emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
-      path: ./.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar
-      clarity-version: 3
-    - transaction-type: emulated-contract-publish
-      contract-name: sbtc-deposit
-      emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
-      path: ./.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit.clar
-      clarity-version: 3
-    epoch: '3.0'
-  - id: 1
-    transactions:
-    - transaction-type: emulated-contract-publish
-      contract-name: escrow
+      contract-name: escrow-mainnet-v3
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-      path: contracts/escrow.clar
+      path: contracts/escrow-mainnet-v3.clar
       clarity-version: 4
     - transaction-type: emulated-contract-publish
-      contract-name: escrow-v4
+      contract-name: escrow-mainnet-v4
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-      path: contracts/escrow-v4.clar
+      path: contracts/escrow-mainnet-v4.clar
       clarity-version: 4
-    epoch: '3.3'
+    - transaction-type: emulated-contract-publish
+      contract-name: escrow-v8
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/escrow-v8.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
+      contract-name: escrow-v9
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/escrow-v9.clar
+      clarity-version: 4
+    epoch: '4.0'

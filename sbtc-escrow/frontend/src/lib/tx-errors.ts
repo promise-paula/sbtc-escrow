@@ -91,12 +91,12 @@ export function categorizeTxError(err: unknown, action: string): TxErrorMessage 
     };
   }
 
-  // ERR_ESCROW_EXPIRED (u2003) — buyer tried to release after expiry.
-  // After expiry only refund-after-expiry is allowed.
+  // ERR_ESCROW_EXPIRED (u2003) — the deadline has passed. v3 raises it for
+  // extend; v4 also for deliver, and for dispute on an undelivered escrow.
   if (low.includes('u2003')) {
     return {
-      title: 'Escrow has expired',
-      description: 'The deadline passed. The buyer can refund instead of releasing.',
+      title: 'The deadline has passed',
+      description: 'This escrow can no longer be extended, marked delivered, or disputed unless it was delivered first. The buyer can claim a refund.',
     };
   }
 
@@ -145,12 +145,12 @@ export function categorizeTxError(err: unknown, action: string): TxErrorMessage 
     };
   }
 
-  // ERR_NOT_DELIVERED (u2016) — seller tried to self-rescue without first
-  // signaling delivery. Self-rescue requires the delivered state.
+  // ERR_NOT_DELIVERED (u2016) — seller acted without first signaling
+  // delivery: self-rescue (v3+) or raising a dispute (v4).
   if (low.includes('u2016')) {
     return {
       title: 'Mark as delivered first',
-      description: 'Self-rescue requires you to have signaled delivery on-chain before the dispute timeout.',
+      description: 'A seller can raise a dispute, or claim a disputed escrow, only after marking the work delivered.',
     };
   }
 

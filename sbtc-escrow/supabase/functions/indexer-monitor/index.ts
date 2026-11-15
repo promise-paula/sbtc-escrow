@@ -63,13 +63,19 @@ async function fetchHealth(): Promise<HealthSnapshot> {
     const lag = data?.lag?.blocks ?? null;
     const chainhook = data?.chainhook?.status ?? null;
     const enabled = data?.chainhook?.enabled ?? false;
+    const chainhookKnown = data?.chainhook != null;
+    // Problems found by indexer-health's chain-vs-database reconciliation
+    // (untracked transactions, escrow count gaps, a deleted or disabled
+    // hook). Any reason makes the indexer unhealthy.
+    const reasons: string[] = Array.isArray(data?.reasons) ? data.reasons : [];
+    const contractsChecked = Array.isArray(data?.contracts) ? data.contracts.length : 0;
 
-    // Classification: healthy iff chainhook enabled AND streaming AND lag tolerable.
-    // "unknown" only when there are no events indexed yet (fresh deploys).
-    if (lag === null && chainhook === null) {
+    // "unknown" only when there is nothing to judge: no chainhook status, no
+    // contracts checked and no reasons (e.g. a fresh project).
+    if (lag === null && !chainhookKnown && contractsChecked === 0 && reasons.length === 0) {
       return {
         state: "unknown",
-        reason: "no chainhook + no events indexed yet",
+        reason: "no chainhook status and no contracts checked yet",
         lag_blocks: null,
         chainhook_status: null,
         raw_healthy: false,
@@ -77,16 +83,19 @@ async function fetchHealth(): Promise<HealthSnapshot> {
     }
 
     const lagOk = lag === null || lag < LAG_THRESHOLD;
-    const chainhookOk = enabled && (chainhook === "streaming" || chainhook === "scanning");
-    const ok = lagOk && chainhookOk;
+    // Without a configured hook UUID, reconciliation alone decides.
+    const chainhookOk = !chainhookKnown || (enabled && (chainhook === "streaming" || chainhook === "scanning"));
+    const ok = lagOk && chainhookOk && reasons.length === 0;
 
     return {
       state: ok ? "healthy" : "unhealthy",
-      reason: !chainhookOk
-        ? `chainhook ${chainhook ?? "missing"} (enabled=${enabled})`
-        : !lagOk
-          ? `lag ${lag} blocks (threshold ${LAG_THRESHOLD})`
-          : "ok",
+      reason: reasons.length > 0
+        ? reasons.join("; ")
+        : !chainhookOk
+          ? `chainhook ${chainhook ?? "missing"} (enabled=${enabled})`
+          : !lagOk
+            ? `lag ${lag} blocks (threshold ${LAG_THRESHOLD})`
+            : "ok",
       lag_blocks: lag,
       chainhook_status: chainhook,
       raw_healthy: !!data?.healthy,

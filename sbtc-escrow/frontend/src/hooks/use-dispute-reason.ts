@@ -118,6 +118,9 @@ export function useDisputeReasons(escrowIds: number[]) {
 }
 
 interface SubmitDisputeReasonArgs {
+  /** The escrow's own contract_id, not the active default — RLS matches the
+   *  row against that contract's escrow, and readers look it up there. */
+  contractId: string;
   escrowId: number;
   reasonCategory: DisputeReasonCategory;
   details?: string;
@@ -127,10 +130,10 @@ interface SubmitDisputeReasonArgs {
 export function useSubmitDisputeReason() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ escrowId, reasonCategory, details, submittedBy }: SubmitDisputeReasonArgs) => {
+    mutationFn: async ({ contractId, escrowId, reasonCategory, details, submittedBy }: SubmitDisputeReasonArgs) => {
       if (!isSupabaseConfigured) return; // graceful no-op when Supabase not set up
       const { error } = await supabase.from('dispute_reasons').insert({
-        contract_id: CONTRACT_PRINCIPAL,
+        contract_id: contractId,
         escrow_id: escrowId,
         reason_category: reasonCategory,
         details: details?.trim() || null,
@@ -138,8 +141,9 @@ export function useSubmitDisputeReason() {
       });
       if (error) throw error;
     },
-    onSuccess: (_, { escrowId }) => {
-      queryClient.invalidateQueries({ queryKey: ['dispute-reason', CONTRACT_PRINCIPAL, escrowId] });
+    onSuccess: (_, { contractId, escrowId }) => {
+      queryClient.invalidateQueries({ queryKey: ['dispute-reason', contractId, escrowId] });
+      queryClient.invalidateQueries({ queryKey: ['dispute-reasons'] });
     },
   });
 }

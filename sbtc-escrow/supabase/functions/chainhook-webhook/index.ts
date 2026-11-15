@@ -315,7 +315,10 @@ async function fetchEscrowDescription(
 
     const lenHex = hexStr.slice(valueStart + 2, valueStart + 10);
     const strLen = parseInt(lenHex, 16);
-    if (strLen === 0 || strLen > 512) return "";
+    // The length prefix is in bytes. `(string-utf8 256)` caps characters,
+    // not bytes, and UTF-8 uses up to 4 bytes per character, so a valid
+    // description can be up to 1,024 bytes (e.g. 256 CJK chars = 768 bytes).
+    if (strLen === 0 || strLen > 1024) return "";
 
     const strHex = hexStr.slice(valueStart + 10, valueStart + 10 + strLen * 2);
     const bytes = new Uint8Array(strLen);
@@ -660,12 +663,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Authenticate — verify shared auth token if configured
   const authToken = Deno.env.get("CHAINHOOK_AUTH_TOKEN");
+  // Chainhooks v2 hook definitions can't carry custom headers; Hiro sends
+  // the account's consumer secret instead (documented both as
+  // `Authorization: Bearer <secret>` and as `x-chainhook-consumer-secret`).
+  // Accept either, plus the older x-webhook-token used by backfill scripts.
   if (authToken) {
-    const received =
-      req.headers.get("authorization")?.replace("Bearer ", "") ??
-      req.headers.get("x-webhook-token");
-    if (received !== authToken) {
-      console.error("[auth] Unauthorized webhook request");
+    const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const candidates = [
+      bearer,
+      req.headers.get("x-chainhook-consumer-secret"),
+      req.headers.get("x-webhook-token"),
+    ];
+    if (!candidates.includes(authToken)) {
+      // Header names only, never values, so a mismatch can be diagnosed.
+      const present = ["authorization", "x-chainhook-consumer-secret", "x-webhook-token"]
+        .filter((h) => req.headers.has(h));
+      console.error(`[auth] Unauthorized webhook request (auth headers present: ${present.join(", ") || "none"})`);
       return new Response("Unauthorized", { status: 401 });
     }
   }

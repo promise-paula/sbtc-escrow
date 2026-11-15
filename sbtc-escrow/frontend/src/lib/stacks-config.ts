@@ -28,25 +28,29 @@ export function getStacksNetwork() {
   };
 }
 
-export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N';
+// Testnet defaults target escrow-v9 (the v4 contract) from the v4 deployer.
+// Testnet was reset in 2026, so the earlier ST1HK6… testnet contracts no
+// longer exist. Mainnet builds must set VITE_CONTRACT_ADDRESS explicitly
+// (enforced below).
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y';
 // Default targets the latest active contract on each network. Override with
 // VITE_CONTRACT_NAME if you need to create new escrows on a legacy version
 // (legacy escrows are still readable / actionable via the multi-version
 // dispatch in escrow-service.ts — only NEW creates respect this default).
-export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v8';
+export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v9';
 export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${string}.${string}`;
 // Semantic version of the active contract, taken from its Clarity source
-// header (e.g. escrow-v8 declares `;; version: 3.0.0`). The contract does NOT
+// header (e.g. escrow-v9 declares `;; version: 4.0.0`). The contract does NOT
 // expose this on-chain, so it's a per-environment constant kept in sync with
 // the deployed `.clar` — override with VITE_CONTRACT_VERSION on mainnet
-// (escrow-mainnet-v2 is 2.0.0). The name suffix (v8) is a deploy counter,
+// (escrow-mainnet-v2 is 2.0.0). The name suffix (v9) is a deploy counter,
 // separate from this semver.
-export const CONTRACT_VERSION = import.meta.env.VITE_CONTRACT_VERSION || '3.0.0';
+export const CONTRACT_VERSION = import.meta.env.VITE_CONTRACT_VERSION || '4.0.0';
 
 export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
   (STACKS_NETWORK === 'mainnet'
     ? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token'  // mainnet sBTC
-    : 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token')) as `${string}.${string}`;  // testnet sBTC
+    : 'SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token')) as `${string}.${string}`;  // testnet sBTC (since the 2026 testnet reset)
 
 // ── Mainnet build safety ───────────────────────────────────────────
 // A misconfigured CI could ship a "mainnet" build that silently falls back to
@@ -252,11 +256,20 @@ export const REPO_URL = 'https://github.com/promise-paula/sbtc-escrow';
 // and seller self-rescue. Hard-coding capabilities by contract id avoids
 // brittle name-pattern matching and forces an explicit add when a new
 // deployment ships.
+// v4 contracts (testnet escrow-v9, mainnet escrow-mainnet-v4), from the v4
+// deployer. Listed once and spread into every capability set below, since
+// v4 is a superset of v3 and v7.
+const V4_CONTRACT_IDS = [
+  'ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9',
+  'SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4',
+] as const;
+
 const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7',
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',
+  ...V4_CONTRACT_IDS,
 ]);
 
 // V3+ contracts: burn-block expiry, beneficiary delegation, per-escrow
@@ -270,7 +283,14 @@ const V7_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
 const V3_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
   'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',
   'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',
+  ...V4_CONTRACT_IDS,
 ]);
+
+// V4+ rules: deliver() is rejected after the deadline; a seller can dispute
+// only after marking delivery; after the deadline only a delivered escrow
+// can be disputed; each escrow snapshots its dispute timeout; deadlines that
+// fall inside a pause are pushed past it (read via get-effective-deadlines).
+const V4_PLUS_CONTRACTS: ReadonlySet<string> = new Set(V4_CONTRACT_IDS);
 
 /**
  * True iff the contract exposes the v7+ `deliver()` function and
@@ -298,4 +318,13 @@ export function supportsV3Features(contractId: string): boolean {
  */
 export function usesBurnBlockClock(contractId: string): boolean {
   return V3_PLUS_CONTRACTS.has(contractId);
+}
+
+/**
+ * True iff the contract enforces the v4 rules: no delivery after the
+ * deadline, seller disputes only after delivery, per-escrow dispute timeout,
+ * and pause-adjusted deadlines exposed by `get-effective-deadlines`.
+ */
+export function supportsV4Rules(contractId: string): boolean {
+  return V4_PLUS_CONTRACTS.has(contractId);
 }

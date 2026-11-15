@@ -619,9 +619,10 @@ export default function CreateEscrow() {
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" />
                     <span>
                       This description is stored <span className="font-medium text-foreground">on-chain in plaintext</span> and is
-                      permanently visible to anyone — including future viewers. Avoid personal
-                      info, contact details, or anything sensitive. Use the in-app
-                      messages thread for private context after the escrow is created.
+                      permanently visible to anyone — including future viewers — and it
+                      can't be changed later. Avoid personal info, contact details, or
+                      anything sensitive. Use the in-app messages thread for private
+                      context after the escrow is created.
                     </span>
                   </div>
                 </div>
@@ -654,7 +655,7 @@ export default function CreateEscrow() {
                   <p className="text-[11px] text-muted-foreground">
                     Maximum: {effMaxDuration.toLocaleString()} {isBurnBlockContract ? 'burn blocks' : 'blocks'}
                     {' '}(~{blocksToTime(effMaxDuration, effMinutesPerBlock)}
-                    {isBurnBlockContract ? ' at Bitcoin’s ~10 min/block target' : ` at current ~${minutesPerBlock.toFixed(2)} min/block`}).
+                    {isBurnBlockContract ? ` at ~${effMinutesPerBlock} min per Bitcoin block` : ` at current ~${minutesPerBlock.toFixed(2)} min/block`}).
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Input
@@ -668,6 +669,14 @@ export default function CreateEscrow() {
                       max={effMaxDuration}
                     />
                     <span className="text-xs text-muted-foreground">{isBurnBlockContract ? 'burn blocks' : 'blocks'}</span>
+                    {/* The box takes blocks, not minutes. Show the time a
+                        typed number means, so "45" reads as ~3h (testnet)
+                        or ~7h 30m (mainnet) before anyone signs. */}
+                    {customDuration && Number(customDuration) > 0 && (
+                      <span className="text-xs font-medium text-foreground">
+                        ≈ {blocksToTime(Number(customDuration), effMinutesPerBlock)}
+                      </span>
+                    )}
                   </div>
                   {customDuration && !durationValid && (
                     <p className="text-xs text-destructive">

@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute, resolveExpiredDisputeForSeller, deliverEscrow } from '@/lib/escrow-service';
 import { useSellerRescueEligible } from '@/hooks/use-seller-rescue-eligible';
+import { useEscrowTiming } from '@/hooks/use-escrow-timing';
+import { useStxGasBalance } from '@/hooks/use-wallet-balance';
 import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
@@ -52,9 +54,9 @@ import {
   useDisputeReason,
   useSubmitDisputeReason,
   DISPUTE_REASON_CATEGORIES,
-  getDisputeReasonsForRole,
   type DisputeReasonCategory,
 } from '@/hooks/use-dispute-reason';
+import { DisputeReasonCard, DisputeReasonPicker, type PendingDisputeReason } from '@/components/shared/DisputeReasonCard';
 
 // Timeline event labels. Labels here describe what happened in plain language
 // rather than echoing the contract event name. Admin-resolved disputes are
@@ -169,6 +171,9 @@ export default function EscrowDetail() {
   );
   const [disputeReason, setDisputeReason] = useState<DisputeReasonCategory | ''>('');
   const [disputeDetails, setDisputeDetails] = useState('');
+  // A reason picked in the dispute form that wasn't saved (not signed in, or
+  // the save failed). The Dispute reason card offers it again, prefilled.
+  const [pendingReason, setPendingReason] = useState<PendingDisputeReason | null>(null);
   // Message thread between buyer and seller (independent of the on-chain
   // delivery signal; this is the conversational layer).
   const { data: messages = [] } = useMessages(
@@ -195,6 +200,18 @@ export default function EscrowDetail() {
   const sellerRescueEligible =
     useSellerRescueEligible(escrow?.contractId, escrow?.id).data === true;
 
+  // v3+: expiry, review-window and dispute-timeout state straight from the
+  // contract (v4 also returns pause-adjusted deadlines). Undefined on legacy
+  // contracts or while loading; the local fallbacks below cover that.
+  const { data: timing } = useEscrowTiming(escrow?.contractId, escrow?.id);
+  // Connected wallet's STX, for fees. A seller gets paid without any, but
+  // needs a little to mark delivery, dispute or refund (fees are paid in
+  // STX even for sBTC escrows).
+  const { data: stxGasBalance } = useStxGasBalance();
+  // The deadline the contract actually enforces: on v4 a pause can push it
+  // past the stored expires-at.
+  const effectiveExpiresAt = timing?.effectiveExpiresAt ?? escrow?.expiresAt ?? 0;
+
   // Real Bitcoin wall-clock timestamps for every burn-block height we
   // display. Only meaningful on v3+ (burn-clock) contracts — legacy
   // contracts use Stacks blocks and lean on the rate-based estimate.
@@ -209,7 +226,7 @@ export default function EscrowDetail() {
   const burnHeightsToResolve = usesBurnClock && currentBlock > 0
     ? [
         escrow?.createdAt,
-        escrow?.expiresAt,
+        effectiveExpiresAt,
         escrow?.completedAt,
         escrow?.disputedAt,
         escrow?.deliveredAt,
@@ -222,7 +239,7 @@ export default function EscrowDetail() {
   );
 
   // Live countdown: convert blocks-remaining to seconds, tick every second
-  const blocksToExpiry = (escrow?.expiresAt ?? 0) - currentBlock;
+  const blocksToExpiry = effectiveExpiresAt - currentBlock;
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   const calcSeconds = useCallback(() => {
@@ -325,10 +342,50 @@ export default function EscrowDetail() {
   // moment the seller marks delivered.
   const isActive = isPending || isDelivered;
   const isDisputed = escrow.status === EscrowStatus.Disputed;
-  const isExpired = escrow.expiresAt <= currentBlock;
-  const disputeTimedOut = isDisputed && escrow.disputedAt
-    ? (currentBlock - escrow.disputedAt) >= disputeTimeout
-    : false;
+  // Who raised the dispute, from the on-chain escrow-disputed event.
+  const disputedBy = escrowEvents.find((e) => e.eventType === 'escrow-disputed')?.actor || null;
+  // The contract counts an escrow as expired only after its deadline block
+  // (burn-block-height > expires-at). Prefer the contract's own answer on
+  // v3+; legacy contracts use the same comparison locally.
+  const isExpired = timing
+    ? timing.isExpired
+    : clockReady && currentBlock > effectiveExpiresAt;
+  // After delivery, the buyer can't refund until the review window ends.
+  const inReview = isDelivered && (timing?.inReview ?? false);
+  // v4 snapshots the timeout per escrow; v3 reads the global one at call time.
+  const escrowDisputeTimeout = timing?.disputeTimeout ?? disputeTimeout;
+  const disputeTimedOut = isDisputed && (timing
+    ? timing.disputeTimedOut
+    : !!escrow.disputedAt && clockReady && currentBlock - escrow.disputedAt > escrowDisputeTimeout);
+
+  // Who may act, following v4's rules: no delivery after the deadline; the
+  // buyer disputes before the deadline, or after it once delivered; the
+  // seller disputes only after marking delivery. v4 enforces these on-chain.
+  // v3 still accepts late delivery and seller disputes before delivery (the
+  // expiry griefing path v4 fixed), so the app doesn't offer them there
+  // either. Contracts without on-chain delivery keep the old behavior.
+  const fairRules = supportsOnChainDelivery(escrow.contractId);
+  const canBuyerDispute = isBuyer && isActive && (!isExpired || (fairRules && isDelivered));
+  const canSellerDispute = isSeller && isActive && (!fairRules || isDelivered);
+  const canClaimRefund = isBuyer && isActive && isExpired && !inReview;
+  const canMarkDelivered = isSeller && isPending && (!fairRules || !isExpired);
+  // Under 0.01 STX can't reliably cover a fee. Only judged once loaded.
+  const sellerLowOnGas =
+    isSeller && isActive && stxGasBalance !== undefined && stxGasBalance < 10_000n;
+  // Name only the seller actions available right now.
+  const gasActions = canMarkDelivered
+    ? 'mark delivery, raise a dispute or refund'
+    : canSellerDispute
+      ? 'raise a dispute or refund the buyer'
+      : 'refund the buyer';
+  const lowGasNote = (
+    <p className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <span>
+        You’ll need a little STX (about 0.01) for transaction fees to {gasActions}. Getting paid doesn’t need any.
+      </span>
+    </p>
+  );
 
   // True when this escrow lives on a contract version other than the one the
   // SDK / wallet is configured for. We can still READ its state, but every
@@ -346,12 +403,12 @@ export default function EscrowDetail() {
   // chain catches up. The pending banner shows what's in progress instead.
   const hasActions = !pendingAction && (
     (isBuyer && (isActive || isExpired) && !isDisputed) ||
-    (isBuyer && isActive && !isExpired) ||
-    (isActive && !isExpired) ||
+    (isBuyer && isPending && !isExpired) ||
+    canBuyerDispute ||
+    canSellerDispute ||
     (isSeller && isActive) ||
-    (isBuyer && isActive && isExpired) ||
+    canClaimRefund ||
     (isBuyer && disputeTimedOut) ||
-    (isSeller && isActive && isExpired) ||
     (isSeller && sellerRescueEligible)
   );
 
@@ -451,12 +508,24 @@ export default function EscrowDetail() {
         case 'dispute':
           txId = await disputeEscrow(escrow.contractId, escrow.id);
           actionType = 'dispute';
-          // Save reason off-chain — best-effort, don't block the UX on failure
+          // The reason is saved off-chain and needs a wallet sign-in (RLS).
+          // Never block the on-chain dispute on it: if it can't be saved now,
+          // keep it so the Dispute reason card can offer it again.
           if (address && disputeReason) {
-            submitDisputeReason.mutate(
-              { escrowId: escrow.id, reasonCategory: disputeReason, details: disputeDetails, submittedBy: address },
-              { onError: () => toast.warning('Dispute submitted, but reason could not be saved. Contact support if needed.') }
-            );
+            const picked = { category: disputeReason, details: disputeDetails };
+            if (isAuthenticated) {
+              submitDisputeReason.mutate(
+                { contractId: escrow.contractId, escrowId: escrow.id, reasonCategory: disputeReason, details: disputeDetails, submittedBy: address },
+                {
+                  onError: () => {
+                    setPendingReason(picked);
+                    toast.warning('Dispute submitted, but the reason wasn’t saved', { description: 'You can add it on this page once the dispute shows.' });
+                  },
+                },
+              );
+            } else {
+              setPendingReason(picked);
+            }
           }
           setDisputeReason('');
           setDisputeDetails('');
@@ -858,9 +927,12 @@ export default function EscrowDetail() {
               <div className="flex items-center justify-between gap-3 py-2.5">
                 <span className="text-xs text-muted-foreground shrink-0">Expires</span>
                 <span className="font-mono text-xs text-foreground text-right">
-                  Block {escrow.expiresAt.toLocaleString()}
-                  <span className="text-muted-foreground"> · {blockToHumanTime(escrow.expiresAt)}</span>
-                  {blocksToExpiry <= 0 && <span className="text-destructive"> (Expired)</span>}
+                  Block {effectiveExpiresAt.toLocaleString()}
+                  <span className="text-muted-foreground"> · {blockToHumanTime(effectiveExpiresAt)}</span>
+                  {effectiveExpiresAt !== escrow.expiresAt && (
+                    <span className="text-muted-foreground"> · moved by a pause</span>
+                  )}
+                  {isExpired && isActive && <span className="text-destructive"> (Expired)</span>}
                 </span>
               </div>
               {escrow.completedAt && (() => {
@@ -929,8 +1001,14 @@ export default function EscrowDetail() {
               )}
               {/* Mark-as-Delivered CTA — only available before the seller has
                   signaled delivery. Once status flips to DELIVERED (v7+), the
-                  signal already lives on-chain and re-pressing would be a no-op. */}
-              {isSeller && isPending && (
+                  signal already lives on-chain and re-pressing would be a no-op.
+                  v4 also rejects delivery after the deadline. */}
+              {isSeller && isPending && fairRules && isExpired && (
+                <p className="text-xs text-muted-foreground">
+                  The deadline has passed, so this escrow can no longer be marked delivered. The buyer can now claim a refund, and you can refund them yourself at any time.
+                </p>
+              )}
+              {canMarkDelivered && (
                 <div className="space-y-2">
                   {deliveries.length === 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -951,6 +1029,7 @@ export default function EscrowDetail() {
                       Contract is paused — delivery signal is blocked at the contract level. Try again once the pause lifts.
                     </p>
                   )}
+                  {sellerLowOnGas && lowGasNote}
                   <Button
                     size="sm"
                     onClick={handleMarkDelivered}
@@ -1284,6 +1363,25 @@ export default function EscrowDetail() {
         </Card>
       </motion.div>
 
+      {/* Its own card, not inside Actions: the Actions card is hidden while a
+          dispute has no available action (e.g. waiting on the arbiter). */}
+      {isParty && isDisputed && (
+        <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
+          <DisputeReasonCard
+            contractId={escrow.contractId}
+            escrowId={escrow.id}
+            viewerAddress={address}
+            disputedBy={disputedBy}
+            disputerRole={disputedBy && disputedBy === escrow.seller ? 'seller' : 'buyer'}
+            existingReason={existingDisputeReason}
+            initialReason={pendingReason}
+            isAuthenticated={isAuthenticated}
+            isSigningIn={isSigningIn}
+            onSignIn={() => signIn()}
+          />
+        </motion.div>
+      )}
+
       {/* Actions panel. When the contract is paused the v3 spec blocks
           release / refund / dispute / extend at the contract level, BUT
           seller self-rescue (resolve-expired-dispute-for-seller) is NOT
@@ -1303,17 +1401,9 @@ export default function EscrowDetail() {
               {isDisputed && escrow.disputedAt && (
                 <DisputeTimeoutProgress
                   disputedAt={escrow.disputedAt}
+                  timeoutBlocks={escrowDisputeTimeout}
                   contractId={escrow.contractId}
                 />
-              )}
-
-              {isDisputed && existingDisputeReason && (
-                <div className="rounded-lg border border-warning/20 bg-warning/5 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-foreground">Dispute reason: {existingDisputeReason.reasonLabel}</p>
-                  {existingDisputeReason.details && (
-                    <p className="text-xs text-muted-foreground italic">"{existingDisputeReason.details}"</p>
-                  )}
-                </div>
               )}
 
               <AnimatePresence>
@@ -1330,48 +1420,31 @@ export default function EscrowDetail() {
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-foreground">
-                          Reason <span className="text-destructive">*</span>
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {/* Reasons are role-specific. The same dispute button
-                              fires the same on-chain action either way, but
-                              showing "Seller unresponsive" to a seller (or
-                              "Buyer in bad faith" to a buyer) is incoherent
-                              and makes admin triage harder. */}
-                          {getDisputeReasonsForRole(isBuyer ? 'buyer' : 'seller').map((cat) => (
-                            <button
-                              key={cat.value}
-                              type="button"
-                              onClick={() => setDisputeReason(cat.value)}
-                              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                                disputeReason === cat.value
-                                  ? 'bg-destructive text-destructive-foreground border-destructive'
-                                  : 'border-border bg-background text-foreground hover:border-destructive/50'
-                              }`}
-                            >
-                              {cat.label}
-                            </button>
-                          ))}
+                      <DisputeReasonPicker
+                        role={isBuyer ? 'buyer' : 'seller'}
+                        value={disputeReason}
+                        onChange={setDisputeReason}
+                        details={disputeDetails}
+                        onDetailsChange={setDisputeDetails}
+                      />
+                      {/* The reason is stored off-chain behind a wallet
+                          sign-in. Say so before the dispute, but don't block
+                          the on-chain action on it. */}
+                      {!isAuthenticated && (
+                        <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-3 flex items-center justify-between gap-3">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <LogIn className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                            <p className="text-[11px] text-muted-foreground">
+                              Sign in first so your reason reaches the arbiter. It's a wallet
+                              signature: no gas, no on-chain tx.
+                            </p>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => signIn()} disabled={isSigningIn} className="gap-1.5 shrink-0">
+                            <LogIn className="h-3.5 w-3.5" />
+                            {isSigningIn ? 'Signing…' : 'Sign in'}
+                          </Button>
                         </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-foreground">
-                          Additional details <span className="text-muted-foreground font-normal">(optional)</span>
-                        </p>
-                        <Textarea
-                          placeholder="Describe the issue in more detail…"
-                          value={disputeDetails}
-                          onChange={(e) => setDisputeDetails(e.target.value)}
-                          maxLength={1000}
-                          rows={3}
-                          className="text-sm resize-none"
-                        />
-                        {disputeDetails.length > 800 && (
-                          <p className="text-xs text-muted-foreground text-right">{disputeDetails.length}/1000</p>
-                        )}
-                      </div>
+                      )}
                       <div className="flex gap-2">
                         <Button
                           variant="outline" size="sm"
@@ -1419,6 +1492,10 @@ export default function EscrowDetail() {
               )}
               </AnimatePresence>
 
+              {/* Shown here once the delivery panel no longer offers Mark as
+                  Delivered (that panel carries the note before then). */}
+              {!confirmAction && sellerLowOnGas && !canMarkDelivered && lowGasNote}
+
               {!confirmAction && (
                 <div className="flex flex-wrap gap-2">
                   {/* Pause-blocked actions: release / refund / dispute / extend
@@ -1449,23 +1526,11 @@ export default function EscrowDetail() {
                     <ExtendEscrowPanel
                       contractId={escrow.contractId}
                       escrowId={escrow.id}
-                      currentExpiresAt={escrow.expiresAt}
+                      currentExpiresAt={effectiveExpiresAt}
                       disabledReason={isPaused ? 'Contract paused' : undefined}
                     />
                   )}
-                  {isActive && !isExpired && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setConfirmAction('dispute')}
-                      disabled={isPaused}
-                      title={isPaused ? 'Blocked while contract is paused' : undefined}
-                      className="gap-1.5 text-destructive border-destructive/30"
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5" /> Dispute
-                    </Button>
-                  )}
-                  {isSeller && isActive && isExpired && (
+                  {(canBuyerDispute || canSellerDispute) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1489,7 +1554,7 @@ export default function EscrowDetail() {
                       <XCircle className="h-3.5 w-3.5" /> Refund Buyer
                     </Button>
                   )}
-                  {isBuyer && isActive && isExpired && (
+                  {canClaimRefund && (
                     <Button
                       size="sm"
                       variant="outline"
