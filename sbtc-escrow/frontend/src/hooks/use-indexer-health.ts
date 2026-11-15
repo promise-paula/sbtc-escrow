@@ -16,6 +16,8 @@ export interface IndexerHealth {
   note: string;
   chainhookEnabled: boolean | null;
   checkedAt: string | null;
+  /** On-chain escrow transactions the indexer hasn't stored after the grace period. */
+  missingTxs: number;
 }
 
 const REFETCH_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
@@ -29,7 +31,7 @@ export function useIndexerHealth() {
       if (!supabaseUrl || !anonKey) {
         // Without config we can't reach the function — assume healthy so we
         // don't show a banner that no user can act on.
-        return { healthy: true, blockLag: null, note: 'unknown', chainhookEnabled: null, checkedAt: null };
+        return { healthy: true, blockLag: null, note: 'unknown', chainhookEnabled: null, checkedAt: null, missingTxs: 0 };
       }
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/indexer-health`, {
@@ -38,12 +40,13 @@ export function useIndexerHealth() {
         if (!res.ok) {
           // 5xx from the health check — surface as unhealthy so the banner
           // can warn the user something's off, even if we can't say what.
-          return { healthy: false, blockLag: null, note: 'Health check unreachable', chainhookEnabled: null, checkedAt: null };
+          return { healthy: false, blockLag: null, note: 'Health check unreachable', chainhookEnabled: null, checkedAt: null, missingTxs: 0 };
         }
         const body = (await res.json()) as {
           healthy: boolean;
-          chainhook?: { enabled?: boolean };
+          chainhook?: { enabled?: boolean } | null;
           lag?: { blocks: number | null; note: string };
+          contracts?: Array<{ missing_txs?: unknown[] }>;
           checked_at?: string;
         };
         return {
@@ -52,9 +55,10 @@ export function useIndexerHealth() {
           note: body.lag?.note ?? '',
           chainhookEnabled: body.chainhook?.enabled ?? null,
           checkedAt: body.checked_at ?? null,
+          missingTxs: (body.contracts ?? []).reduce((n, c) => n + (c.missing_txs?.length ?? 0), 0),
         };
       } catch {
-        return { healthy: false, blockLag: null, note: 'Health check unreachable', chainhookEnabled: null, checkedAt: null };
+        return { healthy: false, blockLag: null, note: 'Health check unreachable', chainhookEnabled: null, checkedAt: null, missingTxs: 0 };
       }
     },
     enabled: isSupabaseConfigured,

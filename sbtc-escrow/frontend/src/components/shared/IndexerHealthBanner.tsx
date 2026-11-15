@@ -26,7 +26,10 @@ export function IndexerHealthBanner() {
   }
 
   let message: string;
-  if (data.chainhookEnabled === false) {
+  if (data.missingTxs > 0) {
+    message =
+      'Some recent on-chain escrow activity hasn’t reached the app yet. Funds and actions are safe on-chain; they’ll appear here once indexing catches up.';
+  } else if (data.chainhookEnabled === false) {
     message =
       'On-chain event indexer is paused. New escrow activity may not appear until it resumes.';
   } else if (data.blockLag !== null && data.blockLag >= LAG_BANNER_THRESHOLD_BLOCKS) {
