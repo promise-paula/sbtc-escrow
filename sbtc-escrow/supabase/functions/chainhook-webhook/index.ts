@@ -315,7 +315,10 @@ async function fetchEscrowDescription(
 
     const lenHex = hexStr.slice(valueStart + 2, valueStart + 10);
     const strLen = parseInt(lenHex, 16);
-    if (strLen === 0 || strLen > 512) return "";
+    // The length prefix is in bytes. `(string-utf8 256)` caps characters,
+    // not bytes, and UTF-8 uses up to 4 bytes per character, so a valid
+    // description can be up to 1,024 bytes (e.g. 256 CJK chars = 768 bytes).
+    if (strLen === 0 || strLen > 1024) return "";
 
     const strHex = hexStr.slice(valueStart + 10, valueStart + 10 + strLen * 2);
     const bytes = new Uint8Array(strLen);
