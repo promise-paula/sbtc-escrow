@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { releaseEscrow, refundEscrow, disputeEscrow, resolveExpiredDispute, resolveExpiredDisputeForSeller, deliverEscrow } from '@/lib/escrow-service';
 import { useSellerRescueEligible } from '@/hooks/use-seller-rescue-eligible';
 import { useEscrowTiming } from '@/hooks/use-escrow-timing';
+import { useStxGasBalance } from '@/hooks/use-wallet-balance';
 import { blocksToTime, relativeTime, getExplorerUrl, truncateAddress } from '@/lib/utils';
 import { useBlockRate } from '@/hooks/use-block-rate';
 import { useAddressBook } from '@/hooks/use-address-book';
@@ -200,6 +201,10 @@ export default function EscrowDetail() {
   // contract (v4 also returns pause-adjusted deadlines). Undefined on legacy
   // contracts or while loading; the local fallbacks below cover that.
   const { data: timing } = useEscrowTiming(escrow?.contractId, escrow?.id);
+  // Connected wallet's STX, for fees. A seller gets paid without any, but
+  // needs a little to mark delivery, dispute or refund (fees are paid in
+  // STX even for sBTC escrows).
+  const { data: stxGasBalance } = useStxGasBalance();
   // The deadline the contract actually enforces: on v4 a pause can push it
   // past the stored expires-at.
   const effectiveExpiresAt = timing?.effectiveExpiresAt ?? escrow?.expiresAt ?? 0;
@@ -359,6 +364,23 @@ export default function EscrowDetail() {
   const canSellerDispute = isSeller && isActive && (!fairRules || isDelivered);
   const canClaimRefund = isBuyer && isActive && isExpired && !inReview;
   const canMarkDelivered = isSeller && isPending && (!fairRules || !isExpired);
+  // Under 0.01 STX can't reliably cover a fee. Only judged once loaded.
+  const sellerLowOnGas =
+    isSeller && isActive && stxGasBalance !== undefined && stxGasBalance < 10_000n;
+  // Name only the seller actions available right now.
+  const gasActions = canMarkDelivered
+    ? 'mark delivery, raise a dispute or refund'
+    : canSellerDispute
+      ? 'raise a dispute or refund the buyer'
+      : 'refund the buyer';
+  const lowGasNote = (
+    <p className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <span>
+        You’ll need a little STX (about 0.01) for transaction fees to {gasActions}. Getting paid doesn’t need any.
+      </span>
+    </p>
+  );
 
   // True when this escrow lives on a contract version other than the one the
   // SDK / wallet is configured for. We can still READ its state, but every
@@ -990,6 +1012,7 @@ export default function EscrowDetail() {
                       Contract is paused — delivery signal is blocked at the contract level. Try again once the pause lifts.
                     </p>
                   )}
+                  {sellerLowOnGas && lowGasNote}
                   <Button
                     size="sm"
                     onClick={handleMarkDelivered}
@@ -1458,6 +1481,10 @@ export default function EscrowDetail() {
                 </motion.div>
               )}
               </AnimatePresence>
+
+              {/* Shown here once the delivery panel no longer offers Mark as
+                  Delivered (that panel carries the note before then). */}
+              {!confirmAction && sellerLowOnGas && !canMarkDelivered && lowGasNote}
 
               {!confirmAction && (
                 <div className="flex flex-wrap gap-2">
