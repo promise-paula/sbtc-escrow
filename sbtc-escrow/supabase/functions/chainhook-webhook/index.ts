@@ -663,12 +663,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Authenticate — verify shared auth token if configured
   const authToken = Deno.env.get("CHAINHOOK_AUTH_TOKEN");
+  // Chainhooks v2 hook definitions can't carry custom headers; Hiro sends
+  // the account's consumer secret instead (documented both as
+  // `Authorization: Bearer <secret>` and as `x-chainhook-consumer-secret`).
+  // Accept either, plus the older x-webhook-token used by backfill scripts.
   if (authToken) {
-    const received =
-      req.headers.get("authorization")?.replace("Bearer ", "") ??
-      req.headers.get("x-webhook-token");
-    if (received !== authToken) {
-      console.error("[auth] Unauthorized webhook request");
+    const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const candidates = [
+      bearer,
+      req.headers.get("x-chainhook-consumer-secret"),
+      req.headers.get("x-webhook-token"),
+    ];
+    if (!candidates.includes(authToken)) {
+      // Header names only, never values, so a mismatch can be diagnosed.
+      const present = ["authorization", "x-chainhook-consumer-secret", "x-webhook-token"]
+        .filter((h) => req.headers.has(h));
+      console.error(`[auth] Unauthorized webhook request (auth headers present: ${present.join(", ") || "none"})`);
       return new Response("Unauthorized", { status: 401 });
     }
   }
