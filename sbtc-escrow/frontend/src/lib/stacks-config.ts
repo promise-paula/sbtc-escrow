@@ -131,6 +131,9 @@ export const MAX_DURATION_BLOCKS = 350_400; // ~365 days at 960 blocks/day
 // Burn-block math (v3+)
 export const MIN_DURATION_BURN_BLOCKS = 1; // ~10 min minimum (matches contract MIN_DURATION u1)
 export const MAX_DURATION_BURN_BLOCKS = 52_560; // ~365 days (matches contract MAX_DURATION u52560)
+// v4 review window after delivery (contract REVIEW_PERIOD u24, ~4h on
+// mainnet). Used to tell when a pause moved the review deadline.
+export const V4_REVIEW_PERIOD_BURN_BLOCKS = 24;
 // Burn-block production rate, in minutes per block.
 //
 // Mainnet anchors to real Bitcoin (10 min target, ~144 blocks/day, stable).
