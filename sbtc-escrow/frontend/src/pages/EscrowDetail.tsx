@@ -6,7 +6,7 @@ import { useBlockHeight } from '@/hooks/use-block-height';
 import { useBurnBlockHeight } from '@/hooks/use-burn-block-height';
 import { useBurnBlockTimestamps } from '@/hooks/use-burn-block-timestamps';
 import { useBurnBlockRate } from '@/hooks/use-burn-block-rate';
-import { usesBurnBlockClock, BURN_BLOCK_MINUTES } from '@/lib/stacks-config';
+import { usesBurnBlockClock, BURN_BLOCK_MINUTES, V4_REVIEW_PERIOD_BURN_BLOCKS } from '@/lib/stacks-config';
 import { usePlatformConfig } from '@/hooks/use-admin';
 import { CONTRACT_PRINCIPAL, DEFAULT_DISPUTE_TIMEOUT, DEFAULT_MINUTES_PER_BLOCK, supportsOnChainDelivery } from '@/lib/stacks-config';
 import { EscrowStatus } from '@/lib/types';
@@ -957,6 +957,21 @@ export default function EscrowDetail() {
                   {isExpired && isActive && <span className="text-destructive"> (Expired)</span>}
                 </span>
               </div>
+              {/* v4 only (the contract reports it). While delivered, the buyer
+                  can't refund before this block, so show when it is. */}
+              {isDelivered && timing?.effectiveReviewEndsAt != null && (
+                <div className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="text-xs text-muted-foreground shrink-0">Review ends</span>
+                  <span className="font-mono text-xs text-foreground text-right">
+                    Block {timing.effectiveReviewEndsAt.toLocaleString()}
+                    <span className="text-muted-foreground"> · {blockToHumanTime(timing.effectiveReviewEndsAt)}</span>
+                    {escrow.deliveredAt != null &&
+                      timing.effectiveReviewEndsAt !== escrow.deliveredAt + V4_REVIEW_PERIOD_BURN_BLOCKS && (
+                        <span className="text-muted-foreground"> · moved by a pause</span>
+                      )}
+                  </span>
+                </div>
+              )}
               {escrow.completedAt && (() => {
                 const iso = indexedTimeForBlock(escrow.completedAt);
                 return (

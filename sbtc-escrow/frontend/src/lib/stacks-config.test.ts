@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONTRACT_VERSIONS, contractVersionFor } from './stacks-config';
+import { CONTRACT_VERSIONS, contractVersionFor, V4_REVIEW_PERIOD_BURN_BLOCKS } from './stacks-config';
 
 const CONTRACTS_DIR = join(__dirname, '../../../contracts');
 
@@ -13,6 +13,14 @@ describe('contract versions', () => {
       const header = readFileSync(join(CONTRACTS_DIR, file), 'utf8').match(/^;;\s*version:\s*(\S+)/im)?.[1];
       expect({ contract: file, version: CONTRACT_VERSIONS[file.replace(/\.clar$/, '')] })
         .toEqual({ contract: file, version: header });
+    }
+  });
+
+  it('use the v4 review period from the contract source', () => {
+    for (const name of ['escrow-v9', 'escrow-mainnet-v4']) {
+      const src = readFileSync(join(CONTRACTS_DIR, `${name}.clar`), 'utf8');
+      const period = Number(src.match(/define-constant REVIEW_PERIOD u(\d+)/)?.[1]);
+      expect({ name, period }).toEqual({ name, period: V4_REVIEW_PERIOD_BURN_BLOCKS });
     }
   });
 
