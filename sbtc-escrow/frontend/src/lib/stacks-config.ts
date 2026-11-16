@@ -39,13 +39,31 @@ export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || 'ST3B5F
 // dispatch in escrow-service.ts — only NEW creates respect this default).
 export const CONTRACT_NAME = import.meta.env.VITE_CONTRACT_NAME || 'escrow-v9';
 export const CONTRACT_PRINCIPAL = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}` as `${string}.${string}`;
-// Semantic version of the active contract, taken from its Clarity source
-// header (e.g. escrow-v9 declares `;; version: 4.0.0`). The contract does NOT
-// expose this on-chain, so it's a per-environment constant kept in sync with
-// the deployed `.clar` — override with VITE_CONTRACT_VERSION on mainnet
-// (escrow-mainnet-v2 is 2.0.0). The name suffix (v9) is a deploy counter,
-// separate from this semver.
-export const CONTRACT_VERSION = import.meta.env.VITE_CONTRACT_VERSION || '4.0.0';
+// Semantic version of each contract, from its Clarity source header (e.g.
+// escrow-v9 declares `;; version: 4.0.0`). The contract doesn't expose this
+// on-chain. The name suffix (v9) is a deploy counter, separate from this
+// semver. stacks-config.test.ts checks this map against the .clar headers.
+export const CONTRACT_VERSIONS: Readonly<Record<string, string>> = {
+  'escrow-mainnet': '1.0.0',
+  'escrow-mainnet-v2': '2.0.0',
+  'escrow-mainnet-v3': '3.0.0',
+  'escrow-mainnet-v4': '4.0.0',
+  'escrow-v6': '6.0.0',
+  'escrow-v7': '7.0.0',
+  'escrow-v8': '3.0.0',
+  'escrow-v9': '4.0.0',
+};
+
+/**
+ * The version follows the contract name, so switching VITE_CONTRACT_NAME
+ * can never leave a stale version on screen. VITE_CONTRACT_VERSION is only
+ * a fallback for a contract this map doesn't know yet.
+ */
+export function contractVersionFor(contractName: string, fallback: string | undefined): string {
+  return CONTRACT_VERSIONS[contractName] ?? (fallback || 'unknown');
+}
+
+export const CONTRACT_VERSION = contractVersionFor(CONTRACT_NAME, import.meta.env.VITE_CONTRACT_VERSION);
 
 export const SBTC_CONTRACT = (import.meta.env.VITE_SBTC_CONTRACT ||
   (STACKS_NETWORK === 'mainnet'

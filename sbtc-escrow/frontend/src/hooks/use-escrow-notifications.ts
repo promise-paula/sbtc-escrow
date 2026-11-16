@@ -7,6 +7,7 @@ import { EscrowStatus } from '@/lib/types';
 
 interface EscrowRow {
   id: number;
+  contract_id?: string;
   buyer: string;
   seller: string;
   // v3+ optional co-buyer with full release/refund/dispute rights — must be
@@ -25,8 +26,25 @@ export function useEscrowNotifications() {
   const { address } = useWallet();
   const { settings } = useSettings();
   const lastSeenStatus = useRef<Map<number, number>>(new Map());
+  // Escrows the buyer was already told about. A delivery can arrive twice:
+  // the seller's off-chain note (only when they're signed in) and the
+  // indexed on-chain status change. Notify once, whichever comes first.
+  const deliveryNotified = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    const notifyDelivery = (contractId: string | undefined, escrowId: number, message: string | null) => {
+      const key = `${contractId ?? ''}:${escrowId}`;
+      if (deliveryNotified.current.has(key)) return;
+      deliveryNotified.current.add(key);
+      fireNotification('Work marked as delivered', {
+        body: message
+          ? `Escrow #${escrowId}: "${message}"`
+          : `Escrow #${escrowId} — seller says work is done. Review and release when ready.`,
+        tag: `delivery-${key}`,
+        url: `/escrow/${escrowId}`,
+      });
+    };
+
     if (!address || !isSupabaseConfigured) return;
 
     const channel = supabase
@@ -61,6 +79,14 @@ export function useEscrowNotifications() {
           const prevStatus = lastSeenStatus.current.get(row.id) ?? old.status;
           if (prevStatus === undefined || prevStatus === row.status) return;
           lastSeenStatus.current.set(row.id, row.status);
+
+          // On-chain delivery (v7+), indexed from the chain. Works even when
+          // the seller never signed in, so no off-chain note was written.
+          if (row.status === EscrowStatus.Delivered) {
+            if (row.seller === address || !settings.notifyDeliveries) return;
+            notifyDelivery(row.contract_id, row.id, null);
+            return;
+          }
 
           const isDispute = row.status === EscrowStatus.Disputed;
           const isCompletion =
@@ -102,14 +128,8 @@ export function useEscrowNotifications() {
         },
         (payload) => {
           if (!settings.notifyDeliveries) return;
-          const row = payload.new as { escrow_id: number; message: string | null };
-          fireNotification('Work marked as delivered', {
-            body: row.message
-              ? `Escrow #${row.escrow_id}: "${row.message}"`
-              : `Escrow #${row.escrow_id} — seller says work is done. Review and release when ready.`,
-            tag: `delivery-${row.escrow_id}-${Date.now()}`,
-            url: `/escrow/${row.escrow_id}`,
-          });
+          const row = payload.new as { escrow_id: number; contract_id?: string; message: string | null };
+          notifyDelivery(row.contract_id, row.escrow_id, row.message);
         }
       )
       .subscribe();
