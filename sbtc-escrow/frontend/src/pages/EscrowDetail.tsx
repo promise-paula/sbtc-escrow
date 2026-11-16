@@ -45,6 +45,8 @@ import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { PackageCheck } from 'lucide-react';
 import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
+import { runDeliver } from '@/lib/deliver-flow';
+import { SignInNote } from '@/components/shared/SignInNote';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useWalletAuth } from '@/contexts/WalletAuthContext';
 import { usePendingAction, useReconcilePendingAction } from '@/hooks/use-pending-actions';
@@ -581,43 +583,63 @@ export default function EscrowDetail() {
 
   const handleMarkDelivered = async () => {
     const hasOnChainDelivery = supportsOnChainDelivery(escrow.contractId);
+    const note = deliveryMessage;
     try {
-      // v7+: trigger the on-chain delivery signal first. This is what actually
-      // protects the seller from the Golden Rule attack — it flips the escrow
-      // into STATUS_DELIVERED and starts the review window. The off-chain
-      // message is just the human-readable context attached to that event.
-      //
-      // Legacy contracts (v6 / escrow-mainnet) don't expose `deliver()`, so we
-      // fall through to the off-chain marker only — same behavior as before.
-      if (hasOnChainDelivery) {
-        const txId = await deliverEscrow(escrow.contractId, escrow.id);
-        // Optimistic overlay so the UI doesn't look frozen during chain
-        // confirmation; reconciled when the indexed status becomes DELIVERED.
-        setPendingAction({
+      // v7+: the on-chain deliver() is the delivery — it flips the escrow to
+      // STATUS_DELIVERED and starts the review window. The off-chain record
+      // only carries the note, and needs a wallet sign-in. Legacy contracts
+      // (v6 / escrow-mainnet) have no deliver(), so the record is the signal.
+      const outcome = await runDeliver({
+        onChainDelivery: hasOnChainDelivery,
+        isAuthenticated,
+        message: note,
+        sendOnChain: async () => {
+          const txId = await deliverEscrow(escrow.contractId, escrow.id);
+          // Optimistic overlay so the UI doesn't look frozen during chain
+          // confirmation; reconciled when the indexed status becomes DELIVERED.
+          setPendingAction({
+            contractId: escrow.contractId,
+            escrowId: escrow.id,
+            type: 'deliver',
+            txId,
+            submittedAt: new Date().toISOString(),
+          });
+        },
+        saveRecord: () => markDelivered.mutateAsync({
           contractId: escrow.contractId,
           escrowId: escrow.id,
-          type: 'deliver',
-          txId,
-          submittedAt: new Date().toISOString(),
+          sellerAddress: escrow.seller,
+          buyerAddress: escrow.buyer,
+          message: note,
+        }),
+      });
+
+      if (outcome.kind === 'needs-sign-in') {
+        toast.error('Sign in to mark as delivered', {
+          description: 'This contract version records delivery off-chain, which needs a one-time wallet signature (no gas).',
         });
+        return;
       }
 
-      await markDelivered.mutateAsync({
-        contractId: escrow.contractId,
-        escrowId: escrow.id,
-        sellerAddress: escrow.seller,
-        buyerAddress: escrow.buyer,
-        message: deliveryMessage,
-      });
       setDeliveryMessage('');
-      toast.success(
-        hasOnChainDelivery ? 'Delivery signaled on-chain' : 'Marked as delivered',
-        {
-          description: hasOnChainDelivery
-            ? 'Review window started. Funds stay locked until the buyer releases or you raise a dispute.'
-            : 'The buyer has been notified and can now review and release payment.',
-        },
-      );
+      const lostNote = outcome.note === 'not-signed-in' || outcome.note === 'failed';
+      // Keep an unsaved note: move it to the Messages box to send from there.
+      if (lostNote) setDraftMessage(note);
+      if (!hasOnChainDelivery) {
+        toast.success('Marked as delivered', {
+          description: 'The buyer has been notified and can now review and release payment.',
+        });
+      } else if (lostNote) {
+        toast.warning('Delivery signaled on-chain, but your note wasn’t attached', {
+          description: outcome.note === 'not-signed-in'
+            ? 'Notes need a sign-in. Your note is in the Messages box: sign in and send it from there.'
+            : 'Your note is in the Messages box. Send it from there.',
+        });
+      } else {
+        toast.success('Delivery signaled on-chain', {
+          description: 'Review window started. Funds stay locked until the buyer releases or you raise a dispute.',
+        });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message.toLowerCase() : '';
       if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied')) {
@@ -1023,6 +1045,16 @@ export default function EscrowDetail() {
                     rows={2}
                     className="text-sm resize-none"
                   />
+                  {/* Notes are off-chain and need a sign-in. On v7+ the
+                      delivery itself doesn't, so only ask once a note is
+                      typed; legacy contracts need it for the delivery. */}
+                  {!isAuthenticated && (!fairRules || deliveryMessage.trim()) && (
+                    <SignInNote variant="outline" isSigningIn={isSigningIn} onSignIn={() => signIn()}>
+                      {fairRules
+                        ? 'Delivery itself is on-chain and works without this. Sign in to attach your note: a wallet signature, no gas.'
+                        : 'Sign in to mark this escrow delivered: a wallet signature, no gas.'}
+                    </SignInNote>
+                  )}
                   {isPaused && (
                     <p className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5" />
@@ -1431,19 +1463,10 @@ export default function EscrowDetail() {
                           sign-in. Say so before the dispute, but don't block
                           the on-chain action on it. */}
                       {!isAuthenticated && (
-                        <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-3 flex items-center justify-between gap-3">
-                          <div className="flex items-start gap-2 min-w-0">
-                            <LogIn className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
-                            <p className="text-[11px] text-muted-foreground">
-                              Sign in first so your reason reaches the arbiter. It's a wallet
-                              signature: no gas, no on-chain tx.
-                            </p>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => signIn()} disabled={isSigningIn} className="gap-1.5 shrink-0">
-                            <LogIn className="h-3.5 w-3.5" />
-                            {isSigningIn ? 'Signing…' : 'Sign in'}
-                          </Button>
-                        </div>
+                        <SignInNote variant="outline" isSigningIn={isSigningIn} onSignIn={() => signIn()}>
+                          Sign in first so your reason reaches the arbiter. It's a wallet
+                          signature: no gas, no on-chain tx.
+                        </SignInNote>
                       )}
                       <div className="flex gap-2">
                         <Button
