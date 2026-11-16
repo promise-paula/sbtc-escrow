@@ -4,9 +4,10 @@ import { REPO_URL } from '@/lib/stacks-config';
 /**
  * Privacy policy. Every claim in here is checked against what the app
  * actually does: no accounts, no analytics, local-only notifications,
- * Supabase stores indexed chain data plus delivery notes, price quotes
- * fetched client-side. If a data flow changes, this page must change
- * with it. KEEP IN SYNC.
+ * Supabase stores indexed chain data, notes / messages / dispute reasons,
+ * sign-in nonces and optional referral answers, price quotes fetched
+ * client-side. If a data flow changes, this page must change with it.
+ * KEEP IN SYNC.
  */
 export default function Privacy() {
   return (
@@ -14,7 +15,7 @@ export default function Privacy() {
       title="Privacy Policy"
       description="What sBTC Escrow collects, what it never collects, and how on-chain data works. No accounts, no tracking, no ads."
       path="/privacy"
-      effectiveDate="July 16, 2026"
+      effectiveDate="November 16, 2026"
     >
       <LegalSection num="01" heading="The short version">
         <p>
@@ -51,17 +52,19 @@ export default function Privacy() {
 
       <LegalSection num="04" heading="What we store off-chain">
         <p>
-          We operate a database (hosted on Supabase) that stores two things:
+          We operate a database (hosted on Supabase) that stores:
         </p>
         <ul>
           <li><strong>An index of public chain data.</strong> Copies of escrow records and events, mirrored from the blockchain so pages load fast. This adds nothing that is not already public.</li>
-          <li><strong>Delivery notes.</strong> If a seller marks work as delivered with an optional message, that message is stored in our database and shown to the escrow's participants. Keep personal information out of these notes; contact us to request deletion of a note you wrote.</li>
+          <li><strong>What you write in the app.</strong> Delivery notes, escrow messages, and dispute reasons, each stored with your wallet address. These are not private: anyone can read them, so keep personal information out of them.</li>
+          <li><strong>Sign-in records.</strong> When you sign in with your wallet, we store a one-time code with your wallet address and its timestamps, so the same signature can't be reused.</li>
+          <li><strong>Your answer to "How did you hear about sBTC Escrow?"</strong> Only if you choose to answer this optional question. It is stored with your wallet address, and no one but you and us can read it. We use it to understand how people find the product, and may share it with our grant funder when reporting how the product is used.</li>
         </ul>
       </LegalSection>
 
       <LegalSection num="05" heading="Your browser">
         <ul>
-          <li><strong>Local storage:</strong> your theme choice (light/dark) and dismissed banners. This never leaves your device. Nothing we store in your browser requires consent under cookie laws, which is why there is no cookie banner.</li>
+          <li><strong>Local storage:</strong> your theme choice (light/dark), dismissed banners, your sign-in session, and whether you answered or skipped the optional question. This never leaves your device. Nothing we store in your browser requires consent under cookie laws, which is why there is no cookie banner.</li>
           <li><strong>Wallet connection:</strong> managed by your wallet extension under its own policy. Disconnecting in the app or the extension ends it.</li>
           <li><strong>Notifications:</strong> if you enable escrow notifications, they are fired locally by your browser. We store no push subscription on any server, and you can revoke the permission in browser settings at any time.</li>
         </ul>
@@ -83,11 +86,12 @@ export default function Privacy() {
           Where data-protection law such as the GDPR applies to you, the operator named in
           section 01 is the controller. We process the indexed chain data described above on the
           basis of our legitimate interest in operating the service; notifications run only with
-          your consent, which you can withdraw in browser settings.
+          your consent, which you can withdraw in browser settings. Your answer to the optional
+          question is given with your consent, and you can ask us to delete it at any time.
         </p>
         <p>
-          Blockchain records cannot be deleted by anyone. For off-chain data we control (delivery
-          notes), open an issue on <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a> or
+          Blockchain records cannot be deleted by anyone. For off-chain data we control (notes,
+          messages, dispute reasons, and your answer to the optional question), open an issue on <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a> or
           message <a href="https://x.com/sbtcescrow" target="_blank" rel="noopener noreferrer">@sbtcescrow</a> from
           the wallet-verifiable account involved, and we will remove it within 30 days. Our hosting
           and database providers operate in the United States, so data they handle is processed
