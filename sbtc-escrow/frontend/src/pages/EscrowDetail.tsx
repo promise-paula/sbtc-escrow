@@ -47,6 +47,7 @@ import { PackageCheck } from 'lucide-react';
 import { useDeliveries, useMarkDelivered } from '@/hooks/use-deliveries';
 import { runDeliver } from '@/lib/deliver-flow';
 import { SignInNote } from '@/components/shared/SignInNote';
+import { HowDidYouHearCard } from '@/components/shared/HowDidYouHearCard';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useWalletAuth } from '@/contexts/WalletAuthContext';
 import { usePendingAction, useReconcilePendingAction } from '@/hooks/use-pending-actions';
@@ -1621,6 +1622,19 @@ export default function EscrowDetail() {
               )}
             </CardContent>
           </Card>
+        </motion.div>
+      )}
+
+      {/* Optional, asked once per wallet, last on the page so it never sits
+          between a party and their actions. Admins viewing aren't asked. */}
+      {isParty && (
+        <motion.div custom={7} variants={cardVariants} initial="hidden" animate="visible">
+          <HowDidYouHearCard
+            address={address}
+            isAuthenticated={isAuthenticated}
+            isSigningIn={isSigningIn}
+            onSignIn={() => signIn()}
+          />
         </motion.div>
       )}
     </div>
