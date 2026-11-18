@@ -6,6 +6,33 @@ All notable changes to `sbtc-escrow-sdk` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-18
+
+### Changed
+
+- **Default contracts are now v4.** `new EscrowClient({ network: 'mainnet' })`
+  targets `SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4`, and
+  `network: 'testnet'` targets `ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9`.
+  v4 is deployed from a new address, so pass `contractName: 'escrow-mainnet-v3'`
+  to act on existing v3 escrows.
+- **Testnet sBTC default** is now `SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token`.
+  The testnet reset in 2026 removed the old one.
+
+### Added
+
+- `supportsV4Rules(contractId)`.
+- `client.getEffectiveDeadlines(escrowId)`: v4 deadlines after any pause
+  adjustment. Returns null on pre-v4 contracts.
+
+### Fixed
+
+- **A legacy `contractName` now resolves to the address it is deployed at.**
+  Previously, `contractName` alone always used the default address.
+- **v4 and escrow-v9 are recognised as v3+.** This keeps the beneficiary
+  argument and the timed `pauseContract` working on them.
+- **The 0.3.x testnet default pointed at `escrow-v8`,** which the testnet
+  reset removed. Upgrade to 0.4.0 for testnet use.
+
 ## [0.3.1] - 2026-05-31
 
 ### Fixed

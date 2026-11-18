@@ -2,10 +2,10 @@
  * sBTC Escrow SDK — Client
  *
  * TypeScript client for the sBTC Escrow smart contracts on Stacks.
- * Defaults to `escrow-v8` on testnet and `escrow-mainnet-v3` on mainnet
- * (both v3 feature set). Supports both STX (native) and sBTC (SIP-010)
- * escrows. Legacy contracts (`escrow-v7`, `escrow-mainnet-v2`, etc.)
- * are still callable by passing `contractName` explicitly.
+ * Defaults to `escrow-v9` on testnet and `escrow-mainnet-v4` on mainnet
+ * (v4). Supports both STX (native) and sBTC (SIP-010) escrows. Legacy
+ * contracts (`escrow-mainnet-v3`, `escrow-mainnet-v2`, etc.) are still
+ * callable by passing `contractName` explicitly.
  */
 
 import {
@@ -40,25 +40,44 @@ import {
 } from './types';
 
 /**
- * Default contract addresses. v3+ deployments are now live on both networks
- * (`escrow-v8` on testnet, `escrow-mainnet-v3` on mainnet) — the SDK
- * targets them by default since v3 is a strict feature superset of v2/v7.
+ * Default contracts: v4 (`escrow-mainnet-v4` on mainnet, `escrow-v9` on
+ * testnet, same source). v4 is a superset of v3, deployed from a new
+ * deployer address.
  *
- * To call a legacy contract (read or actions on existing v2/v7 escrows),
- * pass `contractName` explicitly:
+ * To call a legacy contract (read or act on existing v3/v2 escrows), pass
+ * `contractName`; its deployer address is filled in from
+ * `KNOWN_CONTRACT_ADDRESSES`:
  *
  * ```ts
- * new EscrowClient({ network: 'mainnet', contractName: 'escrow-mainnet-v2' });
+ * new EscrowClient({ network: 'mainnet', contractName: 'escrow-mainnet-v3' });
  * ```
  */
 const DEFAULT_CONTRACTS = {
   testnet: {
-    address: 'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N',
-    name: 'escrow-v8',
+    address: 'ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y',
+    name: 'escrow-v9',
   },
   mainnet: {
-    address: 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
-    name: 'escrow-mainnet-v3',
+    address: 'SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV',
+    name: 'escrow-mainnet-v4',
+  },
+};
+
+/**
+ * Deployer address of each known contract name, so `contractName` alone
+ * targets the right contract. v4 moved to a new deployer; earlier mainnet
+ * versions stay at the old one. (Testnet was reset in 2026, so earlier
+ * testnet contracts no longer exist.)
+ */
+const KNOWN_CONTRACT_ADDRESSES: Record<'mainnet' | 'testnet', Record<string, string>> = {
+  mainnet: {
+    'escrow-mainnet-v4': 'SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV',
+    'escrow-mainnet-v3': 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
+    'escrow-mainnet-v2': 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
+    'escrow-mainnet': 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
+  },
+  testnet: {
+    'escrow-v9': 'ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y',
   },
 };
 
@@ -73,8 +92,10 @@ const DEFAULT_CONTRACTS = {
  * would cause a runtime contract-call failure).
  */
 const V3_PLUS_CONTRACTS: ReadonlySet<string> = new Set([
-  'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',           // testnet
-  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',   // mainnet
+  'SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4',   // mainnet v4
+  'ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9',           // testnet v4
+  'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3',   // mainnet v3 (legacy)
+  'ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8',           // testnet v3 (removed by the 2026 testnet reset)
 ]);
 
 /** True iff the contract id targets a v3+ deployment. */
@@ -82,9 +103,25 @@ export function supportsV3Features(contractId: string): boolean {
   return V3_PLUS_CONTRACTS.has(contractId);
 }
 
+/**
+ * v4 contracts: deliver() only before the deadline; a seller can dispute
+ * only after marking delivery; after the deadline only a delivered escrow
+ * can be disputed; deadlines inside a pause are moved past it
+ * (`getEffectiveDeadlines`); each escrow keeps its own dispute timeout.
+ */
+const V4_CONTRACTS: ReadonlySet<string> = new Set([
+  'SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4',
+  'ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9',
+]);
+
+/** True iff the contract id targets a v4 deployment. */
+export function supportsV4Rules(contractId: string): boolean {
+  return V4_CONTRACTS.has(contractId);
+}
+
 /** Default sBTC SIP-010 contract principals */
 const DEFAULT_SBTC_CONTRACTS = {
-  testnet: 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token',
+  testnet: 'SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token', // after the 2026 testnet reset
   mainnet: 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token',
 };
 
@@ -92,7 +129,7 @@ const DEFAULT_SBTC_CONTRACTS = {
  * sBTC Escrow Client
  *
  * Provides typed methods for interacting with the sBTC Escrow smart contracts
- * on Stacks. Defaults to `escrow-v8` (testnet) / `escrow-mainnet-v3` (mainnet);
+ * on Stacks. Defaults to `escrow-v9` (testnet) / `escrow-mainnet-v4` (mainnet);
  * pass `contractName` explicitly to target legacy contracts. Supports both
  * STX (native) and sBTC (SIP-010 fungible token) escrows.
  *
@@ -132,8 +169,13 @@ export class EscrowClient {
       // Honor a custom Hiro API URL (e.g. a self-hosted node or a proxy).
       this.network.client = { ...this.network.client, baseUrl: config.apiUrl };
     }
-    this.contractAddress = config.contractAddress ?? DEFAULT_CONTRACTS[config.network].address;
     this.contractName = config.contractName ?? DEFAULT_CONTRACTS[config.network].name;
+    // An explicit address wins; otherwise use the known deployer of the
+    // named contract (v4 and earlier versions live at different addresses).
+    this.contractAddress =
+      config.contractAddress ??
+      KNOWN_CONTRACT_ADDRESSES[config.network][this.contractName] ??
+      DEFAULT_CONTRACTS[config.network].address;
     this.sbtcContract = config.sbtcContract ?? DEFAULT_SBTC_CONTRACTS[config.network];
 
     if (!this.contractAddress) {
@@ -298,6 +340,27 @@ export class EscrowClient {
     return cvToJSON(result).value;
   }
 
+  /**
+   * v4 only: the escrow's deadlines after any pause adjustment. A deadline
+   * that fell inside a pause, or within the grace period after it, is moved
+   * past it, so prefer these over the stored `expiresAt`. `reviewEndsAt` is
+   * null until the seller marks delivery. Returns null on pre-v4 contracts
+   * (no network call) or for an unknown escrow.
+   */
+  async getEffectiveDeadlines(
+    escrowId: number,
+  ): Promise<{ expiresAt: number; reviewEndsAt: number | null } | null> {
+    if (!supportsV4Rules(this.getContractId())) return null;
+    const result = await this.callReadOnly('get-effective-deadlines', [uintCV(escrowId)]);
+    const fields = cvToJSON(result)?.value?.value;
+    if (!fields) return null;
+    const review = fields['review-ends-at']?.value;
+    return {
+      expiresAt: Number(fields['expires-at'].value),
+      reviewEndsAt: review?.value != null ? Number(review.value) : null,
+    };
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // WRITE METHODS (require signing)
   // ═══════════════════════════════════════════════════════════════
@@ -329,7 +392,7 @@ export class EscrowClient {
       throw new Error(
         `createEscrow: beneficiary parameter requires a v3+ contract; ` +
           `${this.contractAddress}.${this.contractName} does not support it. ` +
-          `Either omit beneficiary or target escrow-mainnet-v3 / future v3+.`,
+          `Either omit beneficiary or target a v3+ contract (escrow-mainnet-v4, escrow-v9).`,
       );
     }
 
