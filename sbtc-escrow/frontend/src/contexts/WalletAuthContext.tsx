@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { STACKS_NETWORK } from '@/lib/stacks-config';
 import { useWallet } from '@/contexts/WalletContext';
+import { signInErrorText } from '@/lib/sign-in-errors';
 
 /**
  * SIWE-style wallet authentication.
@@ -234,7 +235,7 @@ export function WalletAuthProvider({ children }: { children: React.ReactNode }) 
 
       if (!res.ok || !('access_token' in body)) {
         const errorCode = 'error' in body ? body.error : `http_${res.status}`;
-        throw new Error(`Auth failed: ${errorCode}`);
+        throw new Error(signInErrorText(errorCode, address));
       }
 
       const newSession: AuthSession = {
