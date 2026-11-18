@@ -41,7 +41,7 @@ Every escrow follows a deterministic state machine enforced by the smart contrac
 | `1` | **Released** | Funds sent to seller (minus fee to platform). Terminal. |
 | `2` | **Refunded** | Full amount returned to buyer. Terminal. |
 | `3` | **Disputed** | Frozen. Awaiting admin resolution, buyer timeout-recovery, or seller self-rescue. |
-| `4` | **Delivered** *(v7+)* | Seller has signaled delivery on-chain. Starts a review window during which buyer cannot unilaterally refund without first raising a dispute. Resolves to Released on `release` or to Disputed on `dispute`. |
+| `4` | **Delivered** *(v7+)* | Seller has signaled delivery on-chain. Starts a review window (24 burn blocks, ~4 h on mainnet) during which buyer cannot unilaterally refund without first raising a dispute. Resolves to Released on `release` or to Disputed on `dispute`. |
 
 > ⚠️ **Warning:** **Released** and **Refunded** are terminal states. No further actions can be taken on a completed escrow.
 
@@ -58,7 +58,7 @@ The buyer (or v3+ beneficiary acting on the buyer's behalf) calls `release` to s
 - Works **even after the escrow has expired** — release always honored from the buyer side
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 release u1)
+(contract-call? .escrow-mainnet-v4 release u1)
 ```
 
 ### Pending → Delivered (v7+)
@@ -67,8 +67,10 @@ The buyer (or v3+ beneficiary acting on the buyer's behalf) calls `release` to s
 
 Seller signals delivery on-chain, flipping status to DELIVERED and starting a review window. During this window the buyer cannot unilaterally `refund` — they must raise a dispute first. Protects sellers from buyers who try to refund after receiving the work.
 
+On v4, delivery must be marked **before the deadline**: `deliver` after `expires-at` is rejected with `ERR_ESCROW_EXPIRED` (`u2003`).
+
 ```clarity
-(contract-call? .escrow-mainnet-v3 deliver u1)
+(contract-call? .escrow-mainnet-v4 deliver u1)
 ```
 
 ### Pending / Delivered → Refunded
@@ -82,21 +84,26 @@ Seller signals delivery on-chain, flipping status to DELIVERED and starting a re
 Full amount (principal + fee) returns to the buyer.
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 refund u1)
+(contract-call? .escrow-mainnet-v4 refund u1)
 ```
 
 ### Pending / Delivered → Disputed
 
-**Who:** Buyer, seller, or beneficiary (v3+)
+**Who:** Buyer, seller, or beneficiary (v3+), with v4 limits
 
-Any party can raise a dispute while the escrow is active. The dispute reason is recorded off-chain in Supabase.
+On v4:
+
+- **Buyer or beneficiary:** can dispute before the deadline, or after it if the escrow was delivered. An undelivered escrow past its deadline goes to the buyer's `refund` path instead (`ERR_ESCROW_EXPIRED`, `u2003`).
+- **Seller:** can dispute only after marking the escrow delivered (`ERR_NOT_DELIVERED`, `u2016`). A seller who hasn't delivered can always refund instead.
+
+On v3, any party could dispute while the escrow was active. The dispute reason is recorded off-chain in Supabase.
 
 - Sets status to `DISPUTED`
 - Records `disputed-at` burn block height (v3+) or stacks block height (legacy)
 - Freezes the escrow — no release / refund / deliver until resolved
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 dispute u1)
+(contract-call? .escrow-mainnet-v4 dispute u1)
 ```
 
 ### Disputed → Released (admin resolves for seller)
@@ -104,7 +111,7 @@ Any party can raise a dispute while the escrow is active. The dispute reason is 
 **Who:** Contract owner
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 resolve-dispute-for-seller u1)
+(contract-call? .escrow-mainnet-v4 resolve-dispute-for-seller u1)
 ```
 
 Releases full principal to seller + fee to platform.
@@ -114,7 +121,7 @@ Releases full principal to seller + fee to platform.
 **Who:** Contract owner
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 resolve-dispute-for-buyer u1)
+(contract-call? .escrow-mainnet-v4 resolve-dispute-for-buyer u1)
 ```
 
 Full refund (principal + fee) to the buyer.
@@ -125,7 +132,7 @@ Full refund (principal + fee) to the buyer.
 
 ```clarity
 ;; 70% to buyer, 30% to seller. buyer-bps is 0..10000.
-(contract-call? .escrow-mainnet-v3 resolve-dispute-split u1 u7000)
+(contract-call? .escrow-mainnet-v4 resolve-dispute-split u1 u7000)
 ```
 
 Fee is split pro-rata between sides. Final status is RELEASED (the escrow is considered settled regardless of payout direction).
@@ -134,10 +141,10 @@ Fee is split pro-rata between sides. Final status is RELEASED (the escrow is con
 
 **Who:** Buyer, after `dispute-timeout` burn blocks elapsed
 
-If admin doesn't resolve within the timeout window (~30 days on mainnet), the buyer can self-recover:
+If admin doesn't resolve within the timeout window (~30 days on mainnet), the buyer can self-recover. On v4, the timeout is the one in force when the escrow was created; later changes to the contract setting don't affect existing escrows.
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 resolve-expired-dispute u1)
+(contract-call? .escrow-mainnet-v4 resolve-expired-dispute u1)
 ```
 
 ### Disputed → Released (seller self-rescue, v3+)
@@ -147,7 +154,7 @@ If admin doesn't resolve within the timeout window (~30 days on mainnet), the bu
 If admin doesn't resolve a delivered-then-disputed escrow within 2× the timeout, the seller can claim the funds (proof on-chain that they delivered):
 
 ```clarity
-(contract-call? .escrow-mainnet-v3 resolve-expired-dispute-for-seller u1)
+(contract-call? .escrow-mainnet-v4 resolve-expired-dispute-for-seller u1)
 ```
 
 > ℹ️ The seller self-rescue path requires `deliver()` was called first. Without it, the seller has no on-chain proof and the buyer-recovery path applies.
@@ -157,10 +164,10 @@ If admin doesn't resolve a delivered-then-disputed escrow within 2× the timeout
 | Action | Who Can Call | When |
 | --- | --- | --- |
 | `create-escrow` | Anyone | Anytime (unless paused) |
-| `deliver` *(v7+)* | Seller | Pending |
+| `deliver` *(v7+)* | Seller | Pending; on v4, before the deadline |
 | `release` | Buyer or beneficiary *(v3+)* | Pending or Delivered (even if expired) |
 | `refund` | Seller (anytime) or buyer (after expiry, outside review window) | Pending / Delivered |
-| `dispute` | Buyer, seller, or beneficiary *(v3+)* | Pending or Delivered |
+| `dispute` | Buyer or beneficiary *(v3+)*; seller | v4: buyer before the deadline, or after it if Delivered; seller only once Delivered. v3: any party while Pending or Delivered |
 | `extend-escrow` | Buyer or beneficiary *(v3+)* | Pending, before expiry |
 | `resolve-dispute-for-buyer` | Owner | Disputed |
 | `resolve-dispute-for-seller` | Owner | Disputed |
@@ -200,11 +207,20 @@ On refund:
 
 ```clarity
 ;; Extend by 144 burn blocks (~24h on mainnet)
-(contract-call? .escrow-mainnet-v3 extend-escrow u1 u144)
+(contract-call? .escrow-mainnet-v4 extend-escrow u1 u144)
 ```
 
-The new `expires-at` = current `expires-at` + additional blocks. Extensions cannot exceed `MAX_DURATION` total from original creation.
+The new `expires-at` = current `expires-at` + additional blocks. The new deadline can't be more than `MAX_DURATION` (52,560 burn blocks, ~365 days) past the current block.
+
+### Pauses and deadlines (v4)
+
+If the admin pauses the contract, v4 adjusts any deadline (expiry or review window) that falls inside the pause or within 24 blocks after it ends:
+
+- **Inside the pause:** pushed out by the pause's length.
+- **Either way:** it lands at least 24 blocks after the pause ends.
+
+Every party gets the same extra time, and `extend-escrow` builds on the adjusted deadline. `get-effective-deadlines` returns the adjusted values.
 
 ### Burn vs Stacks block timing
 
-v3+ contracts anchor `created-at` / `expires-at` / `disputed-at` to **burn-block-height** (Bitcoin chain). Bitcoin's ~10 min/block cadence is stable via difficulty retarget every 2016 blocks. Legacy contracts anchored to `stacks-block-height`, which post-Nakamoto varies from 5s to 2min per block depending on signer behavior. A "30-day" v3 escrow expires reliably in 30 calendar days; a "30-day" legacy escrow could resolve anywhere from 10 to 60 days depending on the Stacks block rate during that window.
+v3+ contracts anchor `created-at` / `expires-at` / `disputed-at` to **burn-block-height** (Bitcoin chain). Bitcoin's ~10 min/block cadence is stable via difficulty retarget every 2016 blocks. Legacy contracts anchored to `stacks-block-height`, which post-Nakamoto varies from 5s to 2min per block depending on signer behavior. A "30-day" burn-block escrow ends close to 30 calendar days, because Bitcoin's block-time variance averages out over long periods; short durations (an hour or two) can still run noticeably shorter or longer. A "30-day" legacy escrow could resolve anywhere from 10 to 60 days depending on the Stacks block rate during that window.

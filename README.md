@@ -6,7 +6,7 @@ when something goes wrong — without trusting an intermediary with your money.
 
 [![npm version](https://img.shields.io/npm/v/sbtc-escrow-sdk.svg)](https://www.npmjs.com/package/sbtc-escrow-sdk)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](sbtc-escrow-sdk/LICENSE)
-[![Stacks](https://img.shields.io/badge/Stacks-mainnet-orange.svg)](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3?chain=mainnet)
+[![Stacks](https://img.shields.io/badge/Stacks-mainnet-orange.svg)](https://explorer.hiro.so/txid/SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4?chain=mainnet)
 
 ---
 
@@ -23,18 +23,18 @@ businesses that want a non-custodial alternative to platforms like Escrow.com.
 
 | Network     | Contract | App |
 | ----------- | -------- | --- |
-| **Mainnet** | [`SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3`](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3?chain=mainnet) | [sbtcescrow.com](https://sbtcescrow.com) |
-| **Testnet** | [`ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8`](https://explorer.hiro.so/txid/ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8?chain=testnet) | [testnet.sbtcescrow.com](https://testnet.sbtcescrow.com) |
+| **Mainnet** | [`SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4`](https://explorer.hiro.so/txid/SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4?chain=mainnet) | [sbtcescrow.com](https://sbtcescrow.com) |
+| **Testnet** | [`ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9`](https://explorer.hiro.so/txid/ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9?chain=testnet) | [testnet.sbtcescrow.com](https://testnet.sbtcescrow.com) |
 
-Earlier contract versions stay deployed so existing escrows on them can still settle; new escrows use the contracts above.
+Earlier mainnet contract versions (escrow-mainnet-v3, escrow-mainnet-v2) stay deployed so existing escrows on them can still settle; new escrows use the contracts above.
 
 ## Repository layout
 
 ```text
 .
 ├── sbtc-escrow/              Smart contract + frontend monorepo
-│   ├── contracts/            Clarity source: escrow-mainnet-v3.clar (mainnet), escrow-v8.clar (testnet), plus earlier versions
-│   ├── tests/                Vitest contract test suite (~75 tests)
+│   ├── contracts/            Clarity source: escrow-mainnet-v4.clar (mainnet), escrow-v9.clar (testnet, same source), plus earlier versions
+│   ├── tests/                Vitest contract test suites, one per contract version
 │   ├── deployments/          Clarinet deployment plans (simnet, testnet, mainnet)
 │   ├── settings/             Per-network config
 │   ├── frontend/             React + Vite app (the dApp itself)

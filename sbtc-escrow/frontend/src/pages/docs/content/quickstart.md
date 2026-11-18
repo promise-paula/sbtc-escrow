@@ -55,7 +55,7 @@ import { EscrowClient, TokenType } from 'sbtc-escrow-sdk';
 
 const client = new EscrowClient({ network: 'testnet' });
 
-// On v3+ contracts (`escrow-v8` testnet, `escrow-mainnet-v3` mainnet),
+// On v3+ contracts (`escrow-v9` testnet, `escrow-mainnet-v4` mainnet),
 // `durationBlocks` is measured in BURN blocks (~4 min/block testnet,
 // ~10 min/block mainnet). On legacy v6/v7 it's Stacks blocks.
 //   testnet 1 day  = 360 burn blocks
