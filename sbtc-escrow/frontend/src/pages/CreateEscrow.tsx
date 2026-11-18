@@ -657,6 +657,15 @@ export default function CreateEscrow() {
                     {' '}(~{blocksToTime(effMaxDuration, effMinutesPerBlock)}
                     {isBurnBlockContract ? ` at ~${effMinutesPerBlock} min per Bitcoin block` : ` at current ~${minutesPerBlock.toFixed(2)} min/block`}).
                   </p>
+                  {/* Presets are converted to blocks at the average rate, but
+                      Bitcoin blocks arrive irregularly, so short deadlines in
+                      particular can land well before or after the label. */}
+                  {isBurnBlockContract && (
+                    <p className="text-[11px] text-muted-foreground">
+                      The deadline counts Bitcoin blocks, not minutes. Blocks average ~{effMinutesPerBlock} min but vary,
+                      so the real time can run shorter or longer, especially for short durations.
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Input
                       type="number"
