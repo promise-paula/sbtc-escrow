@@ -2,9 +2,11 @@
  * sBTC Escrow SDK — public types.
  *
  * Mirrors the on-chain shape of:
- * - escrow-v8 (testnet, current default — v3-equivalent: burn-block timing,
- *   beneficiary delegation, seller self-rescue, time-bounded pause, sweep-orphans)
- * - escrow-mainnet-v3 (mainnet, current default — same v3 feature set)
+ * - escrow-mainnet-v4 (mainnet, current default) / escrow-v9 (testnet, current
+ *   default, same source): v3 plus expiry-bound deliver/dispute, seller disputes
+ *   only after delivery, pause-adjusted deadlines, per-escrow dispute timeout
+ * - escrow-mainnet-v3 (legacy v3: burn-block timing, beneficiary delegation,
+ *   seller self-rescue, time-bounded pause, sweep-orphans)
  * - escrow-v7 / escrow-mainnet-v2 (legacy v7+: DELIVERED status, review window,
  *   partial dispute splits)
  * - escrow-v6 / escrow-mainnet (legacy pre-v7, still readable)
@@ -136,7 +138,7 @@ export interface CreateEscrowOptions {
 export interface EscrowClientConfig {
   /** Contract address (default: testnet deployment) */
   contractAddress?: string;
-  /** Contract name (default: escrow-v7 on testnet, escrow-mainnet-v2 on mainnet) */
+  /** Contract name (default: escrow-v9 on testnet, escrow-mainnet-v4 on mainnet). Known names resolve to their deployer address. */
   contractName?: string;
   /** sBTC SIP-010 contract principal (default: per-network) */
   sbtcContract?: string;

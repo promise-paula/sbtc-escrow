@@ -4,8 +4,8 @@
  * TypeScript SDK for the sBTC Escrow smart contracts on Stacks. Supports
  * STX (native) and sBTC (SIP-010) escrows across multiple contract versions:
  *
- *   • Mainnet: `escrow-mainnet-v3` (active), `escrow-mainnet-v2` (legacy)
- *   • Testnet: `escrow-v8` (active, v3-equivalent), `escrow-v7` (legacy)
+ *   • Mainnet: `escrow-mainnet-v4` (active), `escrow-mainnet-v3` / `escrow-mainnet-v2` (legacy)
+ *   • Testnet: `escrow-v9` (active, same source as v4)
  *
  * v3+ contracts add burn-block-anchored expiry, beneficiary delegation,
  * seller self-rescue, time-bounded admin pause, sweep-orphans, and
@@ -18,7 +18,7 @@
  */
 
 // Main client
-export { EscrowClient, supportsV3Features } from './client';
+export { EscrowClient, supportsV3Features, supportsV4Rules } from './client';
 
 // Types
 export {

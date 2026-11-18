@@ -6,8 +6,13 @@ contract version history.
 
 | Network | Active contract | Legacy (read/act on existing escrows) |
 | --- | --- | --- |
-| Mainnet | `escrow-mainnet-v3` | `escrow-mainnet-v2` |
-| Testnet | `escrow-v8` (v3-equivalent) | `escrow-v7` |
+| Mainnet | `escrow-mainnet-v4` | `escrow-mainnet-v3`, `escrow-mainnet-v2` |
+| Testnet | `escrow-v9` (same source as v4) | none (testnet was reset in 2026) |
+
+**v4 rules** (`supportsV4Rules(contractId)`): the seller must mark delivery before the deadline;
+a seller can dispute only after marking delivery; after the deadline only a delivered escrow can
+be disputed; a deadline inside an admin pause is moved past it (read it with
+`getEffectiveDeadlines(escrowId)`); each escrow keeps the dispute timeout it was created with.
 
 **v3 features**: burn-block-anchored expiry (Bitcoin-block timing, stable
 ~10 min/block), beneficiary delegation (third-party with buyer-equivalent
@@ -134,8 +139,8 @@ await client.resolveExpiredDispute(1, { senderKey });
 
 #### v7+ Operations
 
-These methods are available on `escrow-v7` and later contracts (`escrow-v8`,
-`escrow-mainnet-v2`, `escrow-mainnet-v3`). Older contracts (`escrow-v6`,
+These methods are available on `escrow-v7` and later contracts (`escrow-mainnet-v2`,
+`escrow-mainnet-v3`, `escrow-mainnet-v4`, `escrow-v9`). Older contracts (`escrow-v6`,
 `escrow-mainnet`) don't expose them. Gate with `supportsV3Features(contractId)`
 or its v7+ equivalent if you target multiple contract versions.
 
@@ -161,8 +166,8 @@ await adminClient.resolveDisputeSplit(1, 7000, { senderKey: adminKey });
 
 #### v3+ Operations
 
-These methods are only available on `escrow-mainnet-v3` (mainnet) and
-`escrow-v8` (testnet). Gate with `supportsV3Features(contractId)`:
+These methods are only available on v3+ contracts (`escrow-mainnet-v3`,
+`escrow-mainnet-v4`, `escrow-v9`). Gate with `supportsV3Features(contractId)`:
 
 ```typescript
 import { supportsV3Features } from 'sbtc-escrow-sdk';
@@ -219,9 +224,10 @@ await client.setDisputeTimeout(28800, { senderKey: adminKey });
 
 // Pause / unpause contract
 //   v6 / escrow-mainnet: pauseContract takes no args (indefinite pause).
-//   v3+ (escrow-mainnet-v3, escrow-v8): pauseContract requires `durationBlocks` —
+//   v3+ (escrow-mainnet-v3/v4, escrow-v9): pauseContract requires `durationBlocks` —
 //   the contract auto-unpauses after that many burn blocks AND blocks any
-//   re-pause attempt until 2× the duration has elapsed (anti-chaining cooldown).
+//   re-pause attempt for a cooldown: 2× the duration on v3, 3× the duration
+//   plus 48 blocks on v4. On v4, deadlines inside the pause are moved past it.
 await client.pauseContract({ senderKey: adminKey }, 144);  // 144 = ~24h mainnet
 await client.unpauseContract({ senderKey: adminKey });
 
@@ -236,9 +242,9 @@ await client.acceptOwnership({ senderKey: newOwnerKey });
 ```typescript
 const client = new EscrowClient({
   network: 'testnet',                   // or 'mainnet'
-  contractAddress: 'ST1HK6...',         // optional, uses default
-  contractName: 'escrow-v8',            // optional; defaults: 'escrow-v8' (testnet), 'escrow-mainnet-v3' (mainnet)
-  sbtcContract: 'ST1F7Q...sbtc-token',  // optional, per-network default
+  contractAddress: 'ST3B5F...',         // optional; known contract names fill this in
+  contractName: 'escrow-v9',            // optional; defaults: 'escrow-v9' (testnet), 'escrow-mainnet-v4' (mainnet)
+  sbtcContract: 'SN3VMH...sbtc-token',  // optional, per-network default
   apiUrl: 'https://api.testnet.hiro.so', // optional
 });
 ```
@@ -337,8 +343,8 @@ interface UserStats {
 
 | Network | Active | Legacy (read-only) |
 | --- | --- | --- |
-| Mainnet | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3` | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2` |
-| Testnet | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8` | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7` |
+| Mainnet | `SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4` | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3`, `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2` |
+| Testnet | `ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9` | none (testnet was reset in 2026) |
 
 Legacy contracts remain readable and actionable (release / refund / dispute /
 resolve) for existing escrows — the SDK auto-dispatches by `contractId`. New
