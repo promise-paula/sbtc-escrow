@@ -28,7 +28,7 @@ If the actual transfer differs from the post-condition, the entire transaction i
 | Role | Permissions |
 | --- | --- |
 | **Buyer** | Create, release, dispute, extend, resolve-expired-dispute |
-| **Seller** | Refund, dispute, deliver *(v7+)*, resolve-expired-dispute-for-seller *(v3+)* |
+| **Seller** | Refund, deliver *(v7+; on v4 before the deadline)*, dispute *(on v4 only after marking delivery)*, resolve-expired-dispute-for-seller *(v3+)* |
 | **Beneficiary** *(v3+)* | Release, dispute, extend (same rights as buyer) |
 | **Owner** | Resolve disputes, partial split *(v7+)*, pause/unpause, sweep-orphans *(v3+)*, set fees, transfer ownership |
 | **Anyone** | Read-only queries |
@@ -39,9 +39,10 @@ The contract owner can pause normal contract operations in case of emergency:
 
 ```clarity
 ;; v3+: pause-contract requires a duration (in burn blocks). Contract
-;; auto-unpauses after that window AND blocks re-pause for an equal
-;; cooldown (anti-chaining safeguard found in v3 audit).
-(contract-call? .escrow-mainnet-v3 pause-contract u144)  ;; ~24h mainnet
+;; auto-unpauses after that window AND blocks re-pause for a cooldown
+;; (anti-chaining safeguard): 2x the pause on v3; 3x the pause plus
+;; 48 blocks on v4.
+(contract-call? .escrow-mainnet-v4 pause-contract u144)  ;; ~24h mainnet
 
 ;; Legacy v6 / escrow-mainnet: no-arg, indefinite pause.
 (contract-call? .escrow-v6 set-paused true)
@@ -49,7 +50,9 @@ The contract owner can pause normal contract operations in case of emergency:
 
 > ⚠️ **Important blast radius on v3+**: pause blocks `create-escrow`, `deliver`, `release`, `refund`, `dispute`, and `extend-escrow` at the contract level. Admin dispute resolutions and seller self-rescue (for previously-delivered escrows past timeout) still work — these are the escape hatches that ensure funds are never permanently locked.
 >
-> ℹ️ Manual unpause lifts the pause early but does NOT reset the cooldown. Re-pause is rejected until `2 × duration` blocks have elapsed since the original pause.
+> ℹ️ Manual unpause lifts the pause early but does NOT reset the cooldown. Re-pause is rejected until the cooldown has elapsed since the original pause: `2 × duration` blocks on v3, `3 × duration + 48` blocks on v4.
+>
+> ℹ️ **v4:** deadlines that fall inside a pause, or within 24 blocks after it, are moved past it (see Escrow Lifecycle → Pauses and deadlines), so a pause can't make anyone miss a deadline.
 
 ### Two-Step Ownership Transfer
 
@@ -111,7 +114,7 @@ The Chainhook webhook validates:
 
 1. **Single admin** — Only one contract owner can resolve disputes. No multisig support in the contract itself (use a multisig wallet instead).
 2. **No mid-flight milestones** — An escrow is a single locked amount. Use multiple escrows for milestone-based payments. v7+ `resolve-dispute-split` allows partial payouts *only via admin arbitration* on disputed escrows — not as a normal release path.
-3. **Stacks-block timing on legacy contracts** — `escrow-v6` and `escrow-mainnet` use `stacks-block-height` for deadlines. Post-Nakamoto Stacks block time varies (5s to 2min), so "30-day" legacy escrows can resolve anywhere from ~10 to ~60 calendar days. v3+ contracts (`escrow-mainnet-v3`, `escrow-v8`) fix this by anchoring to burn-block-height (~10 min/block mainnet, stable via Bitcoin difficulty retarget).
+3. **Stacks-block timing on legacy contracts** — `escrow-v6` and `escrow-mainnet` use `stacks-block-height` for deadlines. Post-Nakamoto Stacks block time varies (5s to 2min), so "30-day" legacy escrows can resolve anywhere from ~10 to ~60 calendar days. v3+ contracts (`escrow-mainnet-v3`, `escrow-mainnet-v4`, `escrow-v9`) fix this by anchoring to burn-block-height (~10 min/block on mainnet on average, kept there by Bitcoin's difficulty retarget). Individual blocks still vary, so short deadlines can run shorter or longer than their label.
 4. **No on-chain metadata** — Escrow descriptions are stored on-chain but limited to 256 UTF-8 characters. Dispute reasons live off-chain in Supabase.
 5. **sBTC dependency** — sBTC escrows depend on the sBTC token contract being deployed and functional on the network.
 6. **Indexer is a dependency for UX, not for funds** — The Supabase indexer makes the frontend fast and provides notifications, but it's purely derived state. If the indexer goes offline, the contract still holds funds correctly; only the dashboard / notifications degrade. All on-chain actions remain functional via the wallet directly or the SDK.
@@ -128,3 +131,16 @@ Four self-audit passes on the v3 contract before mainnet deploy:
 Full audit notes: see `docs/security/README.md` in the source repo.
 
 Invariant test suite: 50+ assertions in `tests/escrow-mainnet-v3-invariants.test.ts`, covering all six v3 features end-to-end on simnet with deterministic block-jump scenarios.
+
+## v4 changes and tests
+
+`escrow-mainnet-v4` (mainnet) and `escrow-v9` (testnet) run the same source. v4 closes an expiry issue reported against v3: `deliver` and `dispute` had no deadline check, so a seller who never delivered could block the buyer's refund. It also includes fixes from three further review rounds on the v4 draft:
+
+- **Deadline rules:** delivery must be marked before the deadline, and a seller can dispute only after marking delivery.
+- **Pauses:** pause-adjusted deadlines.
+- **Dispute timeout:** a per-escrow snapshot.
+- **Fee recipient and seller:** the contract itself can't be either.
+
+The contract header documents each change.
+
+Tests: 81 invariant tests in `tests/escrow-mainnet-v4-invariants.test.ts` and 37 regression tests in `tests/security-review-v4.test.ts`.

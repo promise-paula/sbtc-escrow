@@ -1,9 +1,10 @@
 # Error Codes
 
-Reference for all error codes returned by the active `escrow-mainnet-v3`
-(mainnet) and `escrow-v8` (testnet) contracts. Older contract versions
-(v6/v7, escrow-mainnet, escrow-mainnet-v2) use a similar scheme; the
-frontend's error mapping handles both.
+Reference for all error codes returned by the active `escrow-mainnet-v4`
+(mainnet) and `escrow-v9` (testnet) contracts. v4 uses the same codes as
+`escrow-mainnet-v3`, with the extra cases noted below. Older contract
+versions (v6/v7, escrow-mainnet, escrow-mainnet-v2) use a similar scheme;
+the frontend's error mapping handles all of them.
 
 ## Authorization (1xxx)
 
@@ -20,7 +21,7 @@ frontend's error mapping handles both.
 | --- | --- | --- |
 | `u2001` | `ERR_ESCROW_NOT_FOUND` | No escrow exists with the given ID. |
 | `u2002` | `ERR_ESCROW_ALREADY_COMPLETED` | Escrow has already been released, refunded, or otherwise finalised. Most commonly a race: the counterparty acted first. |
-| `u2003` | `ERR_ESCROW_EXPIRED` | The deadline has passed. Buyer can refund instead of releasing. |
+| `u2003` | `ERR_ESCROW_EXPIRED` | The deadline has passed. Buyer can refund instead of releasing. On v4 it is also returned when the seller marks delivery after the deadline, and when anyone disputes an undelivered escrow after the deadline. |
 | `u2004` | `ERR_ESCROW_NOT_EXPIRED` | The deadline has not yet been reached. Refund / seller self-rescue paths reject until expiry. |
 | `u2005` | `ERR_INVALID_AMOUNT` | Amount outside the allowed bounds for the token type (see Protocol Numbers in the introduction). |
 | `u2006` | `ERR_INVALID_DURATION` | Duration outside `MIN_DURATION..MAX_DURATION` (1 burn block to ~365 days on v3+). |
@@ -33,7 +34,7 @@ frontend's error mapping handles both.
 | `u2013` | `ERR_INVALID_BPS` | Basis-point value out of range (0..10000 for split resolutions, 0..MAX_FEE_BPS for fee setting). |
 | `u2014` | `ERR_IN_REVIEW_PERIOD` | Buyer attempted to refund during the post-delivery review window. Must wait for the window to lapse or raise a dispute. |
 | `u2015` | `ERR_INVALID_STATUS` | Action incompatible with current escrow status (e.g. trying to deliver a Released escrow). |
-| `u2016` | `ERR_NOT_DELIVERED` | Seller tried to self-rescue without first signaling delivery on-chain. |
+| `u2016` | `ERR_NOT_DELIVERED` | Seller tried to self-rescue without first signaling delivery on-chain. On v4 it is also returned when the seller disputes before marking delivery. |
 | `u2017` | `ERR_SELF_BENEFICIARY` | Beneficiary address equals buyer or seller — must be a distinct third party. |
 
 ## Transfer (3xxx)
@@ -45,13 +46,13 @@ frontend's error mapping handles both.
 
 ## v3+ Specific (4xxx)
 
-These codes only fire on `escrow-mainnet-v3` and `escrow-v8`.
+These codes only fire on v3+ contracts (`escrow-mainnet-v3`, `escrow-mainnet-v4`, `escrow-v9`).
 
 | Code | Constant | Description |
 | --- | --- | --- |
 | `u4001` | `ERR_INVALID_PAUSE_DURATION` | Admin called `pause-contract(duration)` with `duration = 0` or `duration > MAX_PAUSE_DURATION`. |
 | `u4002` | `ERR_SWEEP_EXCEEDS_FREE_BALANCE` | Admin tried to `sweep-orphans` more than the un-locked balance. The contract enforces `amount ≤ balance − total_locked` so active escrows are never touched. |
-| `u4003` | `ERR_PAUSE_COOLDOWN_ACTIVE` | Admin tried to re-pause while the anti-chaining cooldown from a previous pause is still active. Cooldown ends `2 × duration` blocks after the original pause confirmed. |
+| `u4003` | `ERR_PAUSE_COOLDOWN_ACTIVE` | Admin tried to re-pause while the anti-chaining cooldown from a previous pause is still active. Cooldown ends `2 × duration` blocks after the original pause confirmed on v3, and `3 × duration + 48` blocks after it on v4. |
 
 ## Frontend handling
 

@@ -42,7 +42,7 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 
 **Burn-Block-Anchored Timing (v3+)** — All deadlines on v3+ contracts are anchored to Bitcoin block height, not Stacks block height. Bitcoin's ~10 min/block cadence is stable via difficulty retarget; Stacks block time post-Nakamoto varies (5s to 2min). A "30-day" v3 escrow expires in 30 days regardless of Stacks-side fluctuation.
 
-**Time-Bounded Admin Pause (v3+)** — Emergency pause requires a duration. The contract auto-unpauses after that window and blocks re-pause for an equal cooldown — closes an indefinite-pause griefing vector.
+**Time-Bounded Admin Pause (v3+)** — Emergency pause requires a duration. The contract auto-unpauses after that window and blocks re-pause for a cooldown (on v4: 3× the pause plus 48 blocks), which closes an indefinite-pause griefing vector. On v4, a deadline that falls inside a pause is pushed past it, so no party loses time to a pause.
 
 **Contract-Caller Authorization** — All functions validate `contract-caller == tx-sender`, preventing phishing attacks through malicious intermediary contracts.
 
@@ -58,7 +58,8 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 | sBTC Min/Max | 0.0001 BTC — 100 BTC |
 | Max Duration (v3+) | ~365 days (52,560 burn blocks) |
 | Max Duration (legacy v6/v7) | ~365 days (350,400 Stacks blocks) |
-| Dispute Timeout | ~30 days (28,800 burn blocks on v3+) |
+| Dispute Timeout | ~30 days (4,320 burn blocks on mainnet); on v4 each escrow keeps the timeout it was created with |
+| Review Window (after delivery) | ~4 hours (24 burn blocks) |
 | Block Time (v3+ timing anchor) | Bitcoin ~10 min/block mainnet, ~4 min/block testnet |
 | Block Time (Stacks side) | ~90 seconds post-Nakamoto (variable) |
 
@@ -66,8 +67,8 @@ sBTC Escrow is a complete escrow infrastructure for the Stacks ecosystem:
 
 | Network | Active Contract | Legacy (read-only) |
 | --- | --- | --- |
-| **Mainnet** | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3` | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2` |
-| **Testnet** | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8` | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7` |
+| **Mainnet** | `SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4` | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3`, `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2` |
+| **Testnet** | `ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9` | none (testnet was reset in 2026, removing earlier contracts) |
 
 Legacy contracts remain readable + actionable (release / refund / dispute / admin resolution) for existing escrows. New escrows target the active contract on each network.
 

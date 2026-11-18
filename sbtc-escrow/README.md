@@ -8,10 +8,10 @@ Live on mainnet: [sbtcescrow.com](https://sbtcescrow.com) · Source: this repo �
 
 | Network | Contract | Status |
 | --- | --- | --- |
-| Mainnet | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3` | Active (v3 features) |
+| Mainnet | `SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4` | Active (v4) |
+| Mainnet | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3` | Legacy (read/act on existing escrows) |
 | Mainnet | `SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v2` | Legacy (read/act on existing escrows) |
-| Testnet | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v8` | Active (v3-equivalent) |
-| Testnet | `ST1HK6H018TMMZ1BZPS1QMJZE9WPA7B93T8ZHV94N.escrow-v7` | Legacy |
+| Testnet | `ST3B5FYTCXN7CWSYT123YSEB7V2K2XE31JPMMRM9Y.escrow-v9` | Active (same source as v4) |
 
 v3 features over v2: burn-block-anchored expiry (Bitcoin-block timing, not Stacks-block), optional beneficiary delegation (third party with buyer-equivalent rights), seller self-rescue after 2× dispute timeout, time-bounded admin pause with anti-chaining cooldown, sweep-orphans for misdirected funds, per-escrow fee-recipient snapshot, partial dispute resolution (split payout).
 
@@ -62,7 +62,7 @@ npm run dev
 npm install                                   # root deps
 npm test                                      # runs Vitest invariant suite
 # Specific contract:
-npx vitest run tests/escrow-mainnet-v3-invariants.test.ts
+npx vitest run tests/escrow-mainnet-v4-invariants.test.ts tests/security-review-v4.test.ts
 ```
 
 ### Deploy a contract locally (simnet) for development
@@ -104,8 +104,8 @@ import { EscrowClient } from 'sbtc-escrow-sdk';
 
 const client = new EscrowClient({
   network: 'mainnet',
-  contractAddress: 'SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA',
-  contractName: 'escrow-mainnet-v3',
+  contractAddress: 'SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV',
+  contractName: 'escrow-mainnet-v4',
 });
 
 // Read
@@ -139,7 +139,7 @@ Webhook source: [`supabase/functions/chainhook-webhook/index.ts`](supabase/funct
 
 ```text
 Buyer wallet ──┐
-               ├── tx ──▶  Stacks chain ──▶  escrow-mainnet-v3.clar
+               ├── tx ──▶  Stacks chain ──▶  escrow-mainnet-v4.clar
 Seller wallet ─┘                                    │
                                                     │ emits contract_log events
                                                     ▼
@@ -163,9 +163,9 @@ The frontend reads from Postgres (fast, no node load) but writes to the chain di
 ## Security
 
 - Three-pass self-audit + v3 fourth pass: see [docs/security/README.md](docs/security/README.md)
-- 50+ invariant tests per contract version: [`tests/escrow-mainnet-v3-invariants.test.ts`](tests/escrow-mainnet-v3-invariants.test.ts)
+- Invariant tests per contract version; v4 has 81 in [`tests/escrow-mainnet-v4-invariants.test.ts`](tests/escrow-mainnet-v4-invariants.test.ts) plus 37 regression tests in [`tests/security-review-v4.test.ts`](tests/security-review-v4.test.ts)
 - Non-custodial: funds only move on signed buyer/seller/beneficiary action or admin dispute resolution
-- Time-bounded admin pause prevents indefinite-pause griefing (cooldown = 2× pause duration)
+- Time-bounded admin pause prevents indefinite-pause griefing (v4 cooldown = 3× pause duration + 48 blocks); on v4, deadlines inside a pause are moved past it
 - Locked-balance accounting prevents `sweep-orphans` from touching active escrows
 
 ## Contributing
@@ -183,7 +183,7 @@ See [docs/v3-deploy-playbook.md](docs/v3-deploy-playbook.md) for the deploy ops 
 
 - Live site: [sbtcescrow.com](https://sbtcescrow.com)
 - SDK on npm: `sbtc-escrow-sdk`
-- Mainnet contract: [Explorer](https://explorer.hiro.so/txid/SP1HK6H018TMMZ1BZPS1QMJZE9WPA7B93TA2BMTGA.escrow-mainnet-v3)
+- Mainnet contract: [Explorer](https://explorer.hiro.so/txid/SP3B5FYTCXN7CWSYT123YSEB7V2K2XE31JNB7X9NV.escrow-mainnet-v4?chain=mainnet)
 - Stacks docs: [docs.stacks.co](https://docs.stacks.co)
 - sBTC docs: [docs.stacks.co/concepts/sbtc](https://docs.stacks.co/concepts/sbtc)
 
